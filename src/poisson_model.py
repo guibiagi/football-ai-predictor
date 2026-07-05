@@ -14,7 +14,7 @@ Mathematical foundation:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -398,26 +398,32 @@ class PoissonModel:
         return float(rho)
 
     def expected_goals(
-        self, home_team: str, away_team: str, neutral: bool = True
+        self,
+        home_team: str,
+        away_team: str,
+        neutral: bool = True,
+        home_form: Optional[dict[str, float]] = None,
+        away_form: Optional[dict[str, float]] = None,
     ) -> tuple[float, float]:
         """Estimate expected goals for both teams.
 
         Formula:
-          lambda_home = global_home_avg × attack[home] × defense[away] × home_factor
-          lambda_away = global_away_avg × attack[away] × defense[home]
+          lambda_home = global_home_avg × attack[home] × defense[away] × home_factor × form_factor
+          lambda_away = global_away_avg × attack[away] × defense[home] × form_factor
 
         The home_factor is applied only when neutral=False.
+        form_factor adjusts based on recent goals scored/conceded (Brasileirão).
 
         Args:
             home_team: Name of the home team.
             away_team: Name of the away team.
             neutral: Whether the match is on neutral ground.
+            home_form: Optional dict with 'gf' (recent goals scored) and
+                       'ga' (recent goals conceded) for the home team.
+            away_form: Same for away team.
 
         Returns:
             (lambda_home, lambda_away) tuple.
-
-        Raises:
-            RuntimeError: if the model hasn't been fitted yet.
         """
         if not self._fitted:
             raise RuntimeError("Model not fitted. Call .fit(df) first.")
@@ -430,6 +436,28 @@ class PoissonModel:
         home_def = self._defense.get(home_team, 1.0)
         away_att = self._attack.get(away_team, 1.0)
         away_def = self._defense.get(away_team, 1.0)
+
+        # ── Form adjustment (Brasileirão) ──
+        # If a team is scoring 2.0 recently vs 1.5 historically → 1.33x boost
+        if home_form and home_form.get("gf", 0) > 0:
+            hist_gf_home = home_att * self._global_avg
+            form_boost_att = home_form["gf"] / hist_gf_home if hist_gf_home > 0 else 1.0
+            home_att *= max(0.5, min(form_boost_att, 2.0))  # Clamp 0.5x to 2.0x
+
+        if home_form and home_form.get("ga", 0) > 0:
+            hist_ga_home = home_def * self._global_avg
+            form_boost_def = home_form["ga"] / hist_ga_home if hist_ga_home > 0 else 1.0
+            home_def *= max(0.5, min(form_boost_def, 2.0))
+
+        if away_form and away_form.get("gf", 0) > 0:
+            hist_gf_away = away_att * self._global_avg
+            form_boost_att = away_form["gf"] / hist_gf_away if hist_gf_away > 0 else 1.0
+            away_att *= max(0.5, min(form_boost_att, 2.0))
+
+        if away_form and away_form.get("ga", 0) > 0:
+            hist_ga_away = away_def * self._global_avg
+            form_boost_def = away_form["ga"] / hist_ga_away if hist_ga_away > 0 else 1.0
+            away_def *= max(0.5, min(form_boost_def, 2.0))
 
         # Home advantage factor
         home_factor = 1.0 if neutral else self._home_advantage
@@ -531,7 +559,12 @@ class PoissonModel:
     # ── Prediction ─────────────────────────────────────────────────
 
     def predict_match(
-        self, home_team: str, away_team: str, neutral: bool = True
+        self,
+        home_team: str,
+        away_team: str,
+        neutral: bool = True,
+        home_form: Optional[dict[str, float]] = None,
+        away_form: Optional[dict[str, float]] = None,
     ) -> dict[str, Any]:
         """Full match prediction — the main function you'll call.
 
@@ -539,11 +572,16 @@ class PoissonModel:
             home_team: Home team name.
             away_team: Away team name.
             neutral: Whether the match is on neutral ground.
+            home_form: Optional dict with 'gf', 'ga' for recent form (Brasileirão).
+            away_form: Optional dict with 'gf', 'ga' for recent form (Brasileirão).
 
         Returns:
             Dictionary with all predictions and probabilities.
         """
-        lambda_home, lambda_away = self.expected_goals(home_team, away_team, neutral)
+        lambda_home, lambda_away = self.expected_goals(
+            home_team, away_team, neutral,
+            home_form=home_form, away_form=away_form,
+        )
 
         score_matrix = build_score_matrix(lambda_home, lambda_away, rho=self._rho)
         probs = extract_probabilities(score_matrix)
