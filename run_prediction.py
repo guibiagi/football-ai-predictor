@@ -83,7 +83,7 @@ def main():
         df = load_matches(data_path)
         print(f"   {len(df)} matches loaded.")
 
-        model = PoissonModel(min_games=3, decay_lambda=0.5)
+        model = PoissonModel(min_games=3, decay_lambda=0.5, regularization_k=10.0)
         model.fit(df)
 
         model.save(model_path)

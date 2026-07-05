@@ -11,7 +11,7 @@ df = load_matches("data/matches.csv")
 
 # Today's matches are NOT in the training data (NaN goals = filtered out by load_matches)
 # Train on everything with actual results
-model = PoissonModel(min_games=3)
+model = PoissonModel(min_games=3, decay_lambda=0.5, regularization_k=10.0)
 model.fit(df)
 
 print("TODAY'S MATCHES — TRUE OUT-OF-SAMPLE PREDICTION")

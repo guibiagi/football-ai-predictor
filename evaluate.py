@@ -48,8 +48,18 @@ def quick_eval():
     # ── Models to compare ──
     models = {
         "Naive baseline": None,  # Special case
-        "Poisson (no decay)": PoissonModel(decay_lambda=0.0, min_games=3),
-        "Poisson (λ=0.5)": PoissonModel(decay_lambda=0.5, min_games=3),
+        "Poisson (no reg, no decay)": PoissonModel(
+            decay_lambda=0.0, regularization_k=0.0, min_games=3
+        ),
+        "Poisson (k=10, λ=0)": PoissonModel(
+            decay_lambda=0.0, regularization_k=10.0, min_games=3
+        ),
+        "Poisson (k=30, λ=0)": PoissonModel(
+            decay_lambda=0.0, regularization_k=30.0, min_games=3
+        ),
+        "Poisson (k=10, λ=0.5)": PoissonModel(
+            decay_lambda=0.5, regularization_k=10.0, min_games=3
+        ),
     }
 
     results = []

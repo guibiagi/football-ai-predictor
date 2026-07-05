@@ -150,7 +150,12 @@ class PoissonModel:
     For teams with very few games, falls back to global averages.
     """
 
-    def __init__(self, min_games: int = 3, decay_lambda: float = 0.5):
+    def __init__(
+        self,
+        min_games: int = 3,
+        decay_lambda: float = 0.5,
+        regularization_k: float = 10.0,
+    ):
         """
         Args:
             min_games: Minimum games a team needs before using its own stats.
@@ -160,9 +165,15 @@ class PoissonModel:
                           0.5 = half-life ~1.4 years (balanced)
                           1.0 = half-life ~0.7 years (strong recency)
                           2.0 = half-life ~4 months (very short memory)
+            regularization_k: Bayesian shrinkage strength.
+                              Higher = more pull toward global average.
+                              0 = no regularization (raw averages)
+                              10 = moderate (recommended)
+                              50 = strong (conservative estimates)
         """
         self.min_games = min_games
         self.decay_lambda = decay_lambda
+        self.regularization_k = regularization_k
         self._global_home_avg: float = 0.0
         self._global_away_avg: float = 0.0
         self._global_avg: float = 0.0
@@ -242,8 +253,17 @@ class PoissonModel:
                 ga_away = float(away_against.get(team, 0.0))
                 ga_avg = (ga_home + ga_away) / 2
 
-                self._attack[team] = gf_avg / self._global_avg if self._global_avg > 0 else 1.0
-                self._defense[team] = ga_avg / self._global_avg if self._global_avg > 0 else 1.0
+                raw_attack = gf_avg / self._global_avg if self._global_avg > 0 else 1.0
+                raw_defense = ga_avg / self._global_avg if self._global_avg > 0 else 1.0
+
+                # Bayesian shrinkage toward 1.0 (global average)
+                # Formula: (raw × effective_games + prior × k) / (effective_games + k)
+                # k = regularization_k pseudo-games of "average" performance
+                k = self.regularization_k
+                eff = max(weighted_g, 1.0)  # Use weighted games as effective sample size
+
+                self._attack[team] = (raw_attack * eff + 1.0 * k) / (eff + k)
+                self._defense[team] = (raw_defense * eff + 1.0 * k) / (eff + k)
             else:
                 self._attack[team] = 1.0
                 self._defense[team] = 1.0
@@ -336,6 +356,7 @@ class PoissonModel:
         data = {
             "min_games": self.min_games,
             "decay_lambda": self.decay_lambda,
+            "regularization_k": self.regularization_k,
             "global_home_avg": self._global_home_avg,
             "global_away_avg": self._global_away_avg,
             "global_avg": self._global_avg,
@@ -375,6 +396,7 @@ class PoissonModel:
         model = cls(
             min_games=data["min_games"],
             decay_lambda=data["decay_lambda"],
+            regularization_k=data.get("regularization_k", 0.0),
         )
         model._global_home_avg = data["global_home_avg"]
         model._global_away_avg = data["global_away_avg"]
