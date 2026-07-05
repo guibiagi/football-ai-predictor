@@ -47,6 +47,30 @@ def test_home_advantage():
     assert probs["home_win_probability"] > probs["away_win_probability"]
 
 
+def test_dixon_coles_increases_draws():
+    """Dixon-Coles with rho>0 should increase 0-0 and 1-1 probability."""
+    m_ind = build_score_matrix(1.0, 1.0, rho=0.0)
+    m_dc = build_score_matrix(1.0, 1.0, rho=0.1)
+    # 0-0 should be MORE likely with DC
+    assert m_dc[0, 0] > m_ind[0, 0], f"DC 0-0: {m_dc[0,0]:.4f} vs ind: {m_ind[0,0]:.4f}"
+    # 1-1 should be MORE likely with DC
+    assert m_dc[1, 1] > m_ind[1, 1], f"DC 1-1: {m_dc[1,1]:.4f} vs ind: {m_ind[1,1]:.4f}"
+
+
+def test_dixon_coles_decreases_unbalanced():
+    """Dixon-Coles should decrease 1-0 probability (fewer narrow wins)."""
+    m_ind = build_score_matrix(1.0, 1.0, rho=0.0)
+    m_dc = build_score_matrix(1.0, 1.0, rho=0.1)
+    assert m_dc[1, 0] < m_ind[1, 0]
+
+
+def test_dixon_coles_matrix_sums_to_one():
+    """Even with rho adjustment, matrix must sum to ~1."""
+    for rho in [0.0, 0.05, 0.10, 0.15]:
+        matrix = build_score_matrix(1.5, 1.2, rho=rho)
+        assert abs(matrix.sum() - 1.0) < 0.001, f"Sum={matrix.sum():.4f} for rho={rho}"
+
+
 def test_most_likely_scores():
     matrix = build_score_matrix(1.5, 1.2)
     scores = most_likely_scores(matrix, top_n=3)

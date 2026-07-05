@@ -44,22 +44,66 @@ def poisson_prob(lambda_: float, max_goals: int = MAX_GOALS) -> np.ndarray:
     return probs / probs.sum()  # Normalize so it sums to exactly 1
 
 
-def build_score_matrix(lambda_home: float, lambda_away: float) -> np.ndarray:
+def build_score_matrix(
+    lambda_home: float,
+    lambda_away: float,
+    rho: float = 0.0,
+) -> np.ndarray:
     """Build a (MAX_GOALS+1) × (MAX_GOALS+1) matrix of score probabilities.
 
-    Entry [i, j] is P(home_score=i, away_score=j), assuming independence.
+    Entry [i, j] is P(home_score=i, away_score=j).
+
+    With rho=0.0: standard Poisson (independence assumption).
+    With rho>0.0: Dixon-Coles adjustment — low scores (0-0, 1-0, 0-1, 1-1)
+                   are correlated, happening more/less often than independence predicts.
+
+    Dixon & Coles (1997) showed that 0-0 and 1-1 happen MORE often,
+    while 1-0 and 0-1 happen LESS often than Poisson predicts.
 
     Args:
         lambda_home: Expected goals for the home team.
         lambda_away: Expected goals for the away team.
+        rho: Dixon-Coles dependence parameter. 0 = independence.
+             Typical values: 0.0 to 0.1. Negative means anti-correlation.
 
     Returns:
         2D numpy array of shape (MAX_GOALS+1, MAX_GOALS+1).
     """
     home_probs = poisson_prob(lambda_home)
     away_probs = poisson_prob(lambda_away)
-    # Outer product: P(home=i) * P(away=j) for all i, j
-    return np.outer(home_probs, away_probs)
+    matrix = np.outer(home_probs, away_probs)
+
+    if rho == 0.0 or lambda_home == 0 or lambda_away == 0:
+        return matrix
+
+    # ── Dixon-Coles adjustment for low scores ──
+    # τ(i,j) modifies P(i,j) for i,j ≤ 1
+    # τ(0,0) = 1 + λ·μ·ρ      — more 0-0 draws
+    # τ(1,0) = 1 − λ·ρ        — fewer 1-0 wins
+    # τ(0,1) = 1 − μ·ρ        — fewer 0-1 wins
+    # τ(1,1) = 1 + ρ          — more 1-1 draws
+    # τ(i,j) = 1              — unchanged for i>1 or j>1
+
+    lm = lambda_home
+    mu = lambda_away
+
+    # Apply tau corrections
+    tau_00 = 1.0 + lm * mu * rho
+    tau_10 = 1.0 - lm * rho
+    tau_01 = 1.0 - mu * rho
+    tau_11 = 1.0 + rho
+
+    matrix[0, 0] *= tau_00
+    matrix[1, 0] *= tau_10
+    matrix[0, 1] *= tau_01
+    matrix[1, 1] *= tau_11
+
+    # Re-normalize so the whole matrix sums to 1
+    total = matrix.sum()
+    if total > 0:
+        matrix /= total
+
+    return matrix
 
 
 # ── Match outcome extraction ───────────────────────────────────────
@@ -182,6 +226,7 @@ class PoissonModel:
         self._defense: dict[str, float] = {}
         self._team_games: dict[str, int] = {}
         self._team_weighted_games: dict[str, float] = {}
+        self._rho: float = 0.0
         self._fitted = False
 
     def fit(self, df: pd.DataFrame) -> PoissonModel:
@@ -285,7 +330,72 @@ class PoissonModel:
             self.min_games,
             [t for t, g in self._team_games.items() if g < self.min_games],
         )
+
+        # ── Estimate Dixon-Coles rho ──
+        self._rho = self._estimate_rho(df)
+        logger.info("Dixon-Coles ρ = %.4f", self._rho)
+
         return self
+
+    def _estimate_rho(self, df: pd.DataFrame) -> float:
+        """Estimate the Dixon-Coles dependence parameter from training data.
+
+        Compares observed low-score frequencies to what independence predicts.
+        Uses method-of-moments: average the discrepancy across (0,0), (1,1).
+
+        Returns:
+            Rho value (typically 0.0 to 0.15). Higher = stronger low-score dependence.
+        """
+        n = len(df)
+        if n == 0:
+            return 0.0
+
+        # Count observed low scores
+        obs_00 = ((df["home_goals"] == 0) & (df["away_goals"] == 0)).sum() / n
+        obs_11 = ((df["home_goals"] == 1) & (df["away_goals"] == 1)).sum() / n
+
+        # Compute expected under independence for each match
+        exp_00_total = 0.0
+        exp_11_total = 0.0
+
+        for _, row in df.iterrows():
+            lm, mu = self.expected_goals(
+                row["home_team"], row["away_team"], neutral=bool(row["neutral"])
+            )
+            p_home = poisson_prob(lm)
+            p_away = poisson_prob(mu)
+            exp_00_total += p_home[0] * p_away[0]
+            exp_11_total += p_home[1] * p_away[1]
+
+        exp_00 = exp_00_total / n
+        exp_11 = exp_11_total / n
+
+        # Rho from the (1,1) discrepancy: obs_11 ≈ exp_11 × (1 + ρ)
+        if exp_11 > 0 and obs_11 > 0:
+            rho_11 = (obs_11 / exp_11) - 1.0
+        else:
+            rho_11 = 0.0
+
+        # Rho from the (0,0) discrepancy: obs_00 ≈ exp_00 × (1 + λμρ)
+        # Average λμ across all matches
+        avg_lm_mu = 0.0
+        for _, row in df.iterrows():
+            lm, mu = self.expected_goals(
+                row["home_team"], row["away_team"], neutral=bool(row["neutral"])
+            )
+            avg_lm_mu += lm * mu
+        avg_lm_mu /= n
+
+        if exp_00 > 0 and obs_00 > 0 and avg_lm_mu > 0:
+            rho_00 = (obs_00 / exp_00 - 1.0) / avg_lm_mu
+        else:
+            rho_00 = 0.0
+
+        # Average the two estimates, clamp to reasonable range
+        rho = (rho_00 + rho_11) / 2.0
+        rho = max(-0.05, min(rho, 0.30))
+
+        return float(rho)
 
     def expected_goals(
         self, home_team: str, away_team: str, neutral: bool = True
@@ -365,6 +475,7 @@ class PoissonModel:
             "defense": self._defense,
             "team_games": self._team_games,
             "team_weighted_games": self._team_weighted_games,
+            "rho": self._rho,
             "fitted": True,
         }
 
@@ -406,6 +517,7 @@ class PoissonModel:
         model._defense = data["defense"]
         model._team_games = data["team_games"]
         model._team_weighted_games = data["team_weighted_games"]
+        model._rho = data.get("rho", 0.0)
         model._fitted = data["fitted"]
 
         logger.info(
@@ -433,7 +545,7 @@ class PoissonModel:
         """
         lambda_home, lambda_away = self.expected_goals(home_team, away_team, neutral)
 
-        score_matrix = build_score_matrix(lambda_home, lambda_away)
+        score_matrix = build_score_matrix(lambda_home, lambda_away, rho=self._rho)
         probs = extract_probabilities(score_matrix)
         scores = most_likely_scores(score_matrix, top_n=5)
 
