@@ -17,7 +17,7 @@ from src.data_loader import (
 def test_load_matches():
     """Load the actual dataset and verify structure."""
     df = load_matches("data/matches.csv")
-    assert len(df) == 64
+    assert len(df) > 1000  # Should have plenty of matches
     assert list(df.columns) == REQUIRED_COLUMNS
     assert df["home_goals"].min() >= 0
     assert df["away_goals"].min() >= 0
@@ -31,13 +31,13 @@ def test_get_team_names():
     teams = get_team_names(df)
     assert "Brazil" in teams
     assert "France" in teams
-    assert len(teams) == 32  # 32 teams in World Cup
+    assert len(teams) > 50  # Many international teams
 
 
 def test_get_team_stats():
     df = load_matches("data/matches.csv")
     stats = get_team_stats(df)
-    assert len(stats) == 32
+    assert len(stats) > 50
     assert "avg_goals_for" in stats.columns
     assert "avg_goals_against" in stats.columns
     # Average should be reasonable (between 0 and ~4)

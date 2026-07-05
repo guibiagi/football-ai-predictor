@@ -55,7 +55,14 @@ football-ai-predictor/
     └── test_poisson_model.py
 ```
 
-## 📊 Data format (matches.csv)
+## 📊 Data
+
+The project uses the **International Football Results** dataset by [Mart Jürisoo](https://github.com/martj42/international_results), containing **25,433 matches from 2000 to 2026** across 127 competitions and 314 national teams.
+
+- Source: [github.com/martj42/international_results](https://github.com/martj42/international_results)
+- Format: CSV (1.7 MB), ready to use — no Kaggle login required
+- Includes: FIFA World Cup, continental championships, qualifiers, friendlies, Nations League
+- Neutral venue flag included for tournament matches
 
 | Column | Type | Description |
 |--------|------|-------------|
