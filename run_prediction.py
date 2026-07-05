@@ -15,6 +15,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
+
 # Allow running from project root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -73,7 +75,7 @@ def main():
     df = load_matches(data_path)
     print(f"   {len(df)} matches loaded ({df['competition'].unique()[0]}).")
 
-    model = PoissonModel(min_games=3)
+    model = PoissonModel(min_games=3, decay_lambda=0.5)
     model.fit(df)
 
     # Choose teams
@@ -89,15 +91,19 @@ def main():
     pred = model.predict_match(home_team, away_team, neutral=True)
     print(format_prediction(pred))
 
-    # Bonus: show team stats for these two teams
+    # Bonus: show team stats
     print("\n📋 Team profiles (from training data):")
+    half_life = np.log(2) / model.decay_lambda
+    print(f"   Time decay: λ={model.decay_lambda} (half-life: {half_life:.1f} years)")
     for team in [home_team, away_team]:
         att = model._attack.get(team, 1.0)
         def_ = model._defense.get(team, 1.0)
         games = model._team_games.get(team, 0)
+        w_games = model._team_weighted_games.get(team, 0.0)
         tag = "⚠️ FALLBACK" if games < model.min_games else "✓"
         print(
-            f"  {team}: {games} games | Attack: {att:.2f}x | Defense: {def_:.2f}x {tag}"
+            f"  {team}: {games} games ({w_games:.1f} weighted) | "
+            f"Attack: {att:.2f}x | Defense: {def_:.2f}x {tag}"
         )
 
 

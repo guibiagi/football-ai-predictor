@@ -150,13 +150,19 @@ class PoissonModel:
     For teams with very few games, falls back to global averages.
     """
 
-    def __init__(self, min_games: int = 3):
+    def __init__(self, min_games: int = 3, decay_lambda: float = 0.5):
         """
         Args:
             min_games: Minimum games a team needs before using its own stats.
                        Teams below this threshold use global averages.
+            decay_lambda: Time decay rate for match weighting.
+                          0.0 = all matches equal (no decay)
+                          0.5 = half-life ~1.4 years (balanced)
+                          1.0 = half-life ~0.7 years (strong recency)
+                          2.0 = half-life ~4 months (very short memory)
         """
         self.min_games = min_games
+        self.decay_lambda = decay_lambda
         self._global_home_avg: float = 0.0
         self._global_away_avg: float = 0.0
         self._global_avg: float = 0.0
@@ -164,10 +170,14 @@ class PoissonModel:
         self._attack: dict[str, float] = {}
         self._defense: dict[str, float] = {}
         self._team_games: dict[str, int] = {}
+        self._team_weighted_games: dict[str, float] = {}
         self._fitted = False
 
     def fit(self, df: pd.DataFrame) -> PoissonModel:
         """Learn team strengths from historical match data.
+
+        Uses exponential time decay so recent matches carry more weight.
+        Formula: weight(match) = exp(-λ × years_since_match)
 
         Args:
             df: DataFrame with columns home_team, away_team, home_goals,
@@ -176,61 +186,76 @@ class PoissonModel:
         Returns:
             self (for method chaining).
         """
-        # Global averages
-        self._global_home_avg = df["home_goals"].mean()
-        self._global_away_avg = df["away_goals"].mean()
+        df = df.copy()
+        reference_date = df["date"].max()
+
+        # ── Time decay weights ──
+        years_ago = (reference_date - df["date"]).dt.days / 365.25
+        weight = np.exp(-self.decay_lambda * years_ago)
+        df["_weight"] = weight
+
+        # ── Global averages (time-weighted) ──
+        total_weight = weight.sum()
+        self._global_home_avg = (df["home_goals"] * weight).sum() / total_weight
+        self._global_away_avg = (df["away_goals"] * weight).sum() / total_weight
         self._global_avg = (self._global_home_avg + self._global_away_avg) / 2
 
-        # Home advantage: how many more goals do home teams score vs away teams?
+        # ── Home advantage (time-weighted, non-neutral only) ──
         non_neutral = df[~df["neutral"]]
         if len(non_neutral) > 0:
-            home_avg_nn = non_neutral["home_goals"].mean()
-            away_avg_nn = non_neutral["away_goals"].mean()
-            if away_avg_nn > 0:
-                self._home_advantage = home_avg_nn / away_avg_nn
-            else:
-                self._home_advantage = 1.0
+            nn_weight = non_neutral["_weight"]
+            nn_total = nn_weight.sum()
+            home_avg_nn = (non_neutral["home_goals"] * nn_weight).sum() / nn_total
+            away_avg_nn = (non_neutral["away_goals"] * nn_weight).sum() / nn_total
+            self._home_advantage = home_avg_nn / away_avg_nn if away_avg_nn > 0 else 1.0
         else:
             self._home_advantage = 1.0
 
-        # Per-team stats
-        home_for = df.groupby("home_team")["home_goals"].mean()
-        away_for = df.groupby("away_team")["away_goals"].mean()
-        home_against = df.groupby("home_team")["away_goals"].mean()
-        away_against = df.groupby("away_team")["home_goals"].mean()
+        # ── Per-team stats (time-weighted) ──
+        def weighted_mean(group, col):
+            w = group["_weight"]
+            return (group[col] * w).sum() / w.sum()
+
+        home_for = df.groupby("home_team").apply(weighted_mean, "home_goals")
+        away_for = df.groupby("away_team").apply(weighted_mean, "away_goals")
+        home_against = df.groupby("home_team").apply(weighted_mean, "away_goals")
+        away_against = df.groupby("away_team").apply(weighted_mean, "home_goals")
         home_games = df.groupby("home_team").size()
         away_games = df.groupby("away_team").size()
+        home_weighted = df.groupby("home_team")["_weight"].sum()
+        away_weighted = df.groupby("away_team")["_weight"].sum()
 
         all_teams = set(home_for.index) | set(away_for.index)
 
         for team in all_teams:
             games = int(home_games.get(team, 0) + away_games.get(team, 0))
+            weighted_g = float(home_weighted.get(team, 0.0) + away_weighted.get(team, 0.0))
             self._team_games[team] = games
+            self._team_weighted_games[team] = weighted_g
 
             if games >= self.min_games:
-                # Average goals scored by this team (home + away)
-                gf_home = home_for.get(team, 0.0)
-                gf_away = away_for.get(team, 0.0)
+                gf_home = float(home_for.get(team, 0.0))
+                gf_away = float(away_for.get(team, 0.0))
                 gf_avg = (gf_home + gf_away) / 2
 
-                # Average goals conceded by this team
-                ga_home = home_against.get(team, 0.0)
-                ga_away = away_against.get(team, 0.0)
+                ga_home = float(home_against.get(team, 0.0))
+                ga_away = float(away_against.get(team, 0.0))
                 ga_avg = (ga_home + ga_away) / 2
 
-                # Attack strength: how much above/below global average
                 self._attack[team] = gf_avg / self._global_avg if self._global_avg > 0 else 1.0
-                # Defense strength: ratio of goals conceded vs average
                 self._defense[team] = ga_avg / self._global_avg if self._global_avg > 0 else 1.0
             else:
-                # Fallback: use global average (attack=1.0, defense=1.0)
                 self._attack[team] = 1.0
                 self._defense[team] = 1.0
 
         self._fitted = True
+        half_life = np.log(2) / self.decay_lambda if self.decay_lambda > 0 else float("inf")
         logger.info(
-            "Fitted PoissonModel on %d matches. %d teams. Global avg: %.2f goals. Home advantage: %.2fx",
+            "Fitted PoissonModel on %d matches (λ_decay=%.1f, half-life=%.1fy). "
+            "%d teams. Global avg: %.2f goals. Home advantage: %.2fx",
             len(df),
+            self.decay_lambda,
+            half_life,
             len(all_teams),
             self._global_avg,
             self._home_advantage,
