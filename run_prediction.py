@@ -69,14 +69,25 @@ def format_prediction(pred: dict) -> str:
 
 
 def main():
-    # Load and fit
+    # Paths
     data_path = Path(__file__).resolve().parent / "data" / "matches.csv"
-    print(f"\n📂 Loading match data from: {data_path}")
-    df = load_matches(data_path)
-    print(f"   {len(df)} matches loaded ({df['competition'].unique()[0]}).")
+    model_path = Path(__file__).resolve().parent / "models" / "poisson_model.pkl"
 
-    model = PoissonModel(min_games=3, decay_lambda=0.5)
-    model.fit(df)
+    # ── Load or train model ──
+    if model_path.exists():
+        print(f"\n📦 Loading cached model from: {model_path}")
+        model = PoissonModel.load(model_path)
+        print(f"   (Delete {model_path} to force retrain)")
+    else:
+        print(f"\n📂 Loading match data from: {data_path}")
+        df = load_matches(data_path)
+        print(f"   {len(df)} matches loaded.")
+
+        model = PoissonModel(min_games=3, decay_lambda=0.5)
+        model.fit(df)
+
+        model.save(model_path)
+        print(f"   Model cached to: {model_path}")
 
     # Choose teams
     if len(sys.argv) >= 3:

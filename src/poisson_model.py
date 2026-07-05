@@ -313,6 +313,89 @@ class PoissonModel:
 
         return lambda_home, lambda_away
 
+    # ── Model persistence ──────────────────────────────────────────
+
+    def save(self, path: str | Path) -> None:
+        """Save the trained model to disk so you don't need to retrain.
+
+        Uses pickle — the model is just floats, dicts, and bools.
+        Typical file size: ~30 KB for 300 teams.
+
+        Args:
+            path: Where to save (e.g., 'models/poisson_wc2026.pkl').
+        """
+        import pickle
+        from pathlib import Path
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        if not self._fitted:
+            raise RuntimeError("Cannot save an unfitted model.")
+
+        data = {
+            "min_games": self.min_games,
+            "decay_lambda": self.decay_lambda,
+            "global_home_avg": self._global_home_avg,
+            "global_away_avg": self._global_away_avg,
+            "global_avg": self._global_avg,
+            "home_advantage": self._home_advantage,
+            "attack": self._attack,
+            "defense": self._defense,
+            "team_games": self._team_games,
+            "team_weighted_games": self._team_weighted_games,
+            "fitted": True,
+        }
+
+        with open(path, "wb") as f:
+            pickle.dump(data, f)
+
+        logger.info("Model saved to %s (%d teams)", path, len(self._attack))
+
+    @classmethod
+    def load(cls, path: str | Path) -> "PoissonModel":
+        """Load a previously saved model.
+
+        Args:
+            path: Path to the .pkl file saved by PoissonModel.save().
+
+        Returns:
+            A fully fitted PoissonModel ready for predictions.
+        """
+        import pickle
+        from pathlib import Path
+
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Model file not found: {path}")
+
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+
+        model = cls(
+            min_games=data["min_games"],
+            decay_lambda=data["decay_lambda"],
+        )
+        model._global_home_avg = data["global_home_avg"]
+        model._global_away_avg = data["global_away_avg"]
+        model._global_avg = data["global_avg"]
+        model._home_advantage = data["home_advantage"]
+        model._attack = data["attack"]
+        model._defense = data["defense"]
+        model._team_games = data["team_games"]
+        model._team_weighted_games = data["team_weighted_games"]
+        model._fitted = data["fitted"]
+
+        logger.info(
+            "Model loaded from %s (%d teams, λ=%.1f)",
+            path,
+            len(model._attack),
+            model.decay_lambda,
+        )
+        return model
+
+    # ── Prediction ─────────────────────────────────────────────────
+
     def predict_match(
         self, home_team: str, away_team: str, neutral: bool = True
     ) -> dict[str, Any]:
