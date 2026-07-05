@@ -1,0 +1,65 @@
+date,competition,season,stage,home_team,away_team,home_goals,away_goals,neutral
+2022-11-20,World Cup,2022,Group,Qatar,Ecuador,0,2,True
+2022-11-21,World Cup,2022,Group,England,Iran,6,2,True
+2022-11-21,World Cup,2022,Group,Senegal,Netherlands,0,2,True
+2022-11-21,World Cup,2022,Group,USA,Wales,1,1,True
+2022-11-22,World Cup,2022,Group,Argentina,Saudi Arabia,1,2,True
+2022-11-22,World Cup,2022,Group,Denmark,Tunisia,0,0,True
+2022-11-22,World Cup,2022,Group,Mexico,Poland,0,0,True
+2022-11-22,World Cup,2022,Group,France,Australia,4,1,True
+2022-11-23,World Cup,2022,Group,Morocco,Croatia,0,0,True
+2022-11-23,World Cup,2022,Group,Germany,Japan,1,2,True
+2022-11-23,World Cup,2022,Group,Spain,Costa Rica,7,0,True
+2022-11-23,World Cup,2022,Group,Belgium,Canada,1,0,True
+2022-11-24,World Cup,2022,Group,Switzerland,Cameroon,1,0,True
+2022-11-24,World Cup,2022,Group,Uruguay,South Korea,0,0,True
+2022-11-24,World Cup,2022,Group,Portugal,Ghana,3,2,True
+2022-11-24,World Cup,2022,Group,Brazil,Serbia,2,0,True
+2022-11-25,World Cup,2022,Group,Wales,Iran,0,2,True
+2022-11-25,World Cup,2022,Group,Qatar,Senegal,1,3,True
+2022-11-25,World Cup,2022,Group,Netherlands,Ecuador,1,1,True
+2022-11-25,World Cup,2022,Group,England,USA,0,0,True
+2022-11-26,World Cup,2022,Group,Tunisia,Australia,0,1,True
+2022-11-26,World Cup,2022,Group,Poland,Saudi Arabia,2,0,True
+2022-11-26,World Cup,2022,Group,France,Denmark,2,1,True
+2022-11-26,World Cup,2022,Group,Argentina,Mexico,2,0,True
+2022-11-27,World Cup,2022,Group,Japan,Costa Rica,0,1,True
+2022-11-27,World Cup,2022,Group,Belgium,Morocco,0,2,True
+2022-11-27,World Cup,2022,Group,Croatia,Canada,4,1,True
+2022-11-27,World Cup,2022,Group,Spain,Germany,1,1,True
+2022-11-28,World Cup,2022,Group,Cameroon,Serbia,3,3,True
+2022-11-28,World Cup,2022,Group,South Korea,Ghana,2,3,True
+2022-11-28,World Cup,2022,Group,Brazil,Switzerland,1,0,True
+2022-11-28,World Cup,2022,Group,Portugal,Uruguay,2,0,True
+2022-11-29,World Cup,2022,Group,Ecuador,Senegal,1,2,True
+2022-11-29,World Cup,2022,Group,Netherlands,Qatar,2,0,True
+2022-11-29,World Cup,2022,Group,Iran,USA,0,1,True
+2022-11-29,World Cup,2022,Group,Wales,England,0,3,True
+2022-11-30,World Cup,2022,Group,Tunisia,France,1,0,True
+2022-11-30,World Cup,2022,Group,Australia,Denmark,1,0,True
+2022-11-30,World Cup,2022,Group,Poland,Argentina,0,2,True
+2022-11-30,World Cup,2022,Group,Saudi Arabia,Mexico,1,2,True
+2022-12-01,World Cup,2022,Group,Croatia,Belgium,0,0,True
+2022-12-01,World Cup,2022,Group,Canada,Morocco,1,2,True
+2022-12-01,World Cup,2022,Group,Japan,Spain,2,1,True
+2022-12-01,World Cup,2022,Group,Costa Rica,Germany,2,4,True
+2022-12-02,World Cup,2022,Group,South Korea,Portugal,2,1,True
+2022-12-02,World Cup,2022,Group,Ghana,Uruguay,0,2,True
+2022-12-02,World Cup,2022,Group,Serbia,Switzerland,2,3,True
+2022-12-02,World Cup,2022,Group,Cameroon,Brazil,1,0,True
+2022-12-03,World Cup,2022,Round of 16,Netherlands,USA,3,1,True
+2022-12-03,World Cup,2022,Round of 16,Argentina,Australia,2,1,True
+2022-12-04,World Cup,2022,Round of 16,France,Poland,3,1,True
+2022-12-04,World Cup,2022,Round of 16,England,Senegal,3,0,True
+2022-12-05,World Cup,2022,Round of 16,Japan,Croatia,1,3,True
+2022-12-05,World Cup,2022,Round of 16,Brazil,South Korea,4,1,True
+2022-12-06,World Cup,2022,Round of 16,Morocco,Spain,3,0,True
+2022-12-06,World Cup,2022,Round of 16,Portugal,Switzerland,6,1,True
+2022-12-09,World Cup,2022,Quarterfinal,Croatia,Brazil,5,3,True
+2022-12-09,World Cup,2022,Quarterfinal,Netherlands,Argentina,5,6,True
+2022-12-10,World Cup,2022,Quarterfinal,Morocco,Portugal,1,0,True
+2022-12-10,World Cup,2022,Quarterfinal,England,France,1,2,True
+2022-12-13,World Cup,2022,Semifinal,Argentina,Croatia,3,0,True
+2022-12-14,World Cup,2022,Semifinal,France,Morocco,2,0,True
+2022-12-17,World Cup,2022,Third Place,Croatia,Morocco,2,1,True
+2022-12-18,World Cup,2022,Final,Argentina,France,7,5,True
