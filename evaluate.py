@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import numpy as np
 import pandas as pd
 
 from src.data_loader import load_matches, temporal_train_test_split
@@ -26,11 +25,7 @@ from src.poisson_model import PoissonModel
 from src.metrics import (
     evaluate_predictions,
     calibration_summary,
-    log_loss_score,
-    brier_score,
-    accuracy,
 )
-from src.validation import expanding_window_backtest
 
 
 def quick_eval():
