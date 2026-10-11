@@ -28,19 +28,13 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.data_loader import load_matches  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
-from src.blend_model import BlendModel  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
-# O dataset com xG é o preferido: treinar em xG + gols bate treinar em gols puro
-# (log loss -0,0028 medido fora da amostra, platô largo). Cai para o de gols nas
-# ligas sem xG.
+# O dataset com xG é o preferido: é superconjunto do de gols (mesmas linhas, mais
+# as colunas de xG/chutes), então carregar ele nunca perde informação.
 DATA_XG = Path(__file__).resolve().parent / "data" / "matches_xg.csv"
 DATA = Path(__file__).resolve().parent / "data" / "matches_football.csv"
 LOG = Path(__file__).resolve().parent / "data" / "forward_test.csv"
-
-# Peso do xG no sinal de treino. Escolhido por curva de log loss fora da amostra
-# em tune_blend.py, onde 0,5-1,0 é um platô largo — não é pico de sorte.
-BLEND_XG = 0.75
 
 # Limite alto de propósito: o modelo erra mais que o mercado, então exigir muito
 # evita alerta por ruído. Ajustar só com evidência do próprio forward test.
@@ -395,26 +389,20 @@ def _models(df: pd.DataFrame):
     Treina só a liga que tem jogo hoje — treinar as 28 na largada seria lento à
     toa, e o cron roda todo dia.
 
-    Usa xG onde há cobertura suficiente; sem cobertura, cai para gols. A escolha
-    é por liga, não global: uma liga sem xG treinada com BlendModel falharia.
+    Usa gols puros. O BlendModel (xG / chute a gol) existe e está testado, mas
+    NÃO é o padrão: a melhora do xG depende de qual amostra se olha (ver
+    tune_blend.py) e o chute a gol piora em toda combinação. Efeito que muda de
+    sinal conforme a amostra não é vantagem, é ruído — e foi assim que o grid
+    search rendeu +2,9% num ano e -11,4% no seguinte. Trocar o padrão só com
+    evidência que não dependa da amostra.
     """
     models: dict[str, PoissonModel] = {}
     maps: dict[str, dict] = {}
-    tem_xg = "xg_h" in df.columns and df["xg_h"].notna().sum() > 0
 
     def get(comp: str) -> tuple[PoissonModel, dict]:
         if comp not in models:
             sub = df[df["competition"] == comp]
-            cls = PoissonModel
-            kwargs: dict = dict(MODEL_PARAMS)
-            if tem_xg and sub["xg_h"].notna().sum() >= 200:
-                cls = BlendModel
-                kwargs["blend_xg"] = BLEND_XG
-            try:
-                models[comp] = cls(**kwargs).fit(sub)
-            except ValueError:
-                # xG não cobre a janela desta liga: gols é melhor que nada.
-                models[comp] = PoissonModel(**MODEL_PARAMS).fit(sub)
+            models[comp] = PoissonModel(**MODEL_PARAMS).fit(sub)
             maps[comp] = build_map(sorted(set(sub.home_team) | set(sub.away_team)))
         return models[comp], maps[comp]
 
