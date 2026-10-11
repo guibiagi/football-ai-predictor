@@ -153,11 +153,10 @@ def today_fixtures(day: date) -> list[dict]:
     return out
 
 
-def model_probs(home: str, away: str) -> dict[str, float] | None:
-    df = load_matches(DATA)
-    m = PoissonModel(**MODEL_PARAMS).fit(df)
+def model_probs(model: PoissonModel, home: str, away: str) -> dict[str, float] | None:
+    """Probabilidades do modelo já ajustado (não reajustar por jogo)."""
     try:
-        p = m.predict_match(home, away, neutral=False)
+        p = model.predict_match(home, away, neutral=False)
     except Exception:
         return None
     return {
@@ -167,11 +166,34 @@ def model_probs(home: str, away: str) -> dict[str, float] | None:
     }
 
 
+def outcome_roles(ms: list[dict], casa: str, fora: str) -> list[str] | None:
+    """Diz qual mercado é casa/empate/fora, pelo nome — não por posição.
+
+    Devolve os rótulos literais 'casa'/'empate'/'fora' (é o que o log usa como
+    'pick'; devolver o nome do time faria o acerto nunca bater). Devolve None se
+    não identificar exatamente um de cada, e aí o jogo não é liquidado: melhor
+    deixar pendente do que gravar o vencedor errado.
+    """
+    idx = build_map([casa, fora])
+    roles = []
+    for m in ms:
+        title = m.get("groupItemTitle") or m.get("question") or ""
+        if "draw" in title.lower():
+            roles.append("empate")
+            continue
+        who = lookup(idx, title)
+        roles.append("casa" if who == casa else "fora" if who == fora else None)
+    if None in roles or sorted(roles) != ["casa", "empate", "fora"]:
+        return None
+    return roles
+
+
 def settle(log: pd.DataFrame) -> pd.DataFrame:
     """Marca o resultado dos jogos já encerrados na Polymarket.
 
-    Só resolve quando um dos três mercados fechou em ~1.0 — se estiver ambíguo,
-    deixa pendente em vez de chutar.
+    Só resolve quando um dos três mercados fechou em ~1.0 e quando a ordem dos
+    mercados foi identificada com certeza — se estiver ambíguo, deixa pendente
+    em vez de chutar.
     """
     pend = log[log["resultado"].isna()]
     for i, r in pend.iterrows():
@@ -184,6 +206,9 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
         ms = ev[0].get("markets", [])
         if len(ms) != 3 or not all(m.get("closed") for m in ms):
             continue
+        roles = outcome_roles(ms, r["casa"], r["fora"])
+        if roles is None:
+            continue
         prices = []
         for m in ms:
             try:
@@ -192,7 +217,7 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
                 prices.append(0.0)
         if max(prices) < 0.9:
             continue
-        winner = ["casa", "empate", "fora"][prices.index(max(prices))]
+        winner = roles[prices.index(max(prices))]
         acertou = winner == r["pick"]
         preco = float(r["preco"])
         log.at[i, "resultado"] = "acerto" if acertou else "erro"
@@ -218,13 +243,18 @@ def main() -> int:
         df = pd.read_csv(LOG)
         done = df[df["resultado"].notna()]
         print(f"registros: {len(df)} | resolvidos: {len(done)}")
-        for _, r in done.tail(20).iterrows():
+        # O placar que importa é o das jogadas que o monitor de fato sinalizaria
+        # (edge >= EDGE_MIN). O resto é só registro e dilui o resultado.
+        sinal = done[done["edge"] >= EDGE_MIN]
+        for _, r in sinal.tail(20).iterrows():
             print(f"  {r['data']} {r['casa']} x {r['fora']}: modelo {r['pick']} "
                   f"({r['p_modelo']:.0%}) mercado {r['p_mercado']:.0%} → {r['resultado']}")
-        if len(done):
-            print(f"\nAcerto: {(done['resultado'] == 'acerto').mean():.0%} "
-                  f"| retorno acumulado (1 unidade fixa): {done['retorno'].sum():+.2f}u "
-                  f"em {len(done)} apostas simuladas")
+        if len(sinal):
+            print(f"\nSó as sinalizadas (edge >= {EDGE_MIN:.0%}): "
+                  f"{(sinal['resultado'] == 'acerto').mean():.0%} de acerto "
+                  f"| retorno {sinal['retorno'].sum():+.2f}u em {len(sinal)} apostas")
+        else:
+            print(f"\nNenhuma jogada sinalizada (edge >= {EDGE_MIN:.0%}) resolvida ainda.")
         return 0
 
     df = load_matches(DATA)
@@ -253,7 +283,7 @@ def main() -> int:
             if bool(home) != bool(away):
                 print(f"sem mapeamento: {home_name} / {away_name} — ignorado")
             continue
-        p = model_probs(home, away)
+        p = model_probs(model, home, away)
         if not p:
             continue
         probs = [p["home"], p["draw"], p["away"]]
@@ -313,4 +343,18 @@ if __name__ == "__main__":
         assert lookup(idx, "Grêmio FBPA") == "Gremio"
         assert lookup(idx, "CR Flamengo") == "Flamengo Rj"
         assert lookup(idx, "Time Inventado FC") is None
+        # self-check: rótulos casa/empate/fora pelo NOME do mercado, não pela
+        # posição. Títulos reais da Polymarket, um empate e duas vitórias.
+        def _mk(*titles):
+            return [{"groupItemTitle": t} for t in titles]
+        ms = _mk("CR Vasco da Gama", "Draw (CR Vasco da Gama vs. Clube do Remo)", "Clube do Remo")
+        assert outcome_roles(ms, "Vasco", "Remo") == ["casa", "empate", "fora"]
+        ms = _mk("Cruzeiro EC", "Draw (Cruzeiro EC vs. São Paulo FC)", "São Paulo FC")
+        assert outcome_roles(ms, "Cruzeiro", "Sao Paulo") == ["casa", "empate", "fora"]
+        # ordem trocada: tem que acompanhar, não chutar pela posição
+        ms = _mk("Clube do Remo", "Draw (CR Vasco da Gama vs. Clube do Remo)", "CR Vasco da Gama")
+        assert outcome_roles(ms, "Vasco", "Remo") == ["fora", "empate", "casa"]
+        # time que não bate com o log: recusa liquidar em vez de gravar errado
+        ms = _mk("Coritiba", "Draw (Vasco vs. Coritiba)", "Vasco")
+        assert outcome_roles(ms, "Vasco", "Remo") is None
     sys.exit(main())
