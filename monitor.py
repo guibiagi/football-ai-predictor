@@ -41,15 +41,18 @@ MIN_VOLUME = 1000.0
 MODEL_PARAMS = dict(min_games=5, decay_lambda=2.0, regularization_k=15.0)
 
 CLUB_PREFIXES = ("ca ", "se ", "cr ", "sc ", "ec ", "fc ", "fbpa", "ac ", "aa ")
-# Nomes que a Polymarket usa e que não casam por texto com o dataset.
+# Só o que o nome da Polymarket não entrega por texto: o prefixo do clube é
+# removido e sobra um apelido que não existe no dataset.
+#
+# NUNCA colocar apelido genérico aqui (tipo 'sao' -> 'sao paulo'): ele sequestra
+# qualquer time que comece igual. 'São Bento', 'São Caetano' e 'São José' são
+# clubes reais — todos virariam São Paulo, e o monitor compararia o jogo errado
+# sem avisar. O alvo do apelido ainda precisa existir no dataset (ver lookup).
 ALIASES = {
     "mineiro": "atletico-mg",
     "paranaense": "athletico-pr",
-    "botafogo": "botafogo rj",
     "flamengo": "flamengo rj",
-    "corinthians": "corinthians",
-    "gremio": "gremio",
-    "sao": "sao paulo",
+    "botafogo": "botafogo rj",
 }
 
 
@@ -81,10 +84,13 @@ def _clean(name: str) -> str:
 
 
 def normalize(name: str) -> str:
-    """Nome do time → chave comparável ('SE Palmeiras' → 'palmeiras')."""
+    """Primeira palavra limpa do nome ('SE Palmeiras' → 'palmeiras').
+
+    Sem apelido de propósito: resolver apelido exige saber o que existe no
+    dataset, e isso é papel do lookup. Aqui é só limpeza.
+    """
     words = _clean(name).split()
-    first = words[0] if words else _clean(name)
-    return ALIASES.get(first, first)
+    return words[0] if words else _clean(name)
 
 
 def build_map(teams: list[str]) -> dict[str, str]:
@@ -109,12 +115,21 @@ def build_map(teams: list[str]) -> dict[str, str]:
 
 
 def lookup(idx: dict[str, str], name: str) -> str | None:
-    """Resolve o nome da Polymarket: nome completo, apelido, depois palavra."""
-    for key in (_clean(name), normalize(name)):
-        if key in idx:
-            return idx[key]
-    for w in _clean(name).replace("-", " ").split():
-        if w in idx:
+    """Resolve o nome da Polymarket: nome completo, apelido, depois palavra.
+
+    O apelido só vale se o alvo existir no dataset. É isso que impede um time
+    desconhecido de ser silenciosamente tratado como outro — melhor não achar
+    (o jogo é ignorado) do que achar errado (compara o jogo errado).
+    """
+    key = _clean(name)
+    if key in idx:
+        return idx[key]
+    first = key.split()[0] if key.split() else key
+    alias = ALIASES.get(first)
+    if alias and alias in idx:
+        return idx[alias]
+    for w in key.replace("-", " ").split():
+        if len(w) > 3 and w in idx:
             return idx[w]
     return None
 
@@ -364,28 +379,33 @@ def main() -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
-        # self-check: normalização de nomes reais da Polymarket
+        # self-check: limpeza de nome
         assert normalize("SE Palmeiras") == "palmeiras"
         assert normalize("SC Corinthians Paulista") == "corinthians"
-        assert normalize("CA Mineiro") == "atletico-mg"
-        assert normalize("Atletico-Mg") == "atletico-mg"
-        assert normalize("Grêmio FBPA") == "gremio"
-        assert normalize("Gremio") == "gremio"
-        assert normalize("CR Flamengo") == "flamengo rj"
-        assert normalize("Flamengo Rj") == "flamengo rj"
+        assert normalize("CA Mineiro") == "mineiro"  # apelido é do lookup, não daqui
         # self-check: jogo já iniciado NUNCA entra na comparação
         past = datetime.now(timezone.utc) - timedelta(hours=2)
         assert _parse_iso(past.isoformat()) < datetime.now(timezone.utc)
         assert _parse_iso("2026-10-11T20:30:00Z") is not None
         assert _parse_iso(None) is None
         # self-check: nome comprido da Polymarket cai no time certo do dataset
-        teams = ["Chapecoense-Sc", "Athletico-PR", "Gremio", "Gremio Prudente", "Flamengo Rj"]
+        teams = ["Chapecoense-Sc", "Athletico-PR", "Gremio", "Gremio Prudente",
+                 "Flamengo Rj", "Botafogo Rj", "Atletico-Mg", "Sao Paulo", "Sao Bento"]
         idx = build_map(teams)
         assert lookup(idx, "Associação Chapecoense de Futebol") == "Chapecoense-Sc"
         assert lookup(idx, "CA Paranaense") == "Athletico-PR"
         assert lookup(idx, "Grêmio FBPA") == "Gremio"
+        assert lookup(idx, "CA Mineiro") == "Atletico-Mg"
         assert lookup(idx, "CR Flamengo") == "Flamengo Rj"
+        assert lookup(idx, "Botafogo FR") == "Botafogo Rj"
+        assert lookup(idx, "Gremio Prudente") == "Gremio Prudente"  # exato vence o atalho
         assert lookup(idx, "Time Inventado FC") is None
+        # self-check: apelido genérico não pode sequestrar time que começa igual.
+        # Sem o guarda, 'São Bento' viraria 'Sao Paulo' e o monitor compararia o
+        # jogo errado em silêncio.
+        idx2 = build_map(["Sao Paulo", "Santos"])  # São Bento NÃO está no dataset
+        assert lookup(idx2, "São Bento") is None, "apelido sequestrou time desconhecido"
+        assert lookup(idx2, "São Paulo FC") == "Sao Paulo"
         # self-check: rótulos casa/empate/fora pelo NOME do mercado, não pela
         # posição. Títulos reais da Polymarket, um empate e duas vitórias.
         def _mk(*titles):
