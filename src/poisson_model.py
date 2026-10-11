@@ -459,11 +459,19 @@ class PoissonModel:
             form_boost_def = away_form["ga"] / hist_ga_away if hist_ga_away > 0 else 1.0
             away_def *= max(0.5, min(form_boost_def, 2.0))
 
-        # Home advantage factor
-        home_factor = 1.0 if neutral else self._home_advantage
-
-        lambda_home = self._global_home_avg * home_att * away_def * home_factor
-        lambda_away = self._global_away_avg * away_att * home_def
+        # Home advantage is ALREADY inside _global_home_avg / _global_away_avg —
+        # they are computed separately over home and away goals, so the home
+        # venue effect is baked in. Multiplying by _home_advantage here counted
+        # it a second time (1.53 × 1.40 = 2.15 expected home goals vs 1.53 real),
+        # which is what made the model over-predict goals. Attack/defense are
+        # averaged over home and away games, so they carry no venue effect.
+        # Neutral matches use the overall per-team average (no venue effect).
+        if neutral:
+            lambda_home = self._global_avg * home_att * away_def
+            lambda_away = self._global_avg * away_att * home_def
+        else:
+            lambda_home = self._global_home_avg * home_att * away_def
+            lambda_away = self._global_away_avg * away_att * home_def
 
         # Safety floor: expected goals should never be negative or zero
         lambda_home = max(lambda_home, 0.01)

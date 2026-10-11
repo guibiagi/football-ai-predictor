@@ -1,0 +1,7 @@
+data,slug,casa,fora,pick,p_modelo,p_mercado,edge,preco,inicio,resultado
+2026-10-11,bra-cam-san-2026-10-11,Atletico-Mg,Santos,casa,0.4618,0.305,0.1568,0.305,2026-10-11T19:00:00Z,
+2026-10-11,bra-fla-flu-2026-10-11,Flamengo Rj,Fluminense,fora,0.1959,0.155,0.0409,0.155,2026-10-11T20:30:00Z,
+2026-10-11,bra-pal-cor1-2026-10-11,Palmeiras,Corinthians,fora,0.1563,0.135,0.0213,0.135,2026-10-11T20:30:00Z,
+2026-10-11,bra-gre-int-2026-10-11,Gremio,Internacional,casa,0.4405,0.355,0.0855,0.355,2026-10-11T20:30:00Z,
+2026-10-11,bra-bah-mir-2026-10-11,Bahia,Mirassol,empate,0.2673,0.225,0.0423,0.225,2026-10-11T22:30:00Z,
+2026-10-11,bra-cor-bot-2026-10-12,Coritiba,Botafogo Rj,casa,0.4181,0.365,0.0531,0.365,2026-10-12T19:00:00Z,
