@@ -54,6 +54,16 @@ def _get(url: str):
     return json.load(urllib.request.urlopen(req, timeout=30))
 
 
+def _parse_iso(s: str | None):
+    """ISO da Polymarket ('2026-10-11T20:30:00Z') → datetime UTC, ou None."""
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def normalize(name: str) -> str:
     """Nome do time → chave comparável ('SE Palmeiras' → 'palmeiras')."""
     import unicodedata
@@ -79,13 +89,24 @@ def build_map(teams: list[str]) -> dict[str, str]:
 
 
 def today_fixtures(day: date) -> list[dict]:
-    """Eventos de Série A da Polymarket com jogo perto da data (qualquer fuso)."""
+    """Eventos de Série A da Polymarket com jogo perto da data (qualquer fuso).
+
+    Ignora jogos já iniciados: durante a partida o preço é ao vivo e despenca
+    conforme o placar, o que produziria "vantagens" falsas gigantes contra as
+    probabilidades pré-jogo do modelo.
+    """
     out = []
+    now = datetime.now(timezone.utc)
     events = _get(f"{GAMMA}/events?tag_slug=brazil-serie-a&closed=false&limit=100")
     for e in events:
         slug = e.get("slug", "")
         if not slug.startswith("bra-") or slug.count("-") != 5:
             continue  # só mercados de jogo (bra-xxx-yyy-YYYY-MM-DD)
+        if e.get("live") or e.get("ended"):
+            continue  # jogo em andamento ou encerrado → preço ao vivo
+        kickoff = _parse_iso(e.get("startTime") or e.get("endDate"))
+        if kickoff is None or kickoff <= now:
+            continue
         end = e.get("endDate") or ""
         if end[:10] not in {str(day), str(day + timedelta(days=1)), str(day - timedelta(days=1))}:
             continue
@@ -200,7 +221,10 @@ def main() -> int:
         home = idx.get(normalize(home_name))
         away = idx.get(normalize(away_name))
         if not home or not away or home == away:
-            print(f"sem mapeamento: {home_name} / {away_name} — ignorado")
+            # Nenhum dos dois no dataset → outro campeonato (a tag pega Série B
+            # também): ignora calado. Um só mapeado → mapeamento quebrou: avisa.
+            if bool(home) != bool(away):
+                print(f"sem mapeamento: {home_name} / {away_name} — ignorado")
             continue
         p = model_probs(home, away)
         if not p:
@@ -223,7 +247,9 @@ def main() -> int:
         new = pd.DataFrame(rows)
         if LOG.exists():
             old = pd.read_csv(LOG)
-            new = pd.concat([old, new]).drop_duplicates(subset=["slug"], keep="last")
+            # keep="first": o registro pré-jogo é o válido; nunca deixar um
+            # snapshot ao vivo sobrescrever o preço de antes da bola rolar.
+            new = pd.concat([old, new]).drop_duplicates(subset=["slug"], keep="first")
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name}")
 
@@ -247,4 +273,9 @@ if __name__ == "__main__":
         assert normalize("Gremio") == "gremio"
         assert normalize("CR Flamengo") == "flamengo rj"
         assert normalize("Flamengo Rj") == "flamengo rj"
+        # self-check: jogo já iniciado NUNCA entra na comparação
+        past = datetime.now(timezone.utc) - timedelta(hours=2)
+        assert _parse_iso(past.isoformat()) < datetime.now(timezone.utc)
+        assert _parse_iso("2026-10-11T20:30:00Z") is not None
+        assert _parse_iso(None) is None
     sys.exit(main())
