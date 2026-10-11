@@ -103,6 +103,36 @@ def _from_seasonal(df: pd.DataFrame, comp: str, season: str) -> pd.DataFrame | N
         "shots_a": pd.to_numeric(df.get("AS"), errors="coerce"),
         "sot_h": pd.to_numeric(df.get("HST"), errors="coerce"),
         "sot_a": pd.to_numeric(df.get("AST"), errors="coerce"),
+        # Pinnacle é a casa mais afiada que existe. Guardar ela separada permite
+        # os dois testes que importam: modelo contra a linha MAIS dura (PSCH) e
+        # casa mole contra casa afiada (B365 vs Pinnacle) — que é onde mora a
+        # vantagem executável de quem não é banca.
+        "ps_h": pd.to_numeric(df.get("PSH"), errors="coerce"),
+        "ps_d": pd.to_numeric(df.get("PSD"), errors="coerce"),
+        "ps_a": pd.to_numeric(df.get("PSA"), errors="coerce"),
+        "psc_h": pd.to_numeric(df.get("PSCH"), errors="coerce"),
+        "psc_d": pd.to_numeric(df.get("PSCD"), errors="coerce"),
+        "psc_a": pd.to_numeric(df.get("PSCA"), errors="coerce"),
+        "b365c_h": pd.to_numeric(df.get("B365CH"), errors="coerce"),
+        "b365c_d": pd.to_numeric(df.get("B365CD"), errors="coerce"),
+        "b365c_a": pd.to_numeric(df.get("B365CA"), errors="coerce"),
+        # Over/Under 2.5. O mercado de 1X2 é o mais eficiente de todos; o de
+        # total de gols é mais fino — e o Poisson já precifica ele de graça,
+        # porque produz a matriz de placares inteira, não só o resultado.
+        "ou_open_over": pd.to_numeric(df.get("B365>2.5"), errors="coerce"),
+        "ou_open_under": pd.to_numeric(df.get("B365<2.5"), errors="coerce"),
+        "ou_close_over": pd.to_numeric(df.get("B365C>2.5"), errors="coerce"),
+        "ou_close_under": pd.to_numeric(df.get("B365C<2.5"), errors="coerce"),
+        "ou_psc_over": pd.to_numeric(df.get("PC>2.5"), errors="coerce"),
+        "ou_psc_under": pd.to_numeric(df.get("PC<2.5"), errors="coerce"),
+        "ou_avgc_over": pd.to_numeric(df.get("AvgC>2.5"), errors="coerce"),
+        "ou_avgc_under": pd.to_numeric(df.get("AvgC<2.5"), errors="coerce"),
+        # Asian handicap: o mercado onde os profissionais operam. A linha (AHCh)
+        # varia por jogo, então precisa vir junto — sem ela as odds não
+        # significam nada.
+        "ah_line": pd.to_numeric(df.get("AHCh"), errors="coerce"),
+        "ah_close_h": pd.to_numeric(df.get("B365CAHH"), errors="coerce"),
+        "ah_close_a": pd.to_numeric(df.get("B365CAHA"), errors="coerce"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 
@@ -135,6 +165,17 @@ def _from_extra(df: pd.DataFrame, comp: str) -> pd.DataFrame | None:
         "shots_a": float("nan"),
         "sot_h": float("nan"),
         "sot_a": float("nan"),
+        # Os arquivos extras (ARG, JPN, MEX, USA...) não trazem Pinnacle, total de
+        # gols nem handicap. Fica NaN e essas ligas saem dos testes de mercado,
+        # em vez de eu inventar linha que não existe.
+        "ps_h": float("nan"), "ps_d": float("nan"), "ps_a": float("nan"),
+        "psc_h": float("nan"), "psc_d": float("nan"), "psc_a": float("nan"),
+        "b365c_h": float("nan"), "b365c_d": float("nan"), "b365c_a": float("nan"),
+        "ou_open_over": float("nan"), "ou_open_under": float("nan"),
+        "ou_close_over": float("nan"), "ou_close_under": float("nan"),
+        "ou_psc_over": float("nan"), "ou_psc_under": float("nan"),
+        "ou_avgc_over": float("nan"), "ou_avgc_under": float("nan"),
+        "ah_line": float("nan"), "ah_close_h": float("nan"), "ah_close_a": float("nan"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 
