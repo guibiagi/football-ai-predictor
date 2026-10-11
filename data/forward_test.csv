@@ -1,8 +1,18 @@
-data,slug,casa,fora,pick,p_modelo,p_mercado,edge,preco,inicio,resultado,volume
-2026-10-11,bra-cam-san-2026-10-11,Atletico-Mg,Santos,casa,0.4618,0.39,0.0718,0.39,2026-10-11T19:00:00Z,,
-2026-10-11,bra-fla-flu-2026-10-11,Flamengo Rj,Fluminense,fora,0.1959,0.14,0.0559,0.14,2026-10-11T20:30:00Z,,
-2026-10-11,bra-pal-cor1-2026-10-11,Palmeiras,Corinthians,fora,0.1563,0.15,0.0063,0.15,2026-10-11T20:30:00Z,,
-2026-10-11,bra-gre-int-2026-10-11,Gremio,Internacional,casa,0.4405,0.33,0.1105,0.33,2026-10-11T20:30:00Z,,
-2026-10-11,bra-bah-mir-2026-10-11,Bahia,Mirassol,empate,0.2673,0.225,0.0423,0.225,2026-10-11T22:30:00Z,,
-2026-10-11,bra-cor-bot-2026-10-12,Coritiba,Botafogo Rj,casa,0.4181,0.36,0.0581,0.36,2026-10-12T19:00:00Z,,
-2026-10-11,bra-cha-cap-2026-10-12,Chapecoense-Sc,Athletico-Pr,casa,0.3158,0.235,0.0808,0.235,2026-10-12T22:30:00Z,,
+data,slug,casa,fora,pick,p_modelo,p_mercado,edge,preco,inicio,resultado,volume,liga
+2026-10-11,bra-cam-san-2026-10-11,Atletico-Mg,Santos,casa,0.4618,0.39,0.0718,0.39,2026-10-11T19:00:00Z,,,
+2026-10-11,bra-fla-flu-2026-10-11,Flamengo Rj,Fluminense,fora,0.1959,0.14,0.0559,0.14,2026-10-11T20:30:00Z,,,
+2026-10-11,bra-pal-cor1-2026-10-11,Palmeiras,Corinthians,fora,0.1563,0.15,0.0063,0.15,2026-10-11T20:30:00Z,,,
+2026-10-11,bra-gre-int-2026-10-11,Gremio,Internacional,casa,0.4405,0.33,0.1105,0.33,2026-10-11T20:30:00Z,,,
+2026-10-11,bra-bah-mir-2026-10-11,Bahia,Mirassol,empate,0.2673,0.225,0.0423,0.225,2026-10-11T22:30:00Z,,,
+2026-10-11,bra-cor-bot-2026-10-12,Coritiba,Botafogo Rj,casa,0.4181,0.36,0.0581,0.36,2026-10-12T19:00:00Z,,,
+2026-10-11,bra-cha-cap-2026-10-12,Chapecoense-Sc,Athletico-Pr,casa,0.3158,0.235,0.0808,0.235,2026-10-12T22:30:00Z,,,
+2026-10-11,epl-cov-new-2026-10-12,Coventry,Newcastle,casa,0.3263,0.295,0.0313,0.295,2026-10-12T19:00:00Z,,7282.0,Premier League
+2026-10-11,lal-lev-sev-2026-10-12,Levante,Sevilla,casa,0.4537,0.355,0.0987,0.355,2026-10-12T19:00:00Z,,4935.0,La Liga
+2026-10-11,por-fam-alv-2026-10-12,Famalicao,Alverca,fora,0.2478,0.205,0.0428,0.205,2026-10-12T19:15:00Z,,86.0,Primeira Liga
+2026-10-11,mls-stl-lag-2026-10-11,St. Louis City,Los Angeles Galaxy,fora,0.2141,0.165,0.0491,0.165,2026-10-11T23:00:00Z,,2222.0,MLS
+2026-10-11,nor-kfu-vif-2026-10-12,Kfum Oslo,Valerenga,casa,0.4753,0.34,0.1353,0.34,2026-10-12T17:00:00Z,,68.0,Eliteserien
+2026-10-11,swe-mal-kal-2026-10-12,Malmo Ff,Kalmar,empate,0.2447,0.235,0.0097,0.235,2026-10-12T17:00:00Z,,0.0,Allsvenskan
+2026-10-11,pol-rad-mot-2026-10-12,Radomiak Radom,Motor Lublin,casa,0.3947,0.385,0.0097,0.385,2026-10-12T16:00:00Z,,582.0,Ekstraklasa
+2026-10-11,pol-kat-wie-2026-10-12,Gks Katowice,Wieczysta Krakow,casa,0.5561,0.465,0.0911,0.465,2026-10-12T18:30:00Z,,177.0,Ekstraklasa
+2026-10-11,den-agf-sjs-2026-10-12,Aarhus,Sonderjyske,fora,0.2567,0.175,0.0817,0.175,2026-10-12T17:00:00Z,,0.0,Danish Superliga
+2026-10-11,swe-elf-hal-2026-10-12,Elfsborg,Halmstad,fora,0.1866,0.095,0.0916,0.095,2026-10-12T17:00:00Z,,0.0,Allsvenskan

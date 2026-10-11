@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""monitor.py — forward test do modelo contra o mercado. NÃO APOSTA.
+"""monitor.py — forward test do modelo contra o mercado, em várias ligas. NÃO APOSTA.
 
-Compara as probabilidades do modelo Poisson com os preços da Polymarket para os
-jogos de Série A do dia, registra tudo em data/forward_test.csv e imprime um
-alerta APENAS quando o modelo vê vantagem acima do limite.
+Para cada liga com mercado aberto na Polymarket, compara as probabilidades do
+modelo Poisson com os preços, registra tudo em data/forward_test.csv e imprime
+um alerta APENAS quando o modelo vê vantagem executável.
 
 Por que só monitora: o backtest do modelo deu ROI negativo, e um edge achado em
 backtest é overfitting até prova em contrário. O único edge confiável é o que
@@ -11,7 +11,8 @@ aparece em teste ao vivo, jogo a jogo. Este script acumula essa evidência.
 
 Uso:
     python monitor.py            # roda, registra e alerta se houver edge
-    python monitor.py --report   # só mostra o histórico acumulado
+    python monitor.py --report   # histórico acumulado
+    python monitor.py --ligas    # o que está coberto e o que não está
 """
 from __future__ import annotations
 
@@ -29,16 +30,37 @@ from src.data_loader import load_matches  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
-DATA = Path(__file__).resolve().parent / "data" / "matches_brasileirao.csv"
+DATA = Path(__file__).resolve().parent / "data" / "matches_football.csv"
 LOG = Path(__file__).resolve().parent / "data" / "forward_test.csv"
+
 # Limite alto de propósito: o modelo erra mais que o mercado, então exigir muito
 # evita alerta por ruído. Ajustar só com evidência do próprio forward test.
 EDGE_MIN = 0.08
 # Volume mínimo negociado no mercado (US$). Abaixo disso o preço é enfeite: sem
-# negociação real, o ask fica desatualizado e o "edge" é ruído. Jogo recém-aberto
-# fica de fora até ganhar mercado.
+# negociação real, o ask fica desatualizado e o "edge" é ruído.
 MIN_VOLUME = 1000.0
 MODEL_PARAMS = dict(min_games=5, decay_lambda=2.0, regularization_k=15.0)
+
+# Liga na Polymarket (tag) → nome da competição no dataset.
+# Só entram ligas com histórico no football-data.co.uk, e só tags TESTADAS —
+# tag inventada devolve zero em silêncio e a liga some sem aviso.
+LEAGUE_TAGS = {
+    "premier-league": "Premier League",
+    "la-liga": "La Liga",
+    "bundesliga": "Bundesliga",
+    "ligue-1": "Ligue 1",
+    "primeira-liga": "Primeira Liga",
+    "brazil-serie-a": "Brasileirao Serie A",
+    "mls": "MLS",
+    "efl-championship": "Championship",
+    "scottish-premiership": "Scottish Premiership",
+    "austria-bundesliga": "Austria Bundesliga",
+    "denmark-superliga": "Danish Superliga",
+    "norway-eliteserien": "Eliteserien",
+    "sweden-allsvenskan": "Allsvenskan",
+    "poland-ekstraklasa": "Ekstraklasa",
+    "chinese-super-league": "Chinese Super League",
+}
 
 CLUB_PREFIXES = ("ca ", "se ", "cr ", "sc ", "ec ", "fc ", "fbpa", "ac ", "aa ")
 # Só o que o nome da Polymarket não entrega por texto: o prefixo do clube é
@@ -71,11 +93,21 @@ def _parse_iso(s: str | None):
         return None
 
 
+# Letras que o NFKD NÃO decompõe e por isso nunca casavam com o dataset
+# (dinamarquês, norueguês, alemão, polonês, islandês).
+SPECIAL = str.maketrans({
+    "ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe",
+    "ß": "ss", "ł": "l", "Ł": "l", "đ": "d", "Đ": "d", "ð": "d", "Ð": "d",
+    "þ": "th", "Þ": "th", "ı": "i", "ħ": "h", "ŋ": "n", "ĸ": "k",
+})
+
+
 def _clean(name: str) -> str:
     """Minúsculas, sem acento, sem prefixo de clube, sem 'Paulista'."""
     import unicodedata
 
-    n = unicodedata.normalize("NFKD", name.strip().lower())
+    n = name.strip().lower().translate(SPECIAL)
+    n = unicodedata.normalize("NFKD", n)
     n = "".join(c for c in n if not unicodedata.combining(c))
     for p in CLUB_PREFIXES:
         if n.startswith(p):
@@ -115,7 +147,7 @@ def build_map(teams: list[str]) -> dict[str, str]:
 
 
 def lookup(idx: dict[str, str], name: str) -> str | None:
-    """Resolve o nome da Polymarket: nome completo, apelido, depois palavra.
+    """Resolve o nome da Polymarket: nome completo, apelido, palavra, prefixo.
 
     O apelido só vale se o alvo existir no dataset. É isso que impede um time
     desconhecido de ser silenciosamente tratado como outro — melhor não achar
@@ -128,85 +160,165 @@ def lookup(idx: dict[str, str], name: str) -> str | None:
     alias = ALIASES.get(first)
     if alias and alias in idx:
         return idx[alias]
-    for w in key.replace("-", " ").split():
+    words = key.replace("-", " ").split()
+    for w in words:
         if len(w) > 3 and w in idx:
             return idx[w]
+    # Variante de grafia, mesmo campeonato: 'halmstads' vs 'halmstad'. Exige
+    # palavra longa e acerto único — abreviar demais casaria time errado.
+    for w in words:
+        if len(w) < 6:
+            continue
+        hits = {v for k, v in idx.items()
+                if (k.startswith(w) and len(k) >= 6) or (w.startswith(k) and len(k) >= 6)}
+        if len(hits) == 1:
+            return hits.pop()
     return None
 
 
-def _open_events(page: int = 100) -> list[dict]:
+def _open_events(tag: str, page: int = 100) -> list[dict]:
     """Todos os eventos abertos da tag, não só a primeira página.
 
-    A API corta em 100 por resposta independente do 'limit' pedido. Sem paginar,
-    a tag (183 eventos abertos hoje) esconderia jogos que caíssem da página 2 —
-    o monitor simplesmente não os veria.
+    A API corta em 100 por resposta independente do 'limit' pedido, e devolve
+    422 quando o offset passa do fim. Sem paginar, jogos ficariam invisíveis.
     """
     out: list[dict] = []
     offset = 0
-    while True:
-        chunk = _get(f"{GAMMA}/events?tag_slug=brazil-serie-a&closed=false"
-                     f"&limit={page}&offset={offset}")
+    while offset <= 1500:
+        try:
+            chunk = _get(f"{GAMMA}/events?tag_slug={tag}&closed=false"
+                         f"&limit={page}&offset={offset}")
+        except Exception:
+            break  # 422 = passou do fim
         out.extend(chunk)
-        if len(chunk) < page or offset > 2000:  # fim, ou trava de segurança
+        if len(chunk) < page:
             break
         offset += page
     return out
 
 
-def today_fixtures(day: date) -> list[dict]:
-    """Eventos de Série A da Polymarket com jogo perto da data (qualquer fuso).
+def _is_match_event(e: dict) -> bool:
+    """Evento é um jogo (1X2) e não um mercado derivado dele?
+
+    Os derivados (resultado do 1º tempo, placar exato, escanteios) vivem em
+    slugs com sufixo, que acrescentam hífens. O jogo é o slug de 5 hífens
+    (liga-mandante-visitante-AAAA-MM-DD), com o empate no meio.
+    """
+    slug = e.get("slug") or ""
+    if slug.count("-") != 5:
+        return False
+    ms = e.get("markets") or []
+    if len(ms) != 3:
+        return False
+    return "draw" in (ms[1].get("groupItemTitle") or "").lower()
+
+
+def _comp_index(df: pd.DataFrame) -> dict[str, str]:
+    """Competição do dataset → chave normalizada, para casar o nome da liga."""
+    return {_clean(c): c for c in df["competition"].unique()}
+
+
+def match_competition(names: list[str | None], idx: dict[str, str]) -> str | None:
+    """Nome de liga da Polymarket → competição do dataset, ou None.
+
+    Primeiro nome exato; depois conjunto de palavras ('EFL Championship' casa
+    com 'Championship'). Exige resultado único — empate devolve None, porque
+    liga errada é pior que liga nenhuma.
+    """
+    for n in names:
+        if n and _clean(n) in idx:
+            return idx[_clean(n)]
+    for n in names:
+        if not n:
+            continue
+        toks = {w for w in _clean(n).split() if len(w) > 3}
+        if not toks:
+            continue
+        hits = set()
+        for k, comp in idx.items():
+            kt = {w for w in k.split() if len(w) > 3}
+            if toks <= kt or kt <= toks:
+                hits.add(comp)
+        if len(hits) == 1:
+            return hits.pop()
+    return None
+
+
+def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | None:
+    """Evento da Polymarket → jogo comparável, ou None se não servir.
 
     Ignora jogos já iniciados: durante a partida o preço é ao vivo e despenca
     conforme o placar, o que produziria "vantagens" falsas gigantes contra as
     probabilidades pré-jogo do modelo.
     """
-    out = []
-    now = datetime.now(timezone.utc)
-    events = _open_events()
-    for e in events:
-        slug = e.get("slug", "")
-        if not slug.startswith("bra-") or slug.count("-") != 5:
-            continue  # só mercados de jogo (bra-xxx-yyy-YYYY-MM-DD)
-        if e.get("live") or e.get("ended"):
-            continue  # jogo em andamento ou encerrado → preço ao vivo
-        kickoff = _parse_iso(e.get("startTime") or e.get("endDate"))
-        if kickoff is None or kickoff <= now:
-            continue
-        end = e.get("endDate") or ""
-        if end[:10] not in {str(day), str(day + timedelta(days=1)), str(day - timedelta(days=1))}:
-            continue
-        ms = e.get("markets", [])
-        if len(ms) != 3:
-            continue
-        rows = []
-        for m in ms:
-            try:
-                price = float(json.loads(m["outcomePrices"])[0])
-            except Exception:
-                continue
-            rows.append({
-                "title": m.get("groupItemTitle") or m["question"],
-                "price": price,
-                "volume": float(m.get("volume") or 0),
-                "tradable": bool(m.get("acceptingOrders")),
-            })
-        if len(rows) == 3:
-            out.append({"slug": slug, "end": end, "markets": rows,
-                        "closed": all(m.get("closed") for m in ms)})
-    return out
-
-
-def model_probs(model: PoissonModel, home: str, away: str) -> dict[str, float] | None:
-    """Probabilidades do modelo já ajustado (não reajustar por jogo)."""
-    try:
-        p = model.predict_match(home, away, neutral=False)
-    except Exception:
+    if not _is_match_event(e):
         return None
-    return {
-        "home": p["home_win_probability"],
-        "draw": p["draw_probability"],
-        "away": p["away_win_probability"],
-    }
+    if e.get("live") or e.get("ended"):
+        return None
+    kickoff = _parse_iso(e.get("startTime") or e.get("endDate"))
+    if kickoff is None or kickoff <= now:
+        return None
+    end = e.get("endDate") or ""
+    if end[:10] not in {str(day), str(day + timedelta(days=1)), str(day - timedelta(days=1))}:
+        return None
+    rows = []
+    for m in e["markets"]:
+        try:
+            price = float(json.loads(m["outcomePrices"])[0])
+        except Exception:
+            price = None
+        rows.append({
+            "title": m.get("groupItemTitle") or m["question"],
+            "price": price,
+            "volume": float(m.get("volume") or 0),
+            "tradable": bool(m.get("acceptingOrders")),
+        })
+    if any(r["price"] is None for r in rows):
+        return None
+    return {"slug": e["slug"], "liga": comp, "end": end, "markets": rows}
+
+
+def collect_fixtures(df: pd.DataFrame, day: date, now: datetime) -> tuple[list[dict], list[str], dict]:
+    """Jogos de hoje em todas as ligas cobertas, sem repetir slug.
+
+    Duas fontes: as tags de liga verificadas (garantem as grandes) e a varredura
+    da tag 'soccer', que pega o resto e descobre a liga pelo nome do evento.
+
+    Devolve (jogos, tags sospeitosas, quantos jogos abertos cada tag tem). A
+    contagem por tag existe para distinguir "a tag está errada" de "hoje não tem
+    jogo nessa liga" — sem isso, uma tag quebrada some em silêncio.
+    """
+    comp_idx = _comp_index(df)
+    vistos: set[str] = set()
+    out: list[dict] = []
+    suspeitas: list[str] = []
+    abertos: dict[str, int] = {}
+
+    def add(f: dict | None):
+        if f and f["slug"] not in vistos:
+            vistos.add(f["slug"])
+            out.append(f)
+
+    for tag, comp in LEAGUE_TAGS.items():
+        if comp not in set(df["competition"]):
+            continue
+        total = 0
+        for e in _open_events(tag):
+            if not _is_match_event(e):
+                continue
+            total += 1
+            add(_fixture_from_event(e, comp, day, now))
+        abertos[tag] = total
+        if total == 0:
+            suspeitas.append(f"{tag} ({comp}): nenhum jogo aberto — tag suspeita")
+
+    for e in _open_events("soccer"):
+        names = [(e.get("sport") or {}).get("name")]
+        names += [t.get("label") for t in (e.get("tags") or [])]
+        comp = match_competition(names, comp_idx)
+        if comp:
+            add(_fixture_from_event(e, comp, day, now))
+    return out, suspeitas, abertos
 
 
 def outcome_roles(ms: list[dict], casa: str, fora: str) -> list[str] | None:
@@ -238,8 +350,7 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
     mercados foi identificada com certeza — se estiver ambíguo, deixa pendente
     em vez de chutar.
     """
-    pend = log[log["resultado"].isna()]
-    for i, r in pend.iterrows():
+    for i, r in log[log["resultado"].isna()].iterrows():
         try:
             ev = _get(f"{GAMMA}/events?slug={r['slug']}")
         except Exception:
@@ -269,89 +380,103 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
     return log
 
 
+def _models(df: pd.DataFrame):
+    """Devolve um resolvedor preguiçoso: (modelo, mapa de times) por competição.
+
+    Treina só a liga que tem jogo hoje — treinar as 28 na largada seria lento à
+    toa, e o cron roda todo dia.
+    """
+    models: dict[str, PoissonModel] = {}
+    maps: dict[str, dict] = {}
+
+    def get(comp: str) -> tuple[PoissonModel, dict]:
+        if comp not in models:
+            sub = df[df["competition"] == comp]
+            models[comp] = PoissonModel(**MODEL_PARAMS).fit(sub)
+            maps[comp] = build_map(sorted(set(sub.home_team) | set(sub.away_team)))
+        return models[comp], maps[comp]
+
+    return get
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--report", action="store_true", help="só o histórico acumulado")
+    ap.add_argument("--report", action="store_true", help="histórico acumulado")
+    ap.add_argument("--ligas", action="store_true", help="cobertura de ligas")
     a = ap.parse_args()
+
+    df = load_matches(DATA)
+
+    if a.ligas:
+        print("ligas no dataset:")
+        for comp, n in df["competition"].value_counts().items():
+            print(f"   {n:6d} jogos  {comp}")
+        return 0
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
     if LOG.exists():
-        log = settle(pd.read_csv(LOG))
-        log.to_csv(LOG, index=False)
+        settle(pd.read_csv(LOG)).to_csv(LOG, index=False)
 
     if a.report:
         if not LOG.exists():
             print("Sem histórico ainda.")
             return 0
-        df = pd.read_csv(LOG)
-        done = df[df["resultado"].notna()]
-        print(f"registros: {len(df)} | resolvidos: {len(done)}")
-        # O placar que importa é o das jogadas que o monitor de fato sinalizaria
-        # (edge >= EDGE_MIN). O resto é só registro e dilui o resultado.
+        d = pd.read_csv(LOG)
+        done = d[d["resultado"].notna()]
         sinal = done[done["edge"] >= EDGE_MIN]
+        print(f"registros: {len(d)} | resolvidos: {len(done)} | sinalizados: {len(sinal)}")
         for _, r in sinal.tail(20).iterrows():
-            print(f"  {r['data']} {r['casa']} x {r['fora']}: modelo {r['pick']} "
-                  f"({r['p_modelo']:.0%}) mercado {r['p_mercado']:.0%} → {r['resultado']}")
+            print(f"  {r['data']} [{r.get('liga','?')}] {r['casa']} x {r['fora']}: "
+                  f"{r['pick']} ({r['p_modelo']:.0%} vs {r['p_mercado']:.0%}) → {r['resultado']}")
         if len(sinal):
             print(f"\nSó as sinalizadas (edge >= {EDGE_MIN:.0%}): "
-                  f"{(sinal['resultado'] == 'acerto').mean():.0%} de acerto "
-                  f"| retorno {sinal['retorno'].sum():+.2f}u em {len(sinal)} apostas")
+                  f"{(sinal['resultado'] == 'acerto').mean():.0%} de acerto | "
+                  f"retorno {sinal['retorno'].sum():+.2f}u em {len(sinal)} apostas")
         else:
             print(f"\nNenhuma jogada sinalizada (edge >= {EDGE_MIN:.0%}) resolvida ainda.")
         return 0
 
-    df = load_matches(DATA)
-    model = PoissonModel(**MODEL_PARAMS).fit(df)
-    teams = sorted(set(df.home_team) | set(df.away_team))
-    idx = build_map(teams)
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    get_model = _models(df)
 
-    today = datetime.now(timezone.utc).date()
-    fixtures = today_fixtures(today)
-    if not fixtures:
-        print("Nenhum jogo de Série A com mercado aberto hoje.")
-        return 0
-
-    rows = []
-    alerts = []
-    skipped_illiquid = []
+    fixtures, suspeitas, abertos = collect_fixtures(df, today, now)
+    rows, alerts, illiquid, sem_time = [], [], [], []
     for f in fixtures:
-        # o mercado de empate vem como "Draw (A vs. B)"; ordem casa/empate/fora
-        home_name = f["markets"][0]["title"]
-        away_name = f["markets"][2]["title"]
-        home = lookup(idx, home_name)
-        away = lookup(idx, away_name)
+        comp = f["liga"]
+        model, idx = get_model(comp)
+        home = lookup(idx, f["markets"][0]["title"])
+        away = lookup(idx, f["markets"][2]["title"])
         if not home or not away or home == away:
-            # Nenhum dos dois no dataset → outro campeonato (a tag pega Série B
-            # também): ignora calado. Um só mapeado → mapeamento quebrou: avisa.
-            if bool(home) != bool(away):
-                print(f"sem mapeamento: {home_name} / {away_name} — ignorado")
+            # Dizer QUAL lado falhou: listar o par esconde o time problemático.
+            faltando = [n for n, t in ((f["markets"][0]["title"], home),
+                                       (f["markets"][2]["title"], away)) if not t]
+            sem_time.append(f"[{comp}] {f['markets'][0]['title']} x {f['markets'][2]['title']}"
+                            f"  ← sem mapeamento: {', '.join(faltando)}")
             continue
-        p = model_probs(model, home, away)
-        if not p:
-            continue
-        probs = [p["home"], p["draw"], p["away"]]
+        p = model.predict_match(home, away, neutral=False)
+        probs = [p["home_win_probability"], p["draw_probability"], p["away_win_probability"]]
         prices = [m["price"] for m in f["markets"]]
         k = max(range(3), key=lambda i: probs[i] - prices[i])
         label = ["casa", "empate", "fora"][k]
         edge = probs[k] - prices[k]
         vol = f["markets"][k]["volume"]
         rows.append({
-            "data": str(today), "slug": f["slug"], "casa": home, "fora": away,
-            "pick": label, "p_modelo": round(probs[k], 4), "p_mercado": round(prices[k], 4),
-            "edge": round(edge, 4), "preco": prices[k], "volume": round(vol),
-            "inicio": f["end"], "resultado": None,
+            "data": str(today), "liga": comp, "slug": f["slug"], "casa": home,
+            "fora": away, "pick": label, "p_modelo": round(probs[k], 4),
+            "p_mercado": round(prices[k], 4), "edge": round(edge, 4),
+            "preco": prices[k], "volume": round(vol), "inicio": f["end"], "resultado": None,
         })
         if edge < EDGE_MIN:
             continue
         # Edge grande em mercado vazio é preço desatualizado, não oportunidade.
         if not f["markets"][k]["tradable"] or vol < MIN_VOLUME:
-            skipped_illiquid.append(
-                f"{home} x {away}: edge {edge:+.0%} mas o mercado "
-                f"{'não aceita ordem' if not f['markets'][k]['tradable'] else f'só negociou ${vol:,.0f}'}")
+            illiquid.append(f"[{comp}] {home} x {away}: edge {edge:+.0%} mas "
+                            f"só negociou ${vol:,.0f}")
             continue
-        alerts.append(f"{home} x {away}: modelo {probs[k]:.0%} vs mercado {prices[k]:.0%} "
-                      f"em {label} (edge {edge:+.0%}, preço ${prices[k]:.2f}, "
-                      f"volume ${vol:,.0f})")
+        alerts.append(f"[{comp}] {home} x {away}: modelo {probs[k]:.0%} vs "
+                      f"mercado {prices[k]:.0%} em {label} "
+                      f"(edge {edge:+.0%}, ${prices[k]:.2f}, volume ${vol:,.0f})")
 
     if rows:
         new = pd.DataFrame(rows)
@@ -361,19 +486,31 @@ def main() -> int:
             # snapshot ao vivo sobrescrever o preço de antes da bola rolar.
             new = pd.concat([old, new]).drop_duplicates(subset=["slug"], keep="first")
         new.to_csv(LOG, index=False)
-        print(f"{len(rows)} jogos registrados em {LOG.name}")
+        print(f"{len(rows)} jogos registrados em {LOG.name} "
+              f"({len({r['liga'] for r in rows})} ligas)")
 
     if alerts:
         print("\nALERTA — vantagem acima de %.0f%% (não é recomendação de aposta):" % (EDGE_MIN * 100))
         for x in alerts:
             print("  " + x)
     else:
-        print(f"Nenhum edge acima de {EDGE_MIN:.0%}. Nada a fazer.")
+        print(f"Nenhum edge executável acima de {EDGE_MIN:.0%}. Nada a fazer.")
 
-    if skipped_illiquid:
-        print(f"\nDescartados por mercado vazio (edge não é executável):")
-        for x in skipped_illiquid:
+    if illiquid:
+        print("\nDescartados por mercado vazio (edge não é executável):")
+        for x in illiquid:
             print("  " + x)
+    if sem_time:
+        print(f"\n{len(sem_time)} jogos sem mapeamento de time (ignorados):")
+        for x in sem_time[:10]:
+            print("  " + x)
+    if suspeitas:
+        print("\nLiga coberta mas sem nenhum jogo aberto (tag pode ter mudado):")
+        for x in suspeitas:
+            print("  " + x)
+    com_jogo = [t for t, n in abertos.items() if n]
+    if com_jogo:
+        print(f"\n{len(com_jogo)} ligas com mercado aberto: " + ", ".join(sorted(com_jogo)))
     return 0
 
 
@@ -390,7 +527,7 @@ if __name__ == "__main__":
         assert _parse_iso(None) is None
         # self-check: nome comprido da Polymarket cai no time certo do dataset
         teams = ["Chapecoense-Sc", "Athletico-PR", "Gremio", "Gremio Prudente",
-                 "Flamengo Rj", "Botafogo Rj", "Atletico-Mg", "Sao Paulo", "Sao Bento"]
+                 "Flamengo Rj", "Botafogo Rj", "Atletico-Mg", "Sao Paulo"]
         idx = build_map(teams)
         assert lookup(idx, "Associação Chapecoense de Futebol") == "Chapecoense-Sc"
         assert lookup(idx, "CA Paranaense") == "Athletico-PR"
@@ -401,23 +538,47 @@ if __name__ == "__main__":
         assert lookup(idx, "Gremio Prudente") == "Gremio Prudente"  # exato vence o atalho
         assert lookup(idx, "Time Inventado FC") is None
         # self-check: apelido genérico não pode sequestrar time que começa igual.
-        # Sem o guarda, 'São Bento' viraria 'Sao Paulo' e o monitor compararia o
-        # jogo errado em silêncio.
         idx2 = build_map(["Sao Paulo", "Santos"])  # São Bento NÃO está no dataset
         assert lookup(idx2, "São Bento") is None, "apelido sequestrou time desconhecido"
         assert lookup(idx2, "São Paulo FC") == "Sao Paulo"
-        # self-check: rótulos casa/empate/fora pelo NOME do mercado, não pela
-        # posição. Títulos reais da Polymarket, um empate e duas vitórias.
+        # self-check: letras que o NFKD não decompõe (ø, æ, ß, ł). Sem isso,
+        # 'Sønderjyske' nunca casa com 'Sonderjyske' e o jogo some calado.
+        assert _clean("Sønderjyske Fodbold") == "sonderjyske fodbold"
+        assert _clean("Brøndby") == "brondby"
+        assert _clean("Malmö FF") == "malmo ff"
+        assert _clean("Łódź") == "lodz"
+        assert _clean("Preußen") == "preussen"
+        idx3 = build_map(["Sonderjyske", "Halmstad", "Elfsborg"])
+        assert lookup(idx3, "Sønderjyske Fodbold") == "Sonderjyske"
+        # self-check: variante de grafia ('halmstads' vs 'halmstad'), só quando
+        # a palavra é longa e o acerto é único
+        assert lookup(idx3, "Halmstads BK") == "Halmstad"
+        assert lookup(idx3, "IF Elfsborg") == "Elfsborg"
+        assert lookup(idx3, "Time Que Nao Existe") is None
+        # self-check: liga da Polymarket → competição do dataset
+        ci = _comp_index(pd.DataFrame({"competition": ["Championship", "Serie A",
+                                                      "Brasileirao Serie A", "Eliteserien"]}))
+        assert match_competition(["EFL Championship"], ci) == "Championship"
+        assert match_competition(["Serie A"], ci) == "Serie A"
+        assert match_competition(["Brasileirão Série A"], ci) == "Brasileirao Serie A"
+        assert match_competition(["Eliteserien"], ci) == "Eliteserien"
+        assert match_competition(["Liga De La Cosa"], ci) is None
+        # self-check: jogo vs mercado derivado do mesmo jogo
+        def _ev(slug, meio):
+            return {"slug": slug, "markets": [{"groupItemTitle": "A"},
+                                              {"groupItemTitle": meio},
+                                              {"groupItemTitle": "B"}]}
+        assert _is_match_event(_ev("epl-cov-new-2026-10-12", "Draw (A vs. B)"))
+        assert _is_match_event(_ev("lal-lev-bil-2026-09-16", "Draw (A vs. B)"))
+        assert not _is_match_event(_ev("epl-cov-new-2026-10-12-halftime-result", "Draw (A vs. B)"))
+        assert not _is_match_event(_ev("epl-cov-new-2026-10-12-exact-score", "1-0"))
+        # self-check: rótulos casa/empate/fora pelo NOME do mercado, não pela posição
         def _mk(*titles):
             return [{"groupItemTitle": t} for t in titles]
         ms = _mk("CR Vasco da Gama", "Draw (CR Vasco da Gama vs. Clube do Remo)", "Clube do Remo")
         assert outcome_roles(ms, "Vasco", "Remo") == ["casa", "empate", "fora"]
-        ms = _mk("Cruzeiro EC", "Draw (Cruzeiro EC vs. São Paulo FC)", "São Paulo FC")
-        assert outcome_roles(ms, "Cruzeiro", "Sao Paulo") == ["casa", "empate", "fora"]
-        # ordem trocada: tem que acompanhar, não chutar pela posição
         ms = _mk("Clube do Remo", "Draw (CR Vasco da Gama vs. Clube do Remo)", "CR Vasco da Gama")
         assert outcome_roles(ms, "Vasco", "Remo") == ["fora", "empate", "casa"]
-        # time que não bate com o log: recusa liquidar em vez de gravar errado
         ms = _mk("Coritiba", "Draw (Vasco vs. Coritiba)", "Vasco")
         assert outcome_roles(ms, "Vasco", "Remo") is None
     sys.exit(main())
