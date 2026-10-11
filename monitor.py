@@ -64,8 +64,8 @@ def _parse_iso(s: str | None):
         return None
 
 
-def normalize(name: str) -> str:
-    """Nome do time → chave comparável ('SE Palmeiras' → 'palmeiras')."""
+def _clean(name: str) -> str:
+    """Minúsculas, sem acento, sem prefixo de clube, sem 'Paulista'."""
     import unicodedata
 
     n = unicodedata.normalize("NFKD", name.strip().lower())
@@ -73,19 +73,46 @@ def normalize(name: str) -> str:
     for p in CLUB_PREFIXES:
         if n.startswith(p):
             n = n[len(p):]
-    n = n.replace("paulista", "").strip()
-    first = n.split()[0] if n.split() else n
+    return n.replace("paulista", "").strip()
+
+
+def normalize(name: str) -> str:
+    """Nome do time → chave comparável ('SE Palmeiras' → 'palmeiras')."""
+    words = _clean(name).split()
+    first = words[0] if words else _clean(name)
     return ALIASES.get(first, first)
 
 
 def build_map(teams: list[str]) -> dict[str, str]:
     """Mapeia nome da Polymarket → nome do dataset.
 
-    ponytail: casamento por primeira palavra (com apelidos); se dois times
-    colidirem, o mapeamento devolve o errado e o jogo é ignorado. Trocar por
-    fuzzy matching (rapidfuzz) se aparecer colisão real no log.
+    A chave exata é o nome completo limpo ('gremio prudente'), não a primeira
+    palavra: senão 'Gremio' e 'Gremio Prudente' colidem e o Grêmio casaria com
+    o time errado. Nome completo sempre vence; a primeira palavra entra só como
+    atalho, para nomes compridos tipo 'Associação Chapecoense de Futebol'.
+
+    ponytail: casamento por palavra; colisão residual devolve o time errado.
+    Trocar por fuzzy matching (rapidfuzz) se aparecer erro real no log.
     """
-    return {normalize(t): t for t in teams}
+    idx: dict[str, str] = {}
+    for t in teams:
+        idx[_clean(t)] = t  # chave exata, autoritativa
+    for t in teams:
+        for w in _clean(t).replace("-", " ").split():
+            if len(w) > 3:
+                idx.setdefault(w, t)
+    return idx
+
+
+def lookup(idx: dict[str, str], name: str) -> str | None:
+    """Resolve o nome da Polymarket: nome completo, apelido, depois palavra."""
+    for key in (_clean(name), normalize(name)):
+        if key in idx:
+            return idx[key]
+    for w in _clean(name).replace("-", " ").split():
+        if w in idx:
+            return idx[w]
+    return None
 
 
 def today_fixtures(day: date) -> list[dict]:
@@ -218,8 +245,8 @@ def main() -> int:
         # o mercado de empate vem como "Draw (A vs. B)"
         home_name = names[0]
         away_name = names[2]
-        home = idx.get(normalize(home_name))
-        away = idx.get(normalize(away_name))
+        home = lookup(idx, home_name)
+        away = lookup(idx, away_name)
         if not home or not away or home == away:
             # Nenhum dos dois no dataset → outro campeonato (a tag pega Série B
             # também): ignora calado. Um só mapeado → mapeamento quebrou: avisa.
@@ -278,4 +305,12 @@ if __name__ == "__main__":
         assert _parse_iso(past.isoformat()) < datetime.now(timezone.utc)
         assert _parse_iso("2026-10-11T20:30:00Z") is not None
         assert _parse_iso(None) is None
+        # self-check: nome comprido da Polymarket cai no time certo do dataset
+        teams = ["Chapecoense-Sc", "Athletico-PR", "Gremio", "Gremio Prudente", "Flamengo Rj"]
+        idx = build_map(teams)
+        assert lookup(idx, "Associação Chapecoense de Futebol") == "Chapecoense-Sc"
+        assert lookup(idx, "CA Paranaense") == "Athletico-PR"
+        assert lookup(idx, "Grêmio FBPA") == "Gremio"
+        assert lookup(idx, "CR Flamengo") == "Flamengo Rj"
+        assert lookup(idx, "Time Inventado FC") is None
     sys.exit(main())
