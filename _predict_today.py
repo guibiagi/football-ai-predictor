@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import pandas as pd
 from src.data_loader import load_matches
 from src.poisson_model import PoissonModel
 

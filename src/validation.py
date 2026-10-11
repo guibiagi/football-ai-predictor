@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-import numpy as np
 import pandas as pd
 from datetime import timedelta
 
@@ -67,8 +66,6 @@ def expanding_window_backtest(
     )
 
     all_predictions = []
-    all_metrics = []
-
     for i, test_start in enumerate(test_starts):
         # Train on everything before test_start
         train = df[df["date"] < test_start]
