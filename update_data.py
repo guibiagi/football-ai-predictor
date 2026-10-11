@@ -91,6 +91,12 @@ def _from_seasonal(df: pd.DataFrame, comp: str, season: str) -> pd.DataFrame | N
         "odds_h": pd.to_numeric(df.get("AvgCH"), errors="coerce"),
         "odds_d": pd.to_numeric(df.get("AvgCD"), errors="coerce"),
         "odds_a": pd.to_numeric(df.get("AvgCA"), errors="coerce"),
+        # Bet365 (sem sufixo C) é a linha mais ANTIGA do arquivo; AvgC* é o
+        # fechamento. A diferença entre as duas é o movimento do mercado — e é
+        # onde pode estar a vantagem de quem aposta antes do dinheiro afiado.
+        "odds_open_h": pd.to_numeric(df.get("B365H"), errors="coerce"),
+        "odds_open_d": pd.to_numeric(df.get("B365D"), errors="coerce"),
+        "odds_open_a": pd.to_numeric(df.get("B365A"), errors="coerce"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 
@@ -113,6 +119,12 @@ def _from_extra(df: pd.DataFrame, comp: str) -> pd.DataFrame | None:
         "odds_h": pd.to_numeric(df.get("AvgCH"), errors="coerce"),
         "odds_d": pd.to_numeric(df.get("AvgCD"), errors="coerce"),
         "odds_a": pd.to_numeric(df.get("AvgCA"), errors="coerce"),
+        # Os arquivos extras só trazem odds de fechamento (PSCH/AvgCH) — não há
+        # linha de abertura neles. Fica NaN e essas ligas saem do teste de
+        # abertura, em vez de eu inventar uma abertura que não existe.
+        "odds_open_h": float("nan"),
+        "odds_open_d": float("nan"),
+        "odds_open_a": float("nan"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 

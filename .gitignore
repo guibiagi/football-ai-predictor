@@ -21,3 +21,4 @@ Thumbs.db
 .idea/
 # backups
 *.bak
+data/skill_preds.pkl
