@@ -34,6 +34,10 @@ LOG = Path(__file__).resolve().parent / "data" / "forward_test.csv"
 # Limite alto de propósito: o modelo erra mais que o mercado, então exigir muito
 # evita alerta por ruído. Ajustar só com evidência do próprio forward test.
 EDGE_MIN = 0.08
+# Volume mínimo negociado no mercado (US$). Abaixo disso o preço é enfeite: sem
+# negociação real, o ask fica desatualizado e o "edge" é ruído. Jogo recém-aberto
+# fica de fora até ganhar mercado.
+MIN_VOLUME = 1000.0
 MODEL_PARAMS = dict(min_games=5, decay_lambda=2.0, regularization_k=15.0)
 
 CLUB_PREFIXES = ("ca ", "se ", "cr ", "sc ", "ec ", "fc ", "fbpa", "ac ", "aa ")
@@ -115,6 +119,25 @@ def lookup(idx: dict[str, str], name: str) -> str | None:
     return None
 
 
+def _open_events(page: int = 100) -> list[dict]:
+    """Todos os eventos abertos da tag, não só a primeira página.
+
+    A API corta em 100 por resposta independente do 'limit' pedido. Sem paginar,
+    a tag (183 eventos abertos hoje) esconderia jogos que caíssem da página 2 —
+    o monitor simplesmente não os veria.
+    """
+    out: list[dict] = []
+    offset = 0
+    while True:
+        chunk = _get(f"{GAMMA}/events?tag_slug=brazil-serie-a&closed=false"
+                     f"&limit={page}&offset={offset}")
+        out.extend(chunk)
+        if len(chunk) < page or offset > 2000:  # fim, ou trava de segurança
+            break
+        offset += page
+    return out
+
+
 def today_fixtures(day: date) -> list[dict]:
     """Eventos de Série A da Polymarket com jogo perto da data (qualquer fuso).
 
@@ -124,7 +147,7 @@ def today_fixtures(day: date) -> list[dict]:
     """
     out = []
     now = datetime.now(timezone.utc)
-    events = _get(f"{GAMMA}/events?tag_slug=brazil-serie-a&closed=false&limit=100")
+    events = _open_events()
     for e in events:
         slug = e.get("slug", "")
         if not slug.startswith("bra-") or slug.count("-") != 5:
@@ -146,7 +169,12 @@ def today_fixtures(day: date) -> list[dict]:
                 price = float(json.loads(m["outcomePrices"])[0])
             except Exception:
                 continue
-            rows.append((m.get("groupItemTitle") or m["question"], price))
+            rows.append({
+                "title": m.get("groupItemTitle") or m["question"],
+                "price": price,
+                "volume": float(m.get("volume") or 0),
+                "tradable": bool(m.get("acceptingOrders")),
+            })
         if len(rows) == 3:
             out.append({"slug": slug, "end": end, "markets": rows,
                         "closed": all(m.get("closed") for m in ms)})
@@ -270,11 +298,11 @@ def main() -> int:
 
     rows = []
     alerts = []
+    skipped_illiquid = []
     for f in fixtures:
-        names = [t for t, _ in f["markets"]]
-        # o mercado de empate vem como "Draw (A vs. B)"
-        home_name = names[0]
-        away_name = names[2]
+        # o mercado de empate vem como "Draw (A vs. B)"; ordem casa/empate/fora
+        home_name = f["markets"][0]["title"]
+        away_name = f["markets"][2]["title"]
         home = lookup(idx, home_name)
         away = lookup(idx, away_name)
         if not home or not away or home == away:
@@ -287,18 +315,28 @@ def main() -> int:
         if not p:
             continue
         probs = [p["home"], p["draw"], p["away"]]
-        prices = [f["markets"][0][1], f["markets"][1][1], f["markets"][2][1]]
+        prices = [m["price"] for m in f["markets"]]
         k = max(range(3), key=lambda i: probs[i] - prices[i])
         label = ["casa", "empate", "fora"][k]
         edge = probs[k] - prices[k]
+        vol = f["markets"][k]["volume"]
         rows.append({
             "data": str(today), "slug": f["slug"], "casa": home, "fora": away,
             "pick": label, "p_modelo": round(probs[k], 4), "p_mercado": round(prices[k], 4),
-            "edge": round(edge, 4), "preco": prices[k], "inicio": f["end"], "resultado": None,
+            "edge": round(edge, 4), "preco": prices[k], "volume": round(vol),
+            "inicio": f["end"], "resultado": None,
         })
-        if edge >= EDGE_MIN:
-            alerts.append(f"{home} x {away}: modelo {probs[k]:.0%} vs mercado {prices[k]:.0%} "
-                          f"em {label} (edge {edge:+.0%}, preço ${prices[k]:.2f})")
+        if edge < EDGE_MIN:
+            continue
+        # Edge grande em mercado vazio é preço desatualizado, não oportunidade.
+        if not f["markets"][k]["tradable"] or vol < MIN_VOLUME:
+            skipped_illiquid.append(
+                f"{home} x {away}: edge {edge:+.0%} mas o mercado "
+                f"{'não aceita ordem' if not f['markets'][k]['tradable'] else f'só negociou ${vol:,.0f}'}")
+            continue
+        alerts.append(f"{home} x {away}: modelo {probs[k]:.0%} vs mercado {prices[k]:.0%} "
+                      f"em {label} (edge {edge:+.0%}, preço ${prices[k]:.2f}, "
+                      f"volume ${vol:,.0f})")
 
     if rows:
         new = pd.DataFrame(rows)
@@ -316,6 +354,11 @@ def main() -> int:
             print("  " + x)
     else:
         print(f"Nenhum edge acima de {EDGE_MIN:.0%}. Nada a fazer.")
+
+    if skipped_illiquid:
+        print(f"\nDescartados por mercado vazio (edge não é executável):")
+        for x in skipped_illiquid:
+            print("  " + x)
     return 0
 
 
