@@ -33,7 +33,7 @@ sys.path.insert(0, ".")
 
 from src.poisson_model import PoissonModel
 from src.validation import expanding_window_backtest
-from src.xg_model import XGModel
+from src.blend_model import BlendModel
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -128,7 +128,7 @@ def analisa(df: pd.DataFrame, comp: str, com_xg: bool = True) -> dict | None:
     if com_xg and "xg_h" in df.columns and df[df.competition == comp].xg_h.notna().sum() >= MIN_MATCHES:
         try:
             px = expanding_window_backtest(
-                sub, lambda: XGModel(**MODEL_PARAMS),
+                sub, lambda: BlendModel(**MODEL_PARAMS),
                 initial_train_years=INITIAL_TRAIN_YEARS, step_months=STEP_MONTHS,
             )
             px = px.merge(sub[cols], on=["date", "home_team", "away_team"], how="inner")

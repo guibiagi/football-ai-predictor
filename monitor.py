@@ -28,7 +28,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.data_loader import load_matches  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
-from src.xg_model import XGModel  # noqa: E402
+from src.blend_model import BlendModel  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
 # O dataset com xG é o preferido: treinar em xG + gols bate treinar em gols puro
@@ -396,7 +396,7 @@ def _models(df: pd.DataFrame):
     toa, e o cron roda todo dia.
 
     Usa xG onde há cobertura suficiente; sem cobertura, cai para gols. A escolha
-    é por liga, não global: uma liga sem xG treinada com XGModel falharia.
+    é por liga, não global: uma liga sem xG treinada com BlendModel falharia.
     """
     models: dict[str, PoissonModel] = {}
     maps: dict[str, dict] = {}
@@ -408,7 +408,7 @@ def _models(df: pd.DataFrame):
             cls = PoissonModel
             kwargs: dict = dict(MODEL_PARAMS)
             if tem_xg and sub["xg_h"].notna().sum() >= 200:
-                cls = XGModel
+                cls = BlendModel
                 kwargs["blend_xg"] = BLEND_XG
             try:
                 models[comp] = cls(**kwargs).fit(sub)

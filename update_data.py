@@ -97,6 +97,12 @@ def _from_seasonal(df: pd.DataFrame, comp: str, season: str) -> pd.DataFrame | N
         "odds_open_h": pd.to_numeric(df.get("B365H"), errors="coerce"),
         "odds_open_d": pd.to_numeric(df.get("B365D"), errors="coerce"),
         "odds_open_a": pd.to_numeric(df.get("B365A"), errors="coerce"),
+        # Chutes e chutes a gol: sinal de força menos ruidoso que o placar (é a
+        # razão de o xG existir) e disponível em toda a série histórica.
+        "shots_h": pd.to_numeric(df.get("HS"), errors="coerce"),
+        "shots_a": pd.to_numeric(df.get("AS"), errors="coerce"),
+        "sot_h": pd.to_numeric(df.get("HST"), errors="coerce"),
+        "sot_a": pd.to_numeric(df.get("AST"), errors="coerce"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 
@@ -125,6 +131,10 @@ def _from_extra(df: pd.DataFrame, comp: str) -> pd.DataFrame | None:
         "odds_open_h": float("nan"),
         "odds_open_d": float("nan"),
         "odds_open_a": float("nan"),
+        "shots_h": float("nan"),
+        "shots_a": float("nan"),
+        "sot_h": float("nan"),
+        "sot_a": float("nan"),
     })
     return out.dropna(subset=["date", "home_goals", "away_goals"])
 
