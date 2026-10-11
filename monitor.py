@@ -28,10 +28,19 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.data_loader import load_matches  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
+from src.xg_model import XGModel  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
+# O dataset com xG é o preferido: treinar em xG + gols bate treinar em gols puro
+# (log loss -0,0028 medido fora da amostra, platô largo). Cai para o de gols nas
+# ligas sem xG.
+DATA_XG = Path(__file__).resolve().parent / "data" / "matches_xg.csv"
 DATA = Path(__file__).resolve().parent / "data" / "matches_football.csv"
 LOG = Path(__file__).resolve().parent / "data" / "forward_test.csv"
+
+# Peso do xG no sinal de treino. Escolhido por curva de log loss fora da amostra
+# em tune_blend.py, onde 0,5-1,0 é um platô largo — não é pico de sorte.
+BLEND_XG = 0.75
 
 # Limite alto de propósito: o modelo erra mais que o mercado, então exigir muito
 # evita alerta por ruído. Ajustar só com evidência do próprio forward test.
@@ -385,14 +394,27 @@ def _models(df: pd.DataFrame):
 
     Treina só a liga que tem jogo hoje — treinar as 28 na largada seria lento à
     toa, e o cron roda todo dia.
+
+    Usa xG onde há cobertura suficiente; sem cobertura, cai para gols. A escolha
+    é por liga, não global: uma liga sem xG treinada com XGModel falharia.
     """
     models: dict[str, PoissonModel] = {}
     maps: dict[str, dict] = {}
+    tem_xg = "xg_h" in df.columns and df["xg_h"].notna().sum() > 0
 
     def get(comp: str) -> tuple[PoissonModel, dict]:
         if comp not in models:
             sub = df[df["competition"] == comp]
-            models[comp] = PoissonModel(**MODEL_PARAMS).fit(sub)
+            cls = PoissonModel
+            kwargs: dict = dict(MODEL_PARAMS)
+            if tem_xg and sub["xg_h"].notna().sum() >= 200:
+                cls = XGModel
+                kwargs["blend_xg"] = BLEND_XG
+            try:
+                models[comp] = cls(**kwargs).fit(sub)
+            except ValueError:
+                # xG não cobre a janela desta liga: gols é melhor que nada.
+                models[comp] = PoissonModel(**MODEL_PARAMS).fit(sub)
             maps[comp] = build_map(sorted(set(sub.home_team) | set(sub.away_team)))
         return models[comp], maps[comp]
 
@@ -405,7 +427,7 @@ def main() -> int:
     ap.add_argument("--ligas", action="store_true", help="cobertura de ligas")
     a = ap.parse_args()
 
-    df = load_matches(DATA)
+    df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
 
     if a.ligas:
         print("ligas no dataset:")

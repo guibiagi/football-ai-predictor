@@ -33,6 +33,7 @@ sys.path.insert(0, ".")
 
 from src.poisson_model import PoissonModel
 from src.validation import expanding_window_backtest
+from src.xg_model import XGModel
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -88,7 +89,7 @@ def roi(p_mod: np.ndarray, y: np.ndarray, odds: np.ndarray, edge_min: float) -> 
     }
 
 
-def analisa(df: pd.DataFrame, comp: str) -> dict | None:
+def analisa(df: pd.DataFrame, comp: str, com_xg: bool = True) -> dict | None:
     sub = df[df["competition"] == comp].dropna(
         subset=["odds_h", "odds_d", "odds_a", "home_goals", "away_goals"]
     )
@@ -123,6 +124,36 @@ def analisa(df: pd.DataFrame, comp: str) -> dict | None:
     }
     r["ganho_ll"] = r["ll_fechamento"] - r["ll_modelo"]
 
+    # Mesma coisa, mas com o modelo treinado em xG. Só roda nas ligas com xG.
+    if com_xg and "xg_h" in df.columns and df[df.competition == comp].xg_h.notna().sum() >= MIN_MATCHES:
+        try:
+            px = expanding_window_backtest(
+                sub, lambda: XGModel(**MODEL_PARAMS),
+                initial_train_years=INITIAL_TRAIN_YEARS, step_months=STEP_MONTHS,
+            )
+            px = px.merge(sub[cols], on=["date", "home_team", "away_team"], how="inner")
+            if len(px) >= MIN_PREDICTIONS:
+                px = px.merge(
+                    sub[["date", "home_team", "away_team", "xg_h", "xg_a"]],
+                    on=["date", "home_team", "away_team"], how="inner",
+                ).dropna(subset=["xg_h", "xg_a"])
+                if len(px) >= MIN_PREDICTIONS:
+                    pmx = px[["home_win_probability", "draw_probability",
+                              "away_win_probability"]].to_numpy()
+                    cx = px[["odds_h", "odds_d", "odds_a"]].to_numpy()
+                    yx = np.where(px["home_goals"] > px["away_goals"], 0,
+                                  np.where(px["home_goals"] == px["away_goals"], 1, 2))
+                    r.update({
+                        "n_xg": len(px),
+                        "ll_xg": log_loss(pmx, yx),
+                        "ganho_ll_xg": log_loss(market_probs(cx), yx) - log_loss(pmx, yx),
+                        "roi_xg_5": roi(pmx, yx, cx, EDGES[0])["roi"],
+                        "roi_xg_10": roi(pmx, yx, cx, EDGES[1])["roi"],
+                        "preds_xg": px, "y_xg": yx, "p_mod_xg": pmx,
+                    })
+        except Exception as e:
+            print(f"    xG falhou em {comp}: {type(e).__name__}: {e}")
+
     # Teste da linha de abertura — só nas ligas que têm B365.
     op = preds[["odds_open_h", "odds_open_d", "odds_open_a"]].to_numpy()
     ok = ~np.isnan(op).any(axis=1)
@@ -134,7 +165,6 @@ def analisa(df: pd.DataFrame, comp: str) -> dict | None:
             "roi_abert_5": roi(pm, yo, op, EDGES[0])["roi"],
             "roi_abert_10": roi(pm, yo, op, EDGES[1])["roi"],
             "n_apost_abert_5": roi(pm, yo, op, EDGES[0])["n"],
-            # Quanto o mercado se moveu: abertura vs fechamento, no favorito.
             "mov_favorito": float(np.mean(1.0 / op.max(axis=1) - 1.0 / close[ok].max(axis=1))),
         })
     return r
@@ -161,26 +191,33 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--liga", default=None)
     ap.add_argument("--cache", default=None, help="pickle com os detalhes, para não retreinar")
+    ap.add_argument("--dados", default="data/matches_xg.csv",
+                    help="dataset (matches_xg.csv tem xG; matches_football.csv não)")
+    ap.add_argument("--sem-xg", action="store_true", help="não rodar o modelo de xG")
     args = ap.parse_args()
 
     if args.cache:
         with open(args.cache, "rb") as f:
             detalhes = pickle.load(f)
     else:
-        df = pd.read_csv("data/matches_football.csv", parse_dates=["date"])
+        df = pd.read_csv(args.dados, parse_dates=["date"])
+        tem_xg = "xg_h" in df.columns and df.xg_h.notna().sum() > 0
+        print(f"{args.dados}: {len(df)} jogos, {df.competition.nunique()} ligas"
+              + (f", {df.xg_h.notna().sum()} com xG" if tem_xg else ", sem xG"))
         ligas = sorted(df["competition"].unique())
         if args.liga:
             ligas = [l for l in ligas if args.liga.lower() in l.lower()]
         detalhes = []
         for comp in ligas:
             try:
-                r = analisa(df, comp)
+                r = analisa(df, comp, com_xg=tem_xg and not args.sem_xg)
             except Exception as e:
                 print(f"  {comp}: falhou ({type(e).__name__}: {e})")
                 continue
             if r is not None:
                 detalhes.append(r)
-                print(f"  ok {comp}: {r['n']} previsões, ganho_ll {r['ganho_ll']:+.4f}")
+                extra = f", ganho_ll_xg {r['ganho_ll_xg']:+.4f}" if "ganho_ll_xg" in r else ""
+                print(f"  ok {comp}: {r['n']} previsões, ganho_ll {r['ganho_ll']:+.4f}{extra}")
 
     if not detalhes:
         print("Nenhuma liga com dado suficiente.")
@@ -199,6 +236,22 @@ def main() -> int:
     print(f"log loss modelo     : {res.ll_modelo.mean():.4f}")
     print(f"log loss fechamento : {res.ll_fechamento.mean():.4f}")
     print(f"ligas em que o modelo bate o fechamento: {(res.ganho_ll > 0).sum()} de {len(res)}")
+
+    # A comparação que importa: gols vs xG, contra o mesmo mercado.
+    if "ganho_ll_xg" in res.columns and res["ganho_ll_xg"].notna().any():
+        x = res[res["ganho_ll_xg"].notna()]
+        print(f"\n=== Gols vs xG (mesmo mercado, mesma janela) — {len(x)} ligas ===\n")
+        print("melhora_xg > 0 = treinar em xG ficou MELHOR que treinar em gols\n")
+        print(x[["liga", "n_xg", "ll_modelo", "ll_xg", "ll_fechamento",
+                 "ganho_ll", "ganho_ll_xg", "roi_xg_5", "roi_xg_10"]].to_string(
+            index=False, float_format=fmt))
+        print("\n--- agregado ---")
+        print(f"log loss treinando em gols : {x.ll_modelo.mean():.4f}")
+        print(f"log loss treinando em xG   : {x.ll_xg.mean():.4f}")
+        print(f"log loss do fechamento     : {x.ll_fechamento.mean():.4f}")
+        print(f"melhora média do xG        : {x.ll_modelo.mean() - x.ll_xg.mean():+.4f}")
+        print(f"ligas em que o xG bate o fechamento: {(x.ganho_ll_xg > 0).sum()} de {len(x)}")
+        print(f"ROI médio xG edge>=5%      : {x.roi_xg_5.mean():+.2%}")
 
     abert = res[res["n_abertura"].notna()] if "n_abertura" in res.columns else pd.DataFrame()
     if len(abert):

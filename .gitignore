@@ -22,3 +22,4 @@ Thumbs.db
 # backups
 *.bak
 data/skill_preds.pkl
+data/understat_xg.csv
