@@ -44,6 +44,7 @@ from src.paper_taker_pin import (  # noqa: E402
     ensure_log as ensure_pin_log,
     scan_pin_gap_fixture,
 )
+from src.paper_negrisk import PAPER_LOG as PAPER_NEG_LOG, ensure_log as ensure_neg_log, scan_live_signals  # noqa: E402
 from src.team_matching import _clean, build_map, lookup, normalize  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -390,6 +391,11 @@ def main() -> int:
         action="store_true",
         help="forward test papel taker Pin−Poly (gap 2¢, só se estratégia habilitada)",
     )
+    ap.add_argument(
+        "--paper-negrisk",
+        action="store_true",
+        help="varredura leitura neg-risk (soma YES); grava paper_negrisk_forward.csv",
+    )
     a = ap.parse_args()
 
     df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
@@ -398,6 +404,23 @@ def main() -> int:
         print("ligas no dataset:")
         for comp, n in df["competition"].value_counts().items():
             print(f"   {n:6d} jogos  {comp}")
+        return 0
+
+    if a.paper_negrisk:
+        if not strategy_enabled("paper_negrisk", load_strategy_config()):
+            print("paper_negrisk não habilitado em data/monitor_strategy.json (Rodada 5).")
+            return 0
+        sigs = scan_live_signals()
+        log = ensure_neg_log()
+        if sigs:
+            log = pd.concat([log, pd.DataFrame(sigs)]).drop_duplicates(
+                subset=["slug", "direction", "data"], keep="first",
+            )
+        log.to_csv(PAPER_NEG_LOG, index=False)
+        print(f"PAPER NEG-RISK: {len(sigs)} sinais → {PAPER_NEG_LOG.name}")
+        for s in sigs[:10]:
+            print(f"  {s['slug']}: {s['direction']} sum={s['sum_prices']} "
+                  f"lucro≈${s['net_profit_usdc']} size≈${s['size_usdc']}")
         return 0
 
     if a.paper_rn1_report:
