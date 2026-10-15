@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "aliases": {
+    "mineiro": "atletico-mg",
+    "paranaense": "athletico-pr",
+    "flamengo": "flamengo rj",
+    "botafogo": "botafogo rj",
+    "wolverhampton": "wolves",
+    "wolverhampton wanderers": "wolves",
+    "queens": "qpr",
+    "queens park rangers": "qpr",
+    "manchester united": "man united",
+    "manchester city": "man city",
+    "nottingham forest": "nott'm forest",
+    "sheffield wednesday": "sheffield weds",
+    "west bromwich albion": "west brom",
+    "club atletico de madrid": "ath madrid",
+    "d.c. united": "dc united",
+    "shanghai haigang": "shanghai port",
+    "qingdao xihaian": "qingdao west coast",
+    "real racing club": "santander",
+    "west ham united": "west ham"
+  }
+}
