@@ -3,19 +3,25 @@
   "strategies": {
     "directional_poisson": {
       "enabled": true,
-      "description": "Poisson vs Polymarket (edge mínimo 8%)",
+      "description": "Poisson vs preço Polymarket (alerta edge≥8%)",
       "edge_min": 0.08
     },
     "pin_b365_cross_book": {
       "enabled": false,
-      "description": "H4b: Pinnacle abertura vs B365 — sem odds B365 ao vivo no monitor",
+      "description": "Research: Pinnacle abertura vs B365 (H4b) — sem feed B365 no monitor",
       "edge_min": 0.01
     },
     "maker_pin_fair": {
       "enabled": false,
-      "description": "Maker passivo: cotar ±spread em torno do fair Pinnacle (ps) quando existir no dataset",
+      "description": "Cotação passiva ±spread em torno do fair Pinnacle (ver --maker)",
       "half_spread": 0.02,
       "min_volume": 1000.0
+    },
+    "paper_rn1": {
+      "enabled": true,
+      "description": "Forward test papel RN1 (favorito 0.60–0.80, bid Pin−2.5¢)",
+      "paper_only": true,
+      "hypothesis_id": "H-RN1-paper"
     }
   }
 }

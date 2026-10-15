@@ -39,6 +39,11 @@ from src.polymarket_prices import (  # noqa: E402
     parse_token_ids,
 )
 from src.paper_rn1 import PAPER_LOG, ensure_log, scan_fixture, settle_paper  # noqa: E402
+from src.paper_taker_pin import (  # noqa: E402
+    PAPER_LOG as PAPER_PIN_LOG,
+    ensure_log as ensure_pin_log,
+    scan_pin_gap_fixture,
+)
 from src.team_matching import _clean, build_map, lookup, normalize  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -380,6 +385,11 @@ def main() -> int:
         action="store_true",
         help="relatório do log paper_rn1_forward.csv",
     )
+    ap.add_argument(
+        "--paper-taker-pin",
+        action="store_true",
+        help="forward test papel taker Pin−Poly (gap 2¢, só se estratégia habilitada)",
+    )
     a = ap.parse_args()
 
     df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
@@ -411,6 +421,12 @@ def main() -> int:
         plog = settle_paper(ensure_log(), df)
         plog.to_csv(PAPER_LOG, index=False)
 
+    paper_pin_enabled = a.paper_taker_pin or any(
+        s.get("enabled") and s.get("paper_only")
+        and str(s.get("hypothesis_id", "")).startswith("H4-PIN")
+        for s in strat_cfg.get("strategies", {}).values()
+    )
+
     if a.report:
         if not LOG.exists():
             print("Sem histórico ainda.")
@@ -438,6 +454,7 @@ def main() -> int:
     rows, alerts, illiquid, sem_time = [], [], [], []
     maker_quotes: list[str] = []
     paper_rows: list[dict] = []
+    paper_pin_rows: list[dict] = []
     for f in fixtures:
         comp = f["liga"]
         model, idx = get_model(comp)
@@ -478,6 +495,23 @@ def main() -> int:
                 )
                 if pr:
                     paper_rows.append(pr)
+
+        if paper_pin_enabled and home and away and home != away:
+            roles = outcome_roles(f["markets"], home, away)
+            if roles:
+                pin_row = df[
+                    (df.competition == comp)
+                    & (df.home_team == home)
+                    & (df.away_team == away)
+                    & (df.date.dt.date >= today - timedelta(days=3))
+                    & (df.date.dt.date <= today + timedelta(days=1))
+                ].sort_values("date").tail(1)
+                ds = pin_row.iloc[0] if not pin_row.empty else None
+                ppr = scan_pin_gap_fixture(
+                    comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
+                )
+                if ppr:
+                    paper_pin_rows.append(ppr)
 
         if not home or not away or home == away:
             # Dizer QUAL lado falhou: listar o par esconde o time problemático.
@@ -537,6 +571,15 @@ def main() -> int:
 
     if a.paper_rn1 and not paper_rows:
         print("\nPAPER RN1: nenhum jogo na faixa 0.60–0.80 com Pin ps no dataset hoje.")
+
+    if paper_pin_rows:
+        plogp = ensure_pin_log()
+        newpp = pd.DataFrame(paper_pin_rows)
+        plogp = pd.concat([plogp, newpp]).drop_duplicates(subset=["slug", "pick"], keep="first")
+        plogp.to_csv(PAPER_PIN_LOG, index=False)
+        print(f"\nPAPER TAKER PIN: {len(paper_pin_rows)} sinais → {PAPER_PIN_LOG.name}")
+    elif a.paper_taker_pin:
+        print("\nPAPER TAKER PIN: nenhum gap Pin−Poly ≥ 2¢ hoje.")
 
     if maker_quotes:
         print("\nMAKER (fair Pinnacle ps no dataset, spread ± configurado):")

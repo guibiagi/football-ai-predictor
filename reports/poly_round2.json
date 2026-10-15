@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T13:39:30.956561+00:00",
+  "generated_at": "2026-10-15T13:17:27.889818+00:00",
   "n_events": 17074,
   "hypotheses": [
     {
@@ -632,21 +632,21 @@
     {
       "hypothesis": "H-COH_paired",
       "pairs_1x2_ou": 67,
-      "n_trades": 2953,
+      "n_trades": 2124,
       "dev": {
-        "n": 828,
-        "roi_mean": -0.0841,
+        "n": 806,
+        "roi_mean": -0.0709,
         "roi_ci95": [
-          -0.2152,
-          0.0482
+          -0.201,
+          0.0661
         ]
       },
       "holdout": {
-        "n": 2125,
-        "roi_mean": -0.0863,
+        "n": 1318,
+        "roi_mean": -0.0937,
         "roi_ci95": [
-          -0.1701,
-          0.0037
+          -0.2011,
+          0.0261
         ]
       },
       "pnl_viable_holdout": false
@@ -655,11 +655,8 @@
       "hypothesis": "W2_weather_taker_trades",
       "spread_cents": 0.04,
       "min_depth_usd": 60.0,
-      "n_total": 4,
+      "n_total": 5,
       "dev": {
-        "n": 0
-      },
-      "holdout": {
         "n": 4,
         "roi_mean": -1.0426,
         "roi_ci95": [
@@ -667,8 +664,16 @@
           -1.0405
         ]
       },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.038,
+        "roi_ci95": [
+          -1.038,
+          -1.038
+        ]
+      },
       "holdout_gross": {
-        "n": 4,
+        "n": 1,
         "roi_mean": -1.0,
         "roi_ci95": [
           -1.0,
@@ -682,11 +687,8 @@
       "hypothesis": "W2_weather_taker_trades",
       "spread_cents": 0.07,
       "min_depth_usd": 60.0,
-      "n_total": 4,
+      "n_total": 5,
       "dev": {
-        "n": 0
-      },
-      "holdout": {
         "n": 4,
         "roi_mean": -1.0411,
         "roi_ci95": [
@@ -694,8 +696,16 @@
           -1.039
         ]
       },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.0365,
+        "roi_ci95": [
+          -1.0365,
+          -1.0365
+        ]
+      },
       "holdout_gross": {
-        "n": 4,
+        "n": 1,
         "roi_mean": -1.0,
         "roi_ci95": [
           -1.0,
@@ -709,11 +719,8 @@
       "hypothesis": "W2_weather_taker_trades",
       "spread_cents": 0.1,
       "min_depth_usd": 60.0,
-      "n_total": 4,
+      "n_total": 5,
       "dev": {
-        "n": 0
-      },
-      "holdout": {
         "n": 4,
         "roi_mean": -1.0396,
         "roi_ci95": [
@@ -721,8 +728,16 @@
           -1.0375
         ]
       },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.035,
+        "roi_ci95": [
+          -1.035,
+          -1.035
+        ]
+      },
       "holdout_gross": {
-        "n": 4,
+        "n": 1,
         "roi_mean": -1.0,
         "roi_ci95": [
           -1.0,
@@ -734,10 +749,8 @@
     }
   ],
   "notes": [
-    "RN1: fair Pin (futebol) ou pre\u00e7o CLOB ~24h antes (NBA/NFL/t\u00eanis/MMA); PnL maker com clobRewards estimados.",
-    "Pool Gamma mesclado (~17k eventos); fills RN1 limitados a tokens com prices-history em cache (135 oportunidades na faixa 0,60\u20130,80).",
-    "H-COH: taker Dixon-Coles vs pre\u00e7o Poly no kickoff; pareamento 1X2+O/U por data/equipes (67 pares).",
-    "Clima W2: trades taker data-api; cache em data/poly_trades_cache/."
+    "RN1: fair Pin (futebol) ou pre\u00e7o CLOB ~24h antes (NBA/NFL/t\u00eanis/MMA). PnL maker inclui clobRewards estimados.",
+    "Meta n\u2265300 fills no holdout; amostra limitada pelo cache de prices-history e matching Pin."
   ],
   "rn1_raw_opportunities": 135
 }
