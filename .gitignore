@@ -25,3 +25,6 @@ data/skill_preds.pkl
 data/understat_xg.csv
 data/macro/prices/
 data/macro/trades/
+data/polymarket_closed_matches.json
+data/poly_price_history/
+data/panel_oos_predictions.csv
