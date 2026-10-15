@@ -38,6 +38,7 @@ from src.polymarket_prices import (  # noqa: E402
     execution_price_yes,
     parse_token_ids,
 )
+from src.paper_rn1 import PAPER_LOG, ensure_log, scan_fixture, settle_paper  # noqa: E402
 from src.team_matching import _clean, build_map, lookup, normalize  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -369,6 +370,16 @@ def main() -> int:
         action="store_true",
         help="cotação passiva (fair Pinnacle ps do dataset) — não aposta",
     )
+    ap.add_argument(
+        "--paper-rn1",
+        action="store_true",
+        help="forward test em papel RN1 (favorito 0.60–0.80, bid Pin−2.5¢)",
+    )
+    ap.add_argument(
+        "--paper-rn1-report",
+        action="store_true",
+        help="relatório do log paper_rn1_forward.csv",
+    )
     a = ap.parse_args()
 
     df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
@@ -379,12 +390,26 @@ def main() -> int:
             print(f"   {n:6d} jogos  {comp}")
         return 0
 
+    if a.paper_rn1_report:
+        plog = settle_paper(ensure_log(), df)
+        plog.to_csv(PAPER_LOG, index=False)
+        filled = plog[plog["fill_simulado"] == True]
+        done = plog[plog["resultado"].notna() & (plog["resultado"] != "sem_fill")]
+        print(f"paper RN1: {len(plog)} registros | fills simulados: {len(filled)} | resolvidos: {len(done)}")
+        if len(done):
+            print(f"  retorno simulado: {done['retorno_sim'].astype(float).sum():+.2f}u | "
+                  f"hit {(done['resultado']=='acerto').mean():.0%}")
+        return 0
+
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
     gates = load_gates()
     strat_cfg = load_strategy_config()
     maker_mode = a.maker or strategy_enabled("maker_pin_fair", strat_cfg)
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
+    if a.paper_rn1 or a.paper_rn1_report:
+        plog = settle_paper(ensure_log(), df)
+        plog.to_csv(PAPER_LOG, index=False)
 
     if a.report:
         if not LOG.exists():
@@ -412,6 +437,7 @@ def main() -> int:
     fixtures, suspeitas, abertos = collect_fixtures(df, today, now)
     rows, alerts, illiquid, sem_time = [], [], [], []
     maker_quotes: list[str] = []
+    paper_rows: list[dict] = []
     for f in fixtures:
         comp = f["liga"]
         model, idx = get_model(comp)
@@ -435,6 +461,23 @@ def main() -> int:
                     ask = min(0.99, fair[i] + hs)
                     parts.append(f"{lab} bid={bid:.3f} ask={ask:.3f} (fair={fair[i]:.3f})")
                 maker_quotes.append(f"[{comp}] {home} x {away}: " + " | ".join(parts))
+
+        if a.paper_rn1 and home and away and home != away:
+            roles = outcome_roles(f["markets"], home, away)
+            if roles:
+                pin_row = df[
+                    (df.competition == comp)
+                    & (df.home_team == home)
+                    & (df.away_team == away)
+                    & (df.date.dt.date >= today - timedelta(days=3))
+                    & (df.date.dt.date <= today + timedelta(days=1))
+                ].sort_values("date").tail(1)
+                ds = pin_row.iloc[0] if not pin_row.empty else None
+                pr = scan_fixture(
+                    comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
+                )
+                if pr:
+                    paper_rows.append(pr)
 
         if not home or not away or home == away:
             # Dizer QUAL lado falhou: listar o par esconde o time problemático.
@@ -481,6 +524,19 @@ def main() -> int:
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
+
+    if paper_rows:
+        plog = ensure_log()
+        newp = pd.DataFrame(paper_rows)
+        plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        plog.to_csv(PAPER_LOG, index=False)
+        print(f"\nPAPER RN1: {len(paper_rows)} sinais hoje → {PAPER_LOG.name}")
+        for pr in paper_rows:
+            print(f"  [{pr['liga']}] {pr['casa']} x {pr['fora']}: fair={pr['fair_pin']:.2f} "
+                  f"bid={pr['bid']:.2f} poly={pr['poly_exec']:.2f} pick={pr['pick']}")
+
+    if a.paper_rn1 and not paper_rows:
+        print("\nPAPER RN1: nenhum jogo na faixa 0.60–0.80 com Pin ps no dataset hoje.")
 
     if maker_quotes:
         print("\nMAKER (fair Pinnacle ps no dataset, spread ± configurado):")

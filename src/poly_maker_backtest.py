@@ -150,6 +150,7 @@ def fetch_price_history(
     kickoff: datetime,
     hours_before: int = 72,
     use_cache: bool = True,
+    cache_only: bool = False,
 ) -> list[dict]:
     from pathlib import Path
 
@@ -163,6 +164,8 @@ def fetch_price_history(
             return json.loads(cache_path.read_text(encoding="utf-8"))
         except Exception:
             pass
+    if cache_only:
+        return []
     url = (
         f"{CLOB}/prices-history?market={token_id}"
         f"&startTs={start_ts}&endTs={end_ts}&fidelity=60"

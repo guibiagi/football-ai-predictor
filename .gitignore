@@ -28,4 +28,5 @@ data/macro/trades/
 data/polymarket_closed_matches.json
 data/poly_price_history/
 data/gamma_cache/
+data/poly_trades_cache/
 data/panel_oos_predictions.csv

@@ -60,3 +60,23 @@ def fetch_events_closed(
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     return out
+
+
+def load_merged_cached_events() -> list[dict]:
+    """Une todos os eventos já em data/gamma_cache/ (sem rede)."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    if not CACHE_DIR.exists():
+        return out
+    for path in sorted(CACHE_DIR.glob("events_*.json")):
+        try:
+            batch = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for e in batch:
+            slug = e.get("slug")
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            out.append(e)
+    return out
