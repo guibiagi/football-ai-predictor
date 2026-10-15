@@ -1,0 +1,441 @@
+{
+  "generated_at": "2026-10-15T10:59:46.668998+00:00",
+  "skill_by_league": [
+    {
+      "liga": "2. Bundesliga",
+      "n": 963,
+      "log_loss_model": 1.0622,
+      "log_loss_close": 1.0408,
+      "gain_vs_close": -0.0214,
+      "brier_model": 0.6413,
+      "brier_close": 0.6262
+    },
+    {
+      "liga": "Allsvenskan",
+      "n": 2575,
+      "log_loss_model": 1.046,
+      "log_loss_close": 0.9817,
+      "gain_vs_close": -0.0643,
+      "brier_model": 0.6294,
+      "brier_close": 0.5845
+    },
+    {
+      "liga": "Austria Bundesliga",
+      "n": 1918,
+      "log_loss_model": 1.0213,
+      "log_loss_close": 0.9937,
+      "gain_vs_close": -0.0275,
+      "brier_model": 0.6125,
+      "brier_close": 0.5936
+    },
+    {
+      "liga": "Belgium Pro League",
+      "n": 978,
+      "log_loss_model": 1.0202,
+      "log_loss_close": 0.987,
+      "gain_vs_close": -0.0331,
+      "brier_model": 0.6102,
+      "brier_close": 0.5877
+    },
+    {
+      "liga": "Brasileirao Serie A",
+      "n": 3979,
+      "log_loss_model": 1.0405,
+      "log_loss_close": 0.9983,
+      "gain_vs_close": -0.0422,
+      "brier_model": 0.626,
+      "brier_close": 0.5971
+    },
+    {
+      "liga": "Bundesliga",
+      "n": 911,
+      "log_loss_model": 1.0235,
+      "log_loss_close": 0.9653,
+      "gain_vs_close": -0.0582,
+      "brier_model": 0.6121,
+      "brier_close": 0.5732
+    },
+    {
+      "liga": "Championship",
+      "n": 1668,
+      "log_loss_model": 1.0537,
+      "log_loss_close": 1.0293,
+      "gain_vs_close": -0.0243,
+      "brier_model": 0.6352,
+      "brier_close": 0.6186
+    },
+    {
+      "liga": "Chinese Super League",
+      "n": 1996,
+      "log_loss_model": 1.0121,
+      "log_loss_close": 0.9214,
+      "gain_vs_close": -0.0907,
+      "brier_model": 0.6052,
+      "brier_close": 0.544
+    },
+    {
+      "liga": "Danish Superliga",
+      "n": 2146,
+      "log_loss_model": 1.0512,
+      "log_loss_close": 1.0072,
+      "gain_vs_close": -0.0439,
+      "brier_model": 0.6327,
+      "brier_close": 0.6022
+    },
+    {
+      "liga": "Ekstraklasa",
+      "n": 2912,
+      "log_loss_model": 1.0529,
+      "log_loss_close": 1.0337,
+      "gain_vs_close": -0.0191,
+      "brier_model": 0.634,
+      "brier_close": 0.6213
+    },
+    {
+      "liga": "Eliteserien",
+      "n": 2550,
+      "log_loss_model": 1.0152,
+      "log_loss_close": 0.9831,
+      "gain_vs_close": -0.0321,
+      "brier_model": 0.6076,
+      "brier_close": 0.5854
+    },
+    {
+      "liga": "Eredivisie",
+      "n": 935,
+      "log_loss_model": 1.0144,
+      "log_loss_close": 0.938,
+      "gain_vs_close": -0.0764,
+      "brier_model": 0.6084,
+      "brier_close": 0.5562
+    },
+    {
+      "liga": "J1 League",
+      "n": 3302,
+      "log_loss_model": 1.0548,
+      "log_loss_close": 1.0347,
+      "gain_vs_close": -0.02,
+      "brier_model": 0.6362,
+      "brier_close": 0.6216
+    },
+    {
+      "liga": "La Liga",
+      "n": 1142,
+      "log_loss_model": 0.9779,
+      "log_loss_close": 0.9495,
+      "gain_vs_close": -0.0283,
+      "brier_model": 0.5809,
+      "brier_close": 0.5623
+    },
+    {
+      "liga": "LaLiga2",
+      "n": 1414,
+      "log_loss_model": 1.0596,
+      "log_loss_close": 1.0268,
+      "gain_vs_close": -0.0328,
+      "brier_model": 0.6396,
+      "brier_close": 0.6167
+    },
+    {
+      "liga": "League of Ireland Premier Division",
+      "n": 1875,
+      "log_loss_model": 1.0253,
+      "log_loss_close": 0.9708,
+      "gain_vs_close": -0.0545,
+      "brier_model": 0.6143,
+      "brier_close": 0.5779
+    },
+    {
+      "liga": "Liga MX",
+      "n": 3319,
+      "log_loss_model": 1.0411,
+      "log_loss_close": 1.0123,
+      "gain_vs_close": -0.0288,
+      "brier_model": 0.6259,
+      "brier_close": 0.6061
+    },
+    {
+      "liga": "Liga Profesional de Futbol",
+      "n": 4630,
+      "log_loss_model": 1.0654,
+      "log_loss_close": 1.0443,
+      "gain_vs_close": -0.0211,
+      "brier_model": 0.6435,
+      "brier_close": 0.6289
+    },
+    {
+      "liga": "Ligue 1",
+      "n": 914,
+      "log_loss_model": 1.0323,
+      "log_loss_close": 0.9815,
+      "gain_vs_close": -0.0508,
+      "brier_model": 0.6195,
+      "brier_close": 0.5852
+    },
+    {
+      "liga": "Ligue 2",
+      "n": 1053,
+      "log_loss_model": 1.0854,
+      "log_loss_close": 1.048,
+      "gain_vs_close": -0.0374,
+      "brier_model": 0.6576,
+      "brier_close": 0.6304
+    },
+    {
+      "liga": "MLS",
+      "n": 4770,
+      "log_loss_model": 1.0477,
+      "log_loss_close": 1.0145,
+      "gain_vs_close": -0.0332,
+      "brier_model": 0.6305,
+      "brier_close": 0.6074
+    },
+    {
+      "liga": "Premier League",
+      "n": 1134,
+      "log_loss_model": 1.0061,
+      "log_loss_close": 0.9656,
+      "gain_vs_close": -0.0404,
+      "brier_model": 0.6017,
+      "brier_close": 0.574
+    },
+    {
+      "liga": "Primeira Liga",
+      "n": 931,
+      "log_loss_model": 0.9434,
+      "log_loss_close": 0.9154,
+      "gain_vs_close": -0.028,
+      "brier_model": 0.5579,
+      "brier_close": 0.5407
+    },
+    {
+      "liga": "Russian Premier League",
+      "n": 2300,
+      "log_loss_model": 1.026,
+      "log_loss_close": 0.9848,
+      "gain_vs_close": -0.0412,
+      "brier_model": 0.6154,
+      "brier_close": 0.5868
+    },
+    {
+      "liga": "Scottish Premiership",
+      "n": 693,
+      "log_loss_model": 0.9648,
+      "log_loss_close": 0.9516,
+      "gain_vs_close": -0.0132,
+      "brier_model": 0.5716,
+      "brier_close": 0.5621
+    },
+    {
+      "liga": "Serie A",
+      "n": 1142,
+      "log_loss_model": 1.0017,
+      "log_loss_close": 0.9651,
+      "gain_vs_close": -0.0366,
+      "brier_model": 0.5991,
+      "brier_close": 0.5751
+    },
+    {
+      "liga": "Serie B",
+      "n": 1131,
+      "log_loss_model": 1.0803,
+      "log_loss_close": 1.0357,
+      "gain_vs_close": -0.0446,
+      "brier_model": 0.6542,
+      "brier_close": 0.6224
+    },
+    {
+      "liga": "Super League Greece",
+      "n": 714,
+      "log_loss_model": 1.0199,
+      "log_loss_close": 0.9352,
+      "gain_vs_close": -0.0848,
+      "brier_model": 0.6111,
+      "brier_close": 0.5535
+    },
+    {
+      "liga": "Super Lig",
+      "n": 1032,
+      "log_loss_model": 0.9944,
+      "log_loss_close": 0.94,
+      "gain_vs_close": -0.0544,
+      "brier_model": 0.5935,
+      "brier_close": 0.5556
+    },
+    {
+      "liga": "Superliga Romania",
+      "n": 3000,
+      "log_loss_model": 1.0694,
+      "log_loss_close": 0.9961,
+      "gain_vs_close": -0.0733,
+      "brier_model": 0.6462,
+      "brier_close": 0.5953
+    },
+    {
+      "liga": "Swiss Super League",
+      "n": 1955,
+      "log_loss_model": 1.0438,
+      "log_loss_close": 1.0156,
+      "gain_vs_close": -0.0283,
+      "brier_model": 0.6286,
+      "brier_close": 0.6083
+    },
+    {
+      "liga": "Veikkausliiga",
+      "n": 1830,
+      "log_loss_model": 1.073,
+      "log_loss_close": 0.9917,
+      "gain_vs_close": -0.0813,
+      "brier_model": 0.6492,
+      "brier_close": 0.5908
+    }
+  ],
+  "blend_isotonic_by_league": [
+    {
+      "liga": "2. Bundesliga",
+      "shrink_w": 0.2,
+      "isotonic": true,
+      "log_loss_baseline": 1.0809,
+      "log_loss_blend": 1.2178,
+      "log_loss_close": 1.0536,
+      "gain_blend_vs_close": -0.1642,
+      "gain_baseline_vs_close": -0.0273
+    },
+    {
+      "liga": "Belgium Pro League",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0293,
+      "log_loss_blend": 1.0558,
+      "log_loss_close": 0.9908,
+      "gain_blend_vs_close": -0.065,
+      "gain_baseline_vs_close": -0.0385
+    },
+    {
+      "liga": "Bundesliga",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0177,
+      "log_loss_blend": 1.0671,
+      "log_loss_close": 0.9751,
+      "gain_blend_vs_close": -0.092,
+      "gain_baseline_vs_close": -0.0426
+    },
+    {
+      "liga": "Championship",
+      "shrink_w": 0.05,
+      "isotonic": true,
+      "log_loss_baseline": 1.0408,
+      "log_loss_blend": 1.0403,
+      "log_loss_close": 1.0341,
+      "gain_blend_vs_close": -0.0062,
+      "gain_baseline_vs_close": -0.0067
+    },
+    {
+      "liga": "Eredivisie",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0149,
+      "log_loss_blend": 1.1656,
+      "log_loss_close": 0.9436,
+      "gain_blend_vs_close": -0.222,
+      "gain_baseline_vs_close": -0.0713
+    },
+    {
+      "liga": "La Liga",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 0.9842,
+      "log_loss_blend": 1.3821,
+      "log_loss_close": 0.9449,
+      "gain_blend_vs_close": -0.4371,
+      "gain_baseline_vs_close": -0.0393
+    },
+    {
+      "liga": "LaLiga2",
+      "shrink_w": 0.45,
+      "isotonic": true,
+      "log_loss_baseline": 1.0671,
+      "log_loss_blend": 1.2645,
+      "log_loss_close": 1.0255,
+      "gain_blend_vs_close": -0.239,
+      "gain_baseline_vs_close": -0.0415
+    },
+    {
+      "liga": "Ligue 1",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0143,
+      "log_loss_blend": 1.396,
+      "log_loss_close": 0.9552,
+      "gain_blend_vs_close": -0.4408,
+      "gain_baseline_vs_close": -0.0591
+    },
+    {
+      "liga": "Ligue 2",
+      "shrink_w": 0.1,
+      "isotonic": true,
+      "log_loss_baseline": 1.0863,
+      "log_loss_blend": 1.1112,
+      "log_loss_close": 1.0374,
+      "gain_blend_vs_close": -0.0739,
+      "gain_baseline_vs_close": -0.049
+    },
+    {
+      "liga": "Premier League",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0163,
+      "log_loss_blend": 0.9915,
+      "log_loss_close": 0.9708,
+      "gain_blend_vs_close": -0.0208,
+      "gain_baseline_vs_close": -0.0456
+    },
+    {
+      "liga": "Primeira Liga",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 0.966,
+      "log_loss_blend": 1.0832,
+      "log_loss_close": 0.9358,
+      "gain_blend_vs_close": -0.1474,
+      "gain_baseline_vs_close": -0.0302
+    },
+    {
+      "liga": "Serie A",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0001,
+      "log_loss_blend": 1.025,
+      "log_loss_close": 0.9661,
+      "gain_blend_vs_close": -0.0589,
+      "gain_baseline_vs_close": -0.034
+    },
+    {
+      "liga": "Serie B",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 1.0833,
+      "log_loss_blend": 1.0668,
+      "log_loss_close": 1.0473,
+      "gain_blend_vs_close": -0.0195,
+      "gain_baseline_vs_close": -0.0359
+    },
+    {
+      "liga": "Super Lig",
+      "shrink_w": 0.0,
+      "isotonic": true,
+      "log_loss_baseline": 0.9869,
+      "log_loss_blend": 1.1465,
+      "log_loss_close": 0.9211,
+      "gain_blend_vs_close": -0.2254,
+      "gain_baseline_vs_close": -0.0658
+    }
+  ],
+  "aggregate": {
+    "mean_gain_vs_close": -0.0427,
+    "leagues_model_beats_close": 0,
+    "n_leagues_skill": 32,
+    "mean_blend_gain_vs_close": -0.158
+  }
+}

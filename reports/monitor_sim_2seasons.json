@@ -1,0 +1,199 @@
+{
+  "meta": {
+    "edge_min": 0.08,
+    "seasons": 2,
+    "gate_min_log_loss_gain": -0.005,
+    "entry": "B365 open (1X2/O/U); AH Bet365 close (sem abertura no dataset)",
+    "clv_reference": "Pinnacle close devig"
+  },
+  "by_league": [
+    {
+      "liga": "2. Bundesliga",
+      "n_matches": 612,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Belgium Pro League",
+      "n_matches": 620,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Bundesliga",
+      "n_matches": 593,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Championship",
+      "n_matches": 1040,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Eredivisie",
+      "n_matches": 596,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "La Liga",
+      "n_matches": 732,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "LaLiga2",
+      "n_matches": 874,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Ligue 1",
+      "n_matches": 599,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Ligue 2",
+      "n_matches": 636,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Premier League",
+      "n_matches": 755,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Primeira Liga",
+      "n_matches": 607,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    },
+    {
+      "liga": "Serie A",
+      "n_matches": 742,
+      "markets": {
+        "baseline": {
+          "O/U": {
+            "n_bets": 93,
+            "hit_rate": 0.5161,
+            "roi": 0.1087,
+            "roi_ci95": [
+              -0.118,
+              0.3402
+            ],
+            "clv_mean": -0.0035,
+            "clv_positive_pct": 44.09,
+            "log_loss_model": 0.6705,
+            "log_loss_close": 0.6968,
+            "log_loss_gain_vs_close": 0.0263
+          }
+        },
+        "blend_isotonic": {
+          "O/U": {
+            "n_bets": 93,
+            "hit_rate": 0.5161,
+            "roi": 0.1087,
+            "roi_ci95": [
+              -0.118,
+              0.3402
+            ],
+            "clv_mean": -0.0035,
+            "clv_positive_pct": 44.09,
+            "log_loss_model": 0.6705,
+            "log_loss_close": 0.6968,
+            "log_loss_gain_vs_close": 0.0263
+          }
+        }
+      }
+    },
+    {
+      "liga": "Serie B",
+      "n_matches": 729,
+      "markets": {
+        "baseline": {
+          "O/U": {
+            "n_bets": 122,
+            "hit_rate": 0.5164,
+            "roi": 0.1019,
+            "roi_ci95": [
+              -0.1006,
+              0.2976
+            ],
+            "clv_mean": -0.0027,
+            "clv_positive_pct": 45.08,
+            "log_loss_model": 0.6971,
+            "log_loss_close": 0.6983,
+            "log_loss_gain_vs_close": 0.0012
+          }
+        },
+        "blend_isotonic": {
+          "O/U": {
+            "n_bets": 122,
+            "hit_rate": 0.5164,
+            "roi": 0.1019,
+            "roi_ci95": [
+              -0.1006,
+              0.2976
+            ],
+            "clv_mean": -0.0027,
+            "clv_positive_pct": 45.08,
+            "log_loss_model": 0.6971,
+            "log_loss_close": 0.6983,
+            "log_loss_gain_vs_close": 0.0012
+          }
+        }
+      }
+    },
+    {
+      "liga": "Super Lig",
+      "n_matches": 683,
+      "markets": {
+        "baseline": {},
+        "blend_isotonic": {}
+      }
+    }
+  ],
+  "aggregate": {
+    "baseline": {
+      "O/U": {
+        "n_bets": 215,
+        "roi_weighted": 0.1048,
+        "clv_mean": -0.0031
+      }
+    },
+    "blend_isotonic": {
+      "O/U": {
+        "n_bets": 215,
+        "roi_weighted": 0.1048,
+        "clv_mean": -0.0031
+      }
+    }
+  }
+}

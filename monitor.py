@@ -26,8 +26,17 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.clv import clv_probability  # noqa: E402
 from src.data_loader import load_matches  # noqa: E402
+from src.monitor_gates import load_gates, market_allowed  # noqa: E402
+from src.pinnacle_lookup import lookup_1x2_close  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
+from src.polymarket_prices import (  # noqa: E402
+    closing_price_before_kickoff,
+    execution_price_yes,
+    parse_token_ids,
+)
+from src.team_matching import _clean, build_map, lookup, normalize  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
 # O dataset com xG é o preferido: é superconjunto do de gols (mesmas linhas, mais
@@ -65,40 +74,6 @@ LEAGUE_TAGS = {
     "chinese-super-league": "Chinese Super League",
 }
 
-CLUB_PREFIXES = ("ca ", "se ", "cr ", "sc ", "ec ", "fc ", "fbpa", "ac ", "aa ")
-# Só o que o nome da Polymarket não entrega por texto: o prefixo do clube é
-# removido e sobra um apelido que não existe no dataset.
-#
-# NUNCA colocar apelido genérico aqui (tipo 'sao' -> 'sao paulo'): ele sequestra
-# qualquer time que comece igual. 'São Bento', 'São Caetano' e 'São José' são
-# clubes reais — todos virariam São Paulo, e o monitor compararia o jogo errado
-# sem avisar. O alvo do apelido ainda precisa existir no dataset (ver lookup).
-ALIASES = {
-    "mineiro": "atletico-mg",
-    "paranaense": "athletico-pr",
-    "flamengo": "flamengo rj",
-    "botafogo": "botafogo rj",
-    # Inglaterra: football-data abrevia, Polymarket escreve por extenso.
-    "wolverhampton": "wolves",
-    "queens": "qpr",
-    "manchester united": "man united",
-    "manchester city": "man city",
-    "nottingham forest": "nott'm forest",
-    "sheffield wednesday": "sheffield weds",
-    "west bromwich albion": "west brom",
-    "club atletico de madrid": "ath madrid",
-    "d.c. united": "dc united",
-    "shanghai haigang": "shanghai port",  # mesmo clube, nome chinês
-    "qingdao xihaian": "qingdao west coast",  # Xihai'an = West Coast
-    "real racing club": "santander",
-    "west ham united": "west ham",
-}
-# Palavra que aparece em clube de tudo quanto é liga. Como atalho, ela casa o
-# time errado ('Stoke City' → Man City, 'Manchester City' → Bristol City).
-GENERIC = {"united", "city", "town", "county", "rovers", "wanderers", "athletic",
-           "albion", "west", "north", "south", "east", "real", "sporting", "club"}
-
-
 def _get(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     return json.load(urllib.request.urlopen(req, timeout=30))
@@ -112,99 +87,6 @@ def _parse_iso(s: str | None):
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         return None
-
-
-# Letras que o NFKD NÃO decompõe e por isso nunca casavam com o dataset
-# (dinamarquês, norueguês, alemão, polonês, islandês).
-SPECIAL = str.maketrans({
-    "ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe",
-    "ß": "ss", "ł": "l", "Ł": "l", "đ": "d", "Đ": "d", "ð": "d", "Ð": "d",
-    "þ": "th", "Þ": "th", "ı": "i", "ħ": "h", "ŋ": "n", "ĸ": "k",
-})
-
-
-def _clean(name: str) -> str:
-    """Minúsculas, sem acento, sem prefixo de clube, sem 'Paulista'."""
-    import unicodedata
-
-    n = name.strip().lower().translate(SPECIAL)
-    n = unicodedata.normalize("NFKD", n)
-    n = "".join(c for c in n if not unicodedata.combining(c))
-    for p in CLUB_PREFIXES:
-        if n.startswith(p):
-            n = n[len(p):]
-    n = n.replace("paulista", "").strip()
-    for s in (" afc", " fc", " cf", " sc"):  # 'Hull City AFC', 'Real Madrid CF'
-        if n.endswith(s):
-            n = n[: -len(s)]
-    return n.strip()
-
-
-def normalize(name: str) -> str:
-    """Primeira palavra limpa do nome ('SE Palmeiras' → 'palmeiras').
-
-    Sem apelido de propósito: resolver apelido exige saber o que existe no
-    dataset, e isso é papel do lookup. Aqui é só limpeza.
-    """
-    words = _clean(name).split()
-    return words[0] if words else _clean(name)
-
-
-def build_map(teams: list[str]) -> dict[str, str]:
-    """Mapeia nome da Polymarket → nome do dataset.
-
-    A chave exata é o nome completo limpo ('gremio prudente'), não a primeira
-    palavra: senão 'Gremio' e 'Gremio Prudente' colidem e o Grêmio casaria com
-    o time errado. Nome completo sempre vence; a primeira palavra entra só como
-    atalho, para nomes compridos tipo 'Associação Chapecoense de Futebol'.
-
-    ponytail: casamento por palavra; colisão residual devolve o time errado.
-    Trocar por fuzzy matching (rapidfuzz) se aparecer erro real no log.
-    """
-    idx: dict[str, str] = {}
-    for t in teams:
-        idx[_clean(t)] = t  # chave exata, autoritativa
-    # Atalho só para palavra que aponta para UM time. 'sheffield' aparece em
-    # United e Weds; antes o primeiro em ordem alfabética levava, calado.
-    owners: dict[str, set[str]] = {}
-    for t in teams:
-        for w in _clean(t).replace("-", " ").split():
-            if len(w) > 3 and w not in GENERIC:
-                owners.setdefault(w, set()).add(t)
-    for w, ts in owners.items():
-        if len(ts) == 1:
-            idx.setdefault(w, next(iter(ts)))
-    return idx
-
-
-def lookup(idx: dict[str, str], name: str) -> str | None:
-    """Resolve o nome da Polymarket: nome completo, apelido, palavra, prefixo.
-
-    O apelido só vale se o alvo existir no dataset. É isso que impede um time
-    desconhecido de ser silenciosamente tratado como outro — melhor não achar
-    (o jogo é ignorado) do que achar errado (compara o jogo errado).
-    """
-    key = _clean(name)
-    if key in idx:
-        return idx[key]
-    first = key.split()[0] if key.split() else key
-    alias = ALIASES.get(key) or ALIASES.get(first)
-    if alias and alias in idx:
-        return idx[alias]
-    words = key.replace("-", " ").split()
-    for w in words:
-        if len(w) > 3 and w in idx:
-            return idx[w]
-    # Variante de grafia, mesmo campeonato: 'halmstads' vs 'halmstad'. Exige
-    # palavra longa e acerto único — abreviar demais casaria time errado.
-    for w in words:
-        if len(w) < 6:
-            continue
-        hits = {v for k, v in idx.items()
-                if (k.startswith(w) and len(k) >= 6) or (w.startswith(k) and len(k) >= 6)}
-        if len(hits) == 1:
-            return hits.pop()
-    return None
 
 
 def _open_events(tag: str, page: int = 100) -> list[dict]:
@@ -294,13 +176,13 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
         return None
     rows = []
     for m in e["markets"]:
-        try:
-            price = float(json.loads(m["outcomePrices"])[0])
-        except Exception:
-            price = None
+        price = execution_price_yes(m)
+        token_yes, _ = parse_token_ids(m)
         rows.append({
             "title": m.get("groupItemTitle") or m["question"],
             "price": price,
+            "preco_exec": price,
+            "token_yes": token_yes,
             "volume": float(m.get("volume") or 0),
             "tradable": bool(m.get("acceptingOrders")),
         })
@@ -374,15 +256,30 @@ def outcome_roles(ms: list[dict], casa: str, fora: str) -> list[str] | None:
     return roles
 
 
-def settle(log: pd.DataFrame) -> pd.DataFrame:
+FORWARD_COLS = [
+    "data", "liga", "slug", "casa", "fora", "pick", "p_modelo", "p_mercado", "edge",
+    "preco", "preco_exec", "preco_poly_fechamento", "preco_pinnacle_fech", "clv_poly",
+    "clv_pinnacle", "volume", "inicio", "resultado", "vencedor", "retorno",
+]
+
+
+def _ensure_forward_schema(log: pd.DataFrame) -> pd.DataFrame:
+    for c in FORWARD_COLS:
+        if c not in log.columns:
+            log[c] = None
+    return log
+
+
+def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFrame:
     """Marca o resultado dos jogos já encerrados na Polymarket.
 
     Só resolve quando um dos três mercados fechou em ~1.0 e quando a ordem dos
     mercados foi identificada com certeza — se estiver ambíguo, deixa pendente
     em vez de chutar.
     """
-    # coluna toda vazia é lida como float64 e recusa "acerto"/"erro"
+    log = _ensure_forward_schema(log)
     log["resultado"] = log["resultado"].astype(object)
+    pick_idx = {"casa": 0, "empate": 1, "fora": 2}
     for i, r in log[log["resultado"].isna()].iterrows():
         try:
             ev = _get(f"{GAMMA}/events?slug={r['slug']}")
@@ -406,10 +303,32 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
             continue
         winner = roles[prices.index(max(prices))]
         acertou = winner == r["pick"]
-        preco = float(r["preco"])
+        preco = float(r["preco_exec"] if pd.notna(r.get("preco_exec")) else r["preco"])
         log.at[i, "resultado"] = "acerto" if acertou else "erro"
         log.at[i, "vencedor"] = winner
         log.at[i, "retorno"] = round((1.0 - preco) / preco if acertou else -1.0, 4)
+
+        kickoff = _parse_iso(str(r.get("inicio") or ""))
+        pi = pick_idx.get(r["pick"], 0)
+        token = None
+        if len(ms) > pi:
+            token, _ = parse_token_ids(ms[pi])
+        if token and kickoff and pd.isna(r.get("preco_poly_fechamento")):
+            close_p = closing_price_before_kickoff(token, kickoff)
+            if close_p is not None:
+                log.at[i, "preco_poly_fechamento"] = round(close_p, 4)
+                log.at[i, "clv_poly"] = round(clv_probability(preco, close_p), 4)
+        if hist_df is not None and pd.isna(r.get("preco_pinnacle_fech")):
+            pin = lookup_1x2_close(
+                hist_df, str(r.get("liga", "")), r["casa"], r["fora"], kickoff or r["inicio"],
+            )
+            if pin:
+                import numpy as np
+                from src.odds_utils import market_probs
+
+                p_devig = market_probs(np.array([pin], dtype=float))[0, pi]
+                log.at[i, "preco_pinnacle_fech"] = round(float(p_devig), 4)
+                log.at[i, "clv_pinnacle"] = round(clv_probability(preco, float(p_devig)), 4)
     return log
 
 
@@ -454,8 +373,9 @@ def main() -> int:
         return 0
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
+    gates = load_gates()
     if LOG.exists():
-        settle(pd.read_csv(LOG)).to_csv(LOG, index=False)
+        settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
 
     if a.report:
         if not LOG.exists():
@@ -496,17 +416,21 @@ def main() -> int:
             continue
         p = model.predict_match(home, away, neutral=False)
         probs = [p["home_win_probability"], p["draw_probability"], p["away_win_probability"]]
-        prices = [m["price"] for m in f["markets"]]
+        prices = [m["preco_exec"] or m["price"] for m in f["markets"]]
         k = max(range(3), key=lambda i: probs[i] - prices[i])
         label = ["casa", "empate", "fora"][k]
         edge = probs[k] - prices[k]
         vol = f["markets"][k]["volume"]
+        preco_exec = prices[k]
         rows.append({
             "data": str(today), "liga": comp, "slug": f["slug"], "casa": home,
             "fora": away, "pick": label, "p_modelo": round(probs[k], 4),
             "p_mercado": round(prices[k], 4), "edge": round(edge, 4),
-            "preco": prices[k], "volume": round(vol), "inicio": f["end"], "resultado": None,
+            "preco": preco_exec, "preco_exec": preco_exec, "volume": round(vol),
+            "inicio": f["end"], "resultado": None,
         })
+        if not market_allowed(gates, comp, "1X2"):
+            continue
         if edge < EDGE_MIN:
             continue
         # Edge grande em mercado vazio é preço desatualizado, não oportunidade.
