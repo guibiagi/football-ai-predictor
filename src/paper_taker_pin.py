@@ -44,9 +44,12 @@ def scan_pin_gap_fixture(
 ) -> dict | None:
     if dataset_row is None:
         return None
-    if dataset_row[["psc_h", "psc_d", "psc_a"]].isna().any():
+    cols = ["psc_h", "psc_d", "psc_a"]
+    if dataset_row[cols].isna().any():
+        cols = ["ps_h", "ps_d", "ps_a"]
+    if dataset_row[cols].isna().any():
         return None
-    pin = market_probs(dataset_row[["psc_h", "psc_d", "psc_a"]].to_numpy(dtype=float).reshape(1, -1))[0]
+    pin = market_probs(dataset_row[cols].to_numpy(dtype=float).reshape(1, -1))[0]
     best = None
     for i, lab in enumerate(roles):
         exec_p = execution_price_yes(markets[i]) or markets[i].get("price")

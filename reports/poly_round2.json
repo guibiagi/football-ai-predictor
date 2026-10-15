@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T13:17:27.889818+00:00",
+  "generated_at": "2026-10-15T13:06:38.007133+00:00",
   "n_events": 17074,
   "hypotheses": [
     {
@@ -632,21 +632,21 @@
     {
       "hypothesis": "H-COH_paired",
       "pairs_1x2_ou": 67,
-      "n_trades": 2124,
+      "n_trades": 3229,
       "dev": {
-        "n": 806,
-        "roi_mean": -0.0709,
+        "n": 771,
+        "roi_mean": -0.0787,
         "roi_ci95": [
-          -0.201,
-          0.0661
+          -0.2067,
+          0.0671
         ]
       },
       "holdout": {
-        "n": 1318,
-        "roi_mean": -0.0937,
+        "n": 2458,
+        "roi_mean": -0.0841,
         "roi_ci95": [
-          -0.2011,
-          0.0261
+          -0.1645,
+          -0.0075
         ]
       },
       "pnl_viable_holdout": false

@@ -7,6 +7,17 @@ from datetime import datetime
 import pandas as pd
 
 
+def as_utc(ts: datetime | pd.Timestamp | str) -> pd.Timestamp:
+    """Normaliza para Timestamp UTC (evita naive vs aware)."""
+    if isinstance(ts, str):
+        t = pd.to_datetime(ts, utc=True)
+    else:
+        t = pd.Timestamp(ts)
+    if t.tzinfo is None:
+        return t.tz_localize("UTC")
+    return t.tz_convert("UTC")
+
+
 def lookup_1x2_close(
     df: pd.DataFrame,
     liga: str,
@@ -15,8 +26,7 @@ def lookup_1x2_close(
     kickoff: datetime | str,
     tol_days: int = 1,
 ) -> tuple[float, float, float] | None:
-    if isinstance(kickoff, str):
-        kickoff = pd.to_datetime(kickoff, utc=True)
+    kickoff = as_utc(kickoff)
     sub = df[
         (df.competition == liga)
         & (df.home_team == casa)
@@ -25,7 +35,8 @@ def lookup_1x2_close(
     if sub.empty:
         return None
     sub = sub.copy()
-    sub["delta"] = (sub["date"] - kickoff).abs()
+    dates_utc = sub["date"].map(as_utc)
+    sub["delta"] = (dates_utc - kickoff).abs()
     row = sub.loc[sub["delta"] <= pd.Timedelta(days=tol_days)].sort_values("delta").head(1)
     if row.empty or row[["psc_h", "psc_d", "psc_a"]].isna().any(axis=None):
         return None
