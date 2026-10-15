@@ -60,4 +60,12 @@ Fonte: `data/polymarket_closed_matches.json` | Holdout desde 2025-10-09
 
 **Nota metodológica:** fair por abertura Pinnacle (`ps_*`) é o cenário honesto para cotação pré-jogo; fair por fechamento (`psc_*`) é cenário-oráculo (sensibilidade). Fill: primeiro candle onde preço cruza bid/ask. Rewards: fração conservadora do `rewardsDailyRate` quando spread ≤ `rewardsMaxSpread`.
 
-**Leitura vs pesquisa:** CLV positivo com ROI negativo sugere *adverse selection* (fills quando o mercado se move contra o lado cotado). Maker passivo só é viável se rebates/rewards compensarem — ver coluna ROI+rewards (estimativa, não garantia).
+**Leitura vs pesquisa:** confirma o consenso — taker direcional vs Pinnacle na Poly não passou; maker tem **CLV positivo** nas cotações preenchidas, mas **PnL negativo** no holdout (IC do ROI abaixo de zero em spreads apertados), típico de *adverse selection*. Sem modelo de rewards observado no histórico, **não há estratégia Polymarket operável** pelo critério PnL; continuar só com forward test / coleta de rebates reais.
+
+### Síntese final
+
+| Abordagem | CLV holdout | PnL holdout | Operável? |
+|-----------|-------------|-------------|-----------|
+| Poisson / blend vs Poly (proxy B365) | ≤ 0 | negativo | não |
+| H4b cross-book Pin→B365 (taker) | +1,3pp | ~0 | só B365, fora do monitor |
+| Maker Poly vs fair Pin (passivo) | +0,8–1,2pp | negativo | não (sem rewards) |
