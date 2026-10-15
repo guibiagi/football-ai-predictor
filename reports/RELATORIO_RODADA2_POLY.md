@@ -1,6 +1,6 @@
 # Rodada 2 — Polymarket (pesquisa e sinais)
 
-**Gerado:** 2026-10-15T13:39:30.956561+00:00  
+**Gerado:** 2026-10-15T13:17:27.889818+00:00  
 **Eventos no pool:** 17074  
 **Oportunidades RN1 com histórico:** 135
 
@@ -11,10 +11,10 @@ Critério PnL viável: últimos **365 dias** (holdout), **n ≥ 300**, ROI médi
 | H-RN1_expanded_rewards | 10 | 0.1061 | [-0.3629, 0.5561] | não | offset 0.02; fill_rate 0.2273; soccer opps 133; outros 2; rewards sim |
 | H-RN1_expanded_rewards | 9 | 0.2388 | [-0.1777, 0.6227] | não | offset 0.025; fill_rate 0.2045; soccer opps 133; outros 2; rewards sim |
 | H-RN1_expanded_rewards | 5 | 0.2813 | [-0.3803, 0.6873] | não | offset 0.03; fill_rate 0.1136; soccer opps 133; outros 2; rewards sim |
-| H-COH_paired | 2125 | -0.0863 | [-0.1701, 0.0037] | não | 67 |
-| W2_weather_taker_trades | 4 | -1.0426 | [-1.0446, -1.0405] | não | W2_spread_4c |
-| W2_weather_taker_trades | 4 | -1.0411 | [-1.0431, -1.039] | não | W2_spread_7c |
-| W2_weather_taker_trades | 4 | -1.0396 | [-1.0416, -1.0375] | não | W2_spread_10c |
+| H-COH_paired | 1318 | -0.0937 | [-0.2011, 0.0261] | não | 67 |
+| W2_weather_taker_trades | 1 | -1.038 | [-1.038, -1.038] | não | W2_spread_4c |
+| W2_weather_taker_trades | 1 | -1.0365 | [-1.0365, -1.0365] | não | W2_spread_7c |
+| W2_weather_taker_trades | 1 | -1.035 | [-1.035, -1.035] | não | W2_spread_10c |
 
 ## Forward test em papel (RN1)
 
@@ -28,10 +28,8 @@ Trading restrito no BR (código `BR`): [documentação Polymarket](https://docs.
 
 ## Notas metodológicas
 
-- RN1: fair Pin (futebol) ou preço CLOB ~24h antes (NBA/NFL/tênis/MMA); PnL maker com clobRewards estimados.
-- Pool Gamma mesclado (~17k eventos); fills RN1 limitados a tokens com prices-history em cache (135 oportunidades na faixa 0,60–0,80).
-- H-COH: taker Dixon-Coles vs preço Poly no kickoff; pareamento 1X2+O/U por data/equipes (67 pares).
-- Clima W2: trades taker data-api; cache em data/poly_trades_cache/.
+- RN1: fair Pin (futebol) ou preço CLOB ~24h antes (NBA/NFL/tênis/MMA). PnL maker inclui clobRewards estimados.
+- Meta n≥300 fills no holdout; amostra limitada pelo cache de prices-history e matching Pin.
 
 ## Conclusão
 
