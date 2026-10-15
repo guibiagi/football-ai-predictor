@@ -1,0 +1,390 @@
+{
+  "generated_at": "2026-10-15T11:34:31.279865+00:00",
+  "meta": {
+    "holdout_days": 365,
+    "clv_reference": "Pinnacle close (devig)",
+    "entry_odds": "Bet365 open",
+    "n_hypotheses": 13,
+    "bonferroni_alpha_per_test": 0.003846,
+    "viability_rule": "holdout n>=300, CLV mean>0, CI95 lower>0"
+  },
+  "hypotheses": [
+    {
+      "id": "H1_poisson_1x2_edge8",
+      "description": "Poisson 1X2 vs B365 abertura, edge≥8%",
+      "n_dev": 2735,
+      "clv_mean_dev": -0.00325,
+      "clv_ci95_dev": [
+        -0.00428,
+        -0.00223
+      ],
+      "roi_dev": -0.132,
+      "roi_ci95_dev": [
+        -0.1985,
+        -0.0638
+      ],
+      "n_holdout": 1672,
+      "clv_mean_holdout": -0.00291,
+      "clv_ci95_holdout": [
+        -0.00421,
+        -0.00154
+      ],
+      "roi_holdout": -0.1804,
+      "roi_ci95_holdout": [
+        -0.2612,
+        -0.0976
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H2_blend_isotonic_1x2_edge8",
+      "description": "Blend isotônico + mercado (1X2), edge≥8%",
+      "n_dev": 5355,
+      "clv_mean_dev": -0.00352,
+      "clv_ci95_dev": [
+        -0.00428,
+        -0.00276
+      ],
+      "roi_dev": -0.1718,
+      "roi_ci95_dev": [
+        -0.2179,
+        -0.1273
+      ],
+      "n_holdout": 3171,
+      "clv_mean_holdout": -0.00346,
+      "clv_ci95_holdout": [
+        -0.00443,
+        -0.00254
+      ],
+      "roi_holdout": -0.1193,
+      "roi_ci95_holdout": [
+        -0.1811,
+        -0.0573
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H3_poisson_ou_edge8",
+      "description": "Poisson O/U 2.5 vs B365 abertura, edge≥8%",
+      "n_dev": 1926,
+      "clv_mean_dev": -0.0034,
+      "clv_ci95_dev": [
+        -0.00478,
+        -0.00199
+      ],
+      "roi_dev": -0.0754,
+      "roi_ci95_dev": [
+        -0.1234,
+        -0.0229
+      ],
+      "n_holdout": 1034,
+      "clv_mean_holdout": 1e-05,
+      "clv_ci95_holdout": [
+        -0.00202,
+        0.00179
+      ],
+      "roi_holdout": -0.0835,
+      "roi_ci95_holdout": [
+        -0.1515,
+        -0.016
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H4_pin_open_vs_b365_1x2",
+      "description": "Pinnacle abertura > B365 abertura ≥3pp (1X2), execução B365",
+      "n_dev": 97,
+      "clv_mean_dev": 0.02669,
+      "clv_ci95_dev": [
+        0.02184,
+        0.03168
+      ],
+      "roi_dev": 0.2039,
+      "roi_ci95_dev": [
+        -0.0991,
+        0.5362
+      ],
+      "n_holdout": 64,
+      "clv_mean_holdout": 0.02463,
+      "clv_ci95_holdout": [
+        0.01782,
+        0.03123
+      ],
+      "roi_holdout": -0.2878,
+      "roi_ci95_holdout": [
+        -0.5807,
+        0.0302
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H5_poly_proxy_pin_open_b365",
+      "description": "Proxy Polymarket: fair Pinnacle abertura vs exec B365 ≥4pp",
+      "n_dev": 11,
+      "clv_mean_dev": 0.03877,
+      "clv_ci95_dev": [
+        0.02776,
+        0.05069
+      ],
+      "roi_dev": 0.14,
+      "roi_ci95_dev": [
+        -0.5564,
+        0.8582
+      ],
+      "n_holdout": 22,
+      "clv_mean_holdout": 0.01818,
+      "clv_ci95_holdout": [
+        0.00161,
+        0.03334
+      ],
+      "roi_holdout": -0.48,
+      "roi_ci95_holdout": [
+        -0.8359,
+        -0.0749
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H6_pin_open_vs_b365_edge5",
+      "description": "Pinnacle abertura > B365 ≥5pp (1X2)",
+      "n_dev": 4,
+      "clv_mean_dev": 0.0426,
+      "clv_ci95_dev": [
+        0.02942,
+        0.05719
+      ],
+      "roi_dev": 0.3625,
+      "roi_ci95_dev": [
+        -1.0,
+        1.725
+      ],
+      "n_holdout": 6,
+      "clv_mean_holdout": 0.03784,
+      "clv_ci95_holdout": [
+        0.01289,
+        0.06536
+      ],
+      "roi_holdout": -0.5,
+      "roi_ci95_holdout": [
+        -1.0,
+        0.5
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H7_lower_tier_poisson_ou_edge8",
+      "description": "O/U Poisson, edge≥8%, só divisões inferiores / ligas menores",
+      "n_dev": 298,
+      "clv_mean_dev": -0.00565,
+      "clv_ci95_dev": [
+        -0.0089,
+        -0.00273
+      ],
+      "roi_dev": -0.1213,
+      "roi_ci95_dev": [
+        -0.2431,
+        -0.0003
+      ],
+      "n_holdout": 127,
+      "clv_mean_holdout": 0.0041,
+      "clv_ci95_holdout": [
+        -0.00051,
+        0.00852
+      ],
+      "roi_holdout": -0.1132,
+      "roi_ci95_holdout": [
+        -0.2908,
+        0.0684
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H8_brasileirao_poisson_1x2_edge8",
+      "description": "Brasileirão A: Poisson 1X2 edge≥8%",
+      "n_dev": 0,
+      "clv_mean_dev": NaN,
+      "clv_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "roi_dev": NaN,
+      "roi_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "n_holdout": 0,
+      "clv_mean_holdout": NaN,
+      "clv_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "roi_holdout": NaN,
+      "roi_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H9_odds_band_18_35_poisson",
+      "description": "Poisson 1X2, edge≥8%, odds decimais 1.8–3.5 no pick",
+      "n_dev": 1102,
+      "clv_mean_dev": -0.00376,
+      "clv_ci95_dev": [
+        -0.00569,
+        -0.0018
+      ],
+      "roi_dev": -0.1296,
+      "roi_ci95_dev": [
+        -0.2034,
+        -0.0547
+      ],
+      "n_holdout": 678,
+      "clv_mean_holdout": -0.00164,
+      "clv_ci95_holdout": [
+        -0.00398,
+        0.00068
+      ],
+      "roi_holdout": -0.1663,
+      "roi_ci95_holdout": [
+        -0.2606,
+        -0.0746
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H10_poisson_ou_edge5",
+      "description": "Poisson O/U edge≥5% (filtro mais solto)",
+      "n_dev": 3645,
+      "clv_mean_dev": -0.00233,
+      "clv_ci95_dev": [
+        -0.00334,
+        -0.00138
+      ],
+      "roi_dev": -0.092,
+      "roi_ci95_dev": [
+        -0.1257,
+        -0.0579
+      ],
+      "n_holdout": 2029,
+      "clv_mean_holdout": -0.00036,
+      "clv_ci95_holdout": [
+        -0.00173,
+        0.00098
+      ],
+      "roi_holdout": -0.0594,
+      "roi_ci95_holdout": [
+        -0.1053,
+        -0.0127
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H11_movement_gbm_1x2",
+      "description": "GBM prevê CLV (lado pin−b365), mensal walk-forward",
+      "n_dev": 0,
+      "clv_mean_dev": NaN,
+      "clv_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "roi_dev": NaN,
+      "roi_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "n_holdout": 0,
+      "clv_mean_holdout": NaN,
+      "clv_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "roi_holdout": NaN,
+      "roi_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H12_xg_boost_ou",
+      "description": "GBM O/U (λ Poisson + mercado abertura) prevê CLV",
+      "n_dev": 0,
+      "clv_mean_dev": NaN,
+      "clv_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "roi_dev": NaN,
+      "roi_ci95_dev": [
+        NaN,
+        NaN
+      ],
+      "n_holdout": 0,
+      "clv_mean_holdout": NaN,
+      "clv_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "roi_holdout": NaN,
+      "roi_ci95_holdout": [
+        NaN,
+        NaN
+      ],
+      "viable": false,
+      "notes": "",
+      "extra": {}
+    },
+    {
+      "id": "H4b_pin_open_vs_b365_1pp",
+      "description": "Pinnacle abertura > B365 abertura ≥1pp (1X2) — timing cross-book",
+      "n_dev": 3377,
+      "clv_mean_dev": 0.0154,
+      "clv_ci95_dev": [
+        0.01447,
+        0.01627
+      ],
+      "roi_dev": 0.0131,
+      "roi_ci95_dev": [
+        -0.0339,
+        0.0609
+      ],
+      "n_holdout": 1707,
+      "clv_mean_holdout": 0.01277,
+      "clv_ci95_holdout": [
+        0.01161,
+        0.014
+      ],
+      "roi_holdout": -0.0009,
+      "roi_ci95_holdout": [
+        -0.0731,
+        0.073
+      ],
+      "viable": true,
+      "notes": "",
+      "extra": {}
+    }
+  ]
+}

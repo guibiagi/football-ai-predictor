@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.clv import clv_probability  # noqa: E402
 from src.data_loader import load_matches  # noqa: E402
 from src.monitor_gates import load_gates, market_allowed  # noqa: E402
+from src.monitor_strategies import load_strategy_config, strategy_enabled  # noqa: E402
+from src.odds_utils import market_probs  # noqa: E402
 from src.pinnacle_lookup import lookup_1x2_close  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
 from src.polymarket_prices import (  # noqa: E402
@@ -362,6 +364,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true", help="histórico acumulado")
     ap.add_argument("--ligas", action="store_true", help="cobertura de ligas")
+    ap.add_argument(
+        "--maker",
+        action="store_true",
+        help="cotação passiva (fair Pinnacle ps do dataset) — não aposta",
+    )
     a = ap.parse_args()
 
     df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
@@ -374,6 +381,8 @@ def main() -> int:
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
     gates = load_gates()
+    strat_cfg = load_strategy_config()
+    maker_mode = a.maker or strategy_enabled("maker_pin_fair", strat_cfg)
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
 
@@ -402,11 +411,31 @@ def main() -> int:
 
     fixtures, suspeitas, abertos = collect_fixtures(df, today, now)
     rows, alerts, illiquid, sem_time = [], [], [], []
+    maker_quotes: list[str] = []
     for f in fixtures:
         comp = f["liga"]
         model, idx = get_model(comp)
         home = lookup(idx, f["markets"][0]["title"])
         away = lookup(idx, f["markets"][2]["title"])
+        if maker_mode:
+            pin_row = df[
+                (df.competition == comp)
+                & (df.home_team == home)
+                & (df.away_team == away)
+                & (df.date.dt.date == today)
+            ]
+            if not pin_row.empty and pin_row.iloc[0][["ps_h", "ps_d", "ps_a"]].notna().all():
+                r0 = pin_row.iloc[0]
+                fair = market_probs(r0[["ps_h", "ps_d", "ps_a"]].to_numpy(dtype=float).reshape(1, -1))[0]
+                hs = float(strat_cfg.get("strategies", {}).get("maker_pin_fair", {}).get("half_spread", 0.02))
+                labels = ["casa", "empate", "fora"]
+                parts = []
+                for i, lab in enumerate(labels):
+                    bid = max(0.01, fair[i] - hs)
+                    ask = min(0.99, fair[i] + hs)
+                    parts.append(f"{lab} bid={bid:.3f} ask={ask:.3f} (fair={fair[i]:.3f})")
+                maker_quotes.append(f"[{comp}] {home} x {away}: " + " | ".join(parts))
+
         if not home or not away or home == away:
             # Dizer QUAL lado falhou: listar o par esconde o time problemático.
             faltando = [n for n, t in ((f["markets"][0]["title"], home),
@@ -452,6 +481,11 @@ def main() -> int:
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
+
+    if maker_quotes:
+        print("\nMAKER (fair Pinnacle ps no dataset, spread ± configurado):")
+        for x in maker_quotes:
+            print("  " + x)
 
     if alerts:
         print("\nALERTA — vantagem acima de %.0f%% (não é recomendação de aposta):" % (EDGE_MIN * 100))
