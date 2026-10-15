@@ -1,46 +1,57 @@
-data,slug,casa,fora,pick,p_modelo,p_mercado,edge,preco,inicio,resultado,volume,liga,vencedor,retorno
-2026-10-11,bra-cam-san-2026-10-11,Atletico-Mg,Santos,casa,0.4618,0.39,0.0718,0.39,2026-10-11T19:00:00Z,acerto,,Brasileirao Serie A,casa,1.5641
-2026-10-11,bra-fla-flu-2026-10-11,Flamengo Rj,Fluminense,fora,0.1959,0.14,0.0559,0.14,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,casa,-1.0
-2026-10-11,bra-pal-cor1-2026-10-11,Palmeiras,Corinthians,fora,0.1563,0.15,0.0063,0.15,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,casa,-1.0
-2026-10-11,bra-gre-int-2026-10-11,Gremio,Internacional,casa,0.4405,0.33,0.1105,0.33,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,empate,-1.0
-2026-10-11,bra-bah-mir-2026-10-11,Bahia,Mirassol,empate,0.2673,0.225,0.0423,0.225,2026-10-11T22:30:00Z,erro,,Brasileirao Serie A,casa,-1.0
-2026-10-11,bra-cor-bot-2026-10-12,Coritiba,Botafogo Rj,casa,0.4181,0.36,0.0581,0.36,2026-10-12T19:00:00Z,erro,,Brasileirao Serie A,empate,-1.0
-2026-10-11,bra-cha-cap-2026-10-12,Chapecoense-Sc,Athletico-Pr,casa,0.3158,0.235,0.0808,0.235,2026-10-12T22:30:00Z,erro,,Brasileirao Serie A,fora,-1.0
-2026-10-11,epl-cov-new-2026-10-12,Coventry,Newcastle,casa,0.3263,0.295,0.0313,0.295,2026-10-12T19:00:00Z,acerto,7282.0,Premier League,casa,2.3898
-2026-10-11,lal-lev-sev-2026-10-12,Levante,Sevilla,casa,0.4537,0.355,0.0987,0.355,2026-10-12T19:00:00Z,erro,4935.0,La Liga,empate,-1.0
-2026-10-11,por-fam-alv-2026-10-12,Famalicao,Alverca,fora,0.2478,0.205,0.0428,0.205,2026-10-12T19:15:00Z,acerto,86.0,Primeira Liga,fora,3.878
-2026-10-11,mls-stl-lag-2026-10-11,St. Louis City,Los Angeles Galaxy,fora,0.2141,0.165,0.0491,0.165,2026-10-11T23:00:00Z,erro,2222.0,MLS,casa,-1.0
-2026-10-11,nor-kfu-vif-2026-10-12,Kfum Oslo,Valerenga,casa,0.4753,0.34,0.1353,0.34,2026-10-12T17:00:00Z,acerto,68.0,Eliteserien,casa,1.9412
-2026-10-11,swe-mal-kal-2026-10-12,Malmo Ff,Kalmar,empate,0.2447,0.235,0.0097,0.235,2026-10-12T17:00:00Z,erro,0.0,Allsvenskan,casa,-1.0
-2026-10-11,pol-rad-mot-2026-10-12,Radomiak Radom,Motor Lublin,casa,0.3947,0.385,0.0097,0.385,2026-10-12T16:00:00Z,erro,582.0,Ekstraklasa,fora,-1.0
-2026-10-11,pol-kat-wie-2026-10-12,Gks Katowice,Wieczysta Krakow,casa,0.5561,0.465,0.0911,0.465,2026-10-12T18:30:00Z,acerto,177.0,Ekstraklasa,casa,1.1505
-2026-10-11,den-agf-sjs-2026-10-12,Aarhus,Sonderjyske,fora,0.2567,0.175,0.0817,0.175,2026-10-12T17:00:00Z,erro,0.0,Danish Superliga,casa,-1.0
-2026-10-11,swe-elf-hal-2026-10-12,Elfsborg,Halmstad,fora,0.1866,0.095,0.0916,0.095,2026-10-12T17:00:00Z,erro,0.0,Allsvenskan,casa,-1.0
-2026-10-12,bra-bra-cru-2026-10-12,Bragantino,Cruzeiro,empate,0.294,0.255,0.039,0.255,2026-10-13T00:00:00Z,erro,802.0,Brasileirao Serie A,casa,-1.0
-2026-10-12,elc-bur-cha-2026-10-13,Burnley,Charlton,fora,0.2916,0.165,0.1266,0.165,2026-10-13T18:45:00Z,erro,36.0,Championship,empate,-1.0
-2026-10-12,elc-bri-bbr-2026-10-13,Bristol City,Blackburn,fora,0.2905,0.265,0.0255,0.265,2026-10-13T18:45:00Z,acerto,338.0,Championship,fora,2.7736
-2026-10-12,elc-wre-wba-2026-10-13,Wrexham,West Brom,fora,0.3135,0.295,0.0185,0.295,2026-10-13T18:45:00Z,acerto,116.0,Championship,fora,2.3898
-2026-10-12,elc-mil-swa-2026-10-13,Millwall,Swansea,casa,0.4178,0.395,0.0228,0.395,2026-10-13T18:45:00Z,erro,86.0,Championship,fora,-1.0
-2026-10-12,elc-car-wat-2026-10-13,Cardiff,Watford,empate,0.2769,0.225,0.0519,0.225,2026-10-13T18:45:00Z,erro,5.0,Championship,casa,-1.0
-2026-10-12,elc-sto-mid-2026-10-13,Stoke,Middlesbrough,casa,0.3445,0.265,0.0795,0.265,2026-10-13T19:00:00Z,erro,742.0,Championship,fora,-1.0
-2026-10-12,elc-bir-pne-2026-10-13,Birmingham,Preston,fora,0.238,0.165,0.073,0.165,2026-10-13T19:00:00Z,erro,48.0,Championship,casa,-1.0
-2026-10-12,elc-wol-bol-2026-10-13,Wolves,Bolton,fora,0.2294,0.115,0.1144,0.115,2026-10-13T18:45:00Z,acerto,3546.0,Championship,fora,7.6957
-2026-10-13,mls-fcc-ner-2026-10-14,Fc Cincinnati,New England Revolution,fora,0.3614,0.265,0.0964,0.265,2026-10-14T23:30:00Z,,20.0,MLS,,
-2026-10-13,mls-mia-nyc-2026-10-14,Inter Miami,New York City,fora,0.2546,0.17,0.0846,0.17,2026-10-14T23:30:00Z,,45.0,MLS,,
-2026-10-13,mls-dcu-nyr-2026-10-14,Dc United,New York Red Bulls,empate,0.2685,0.235,0.0335,0.235,2026-10-14T23:30:00Z,,46.0,MLS,,
-2026-10-13,mls-tor-orl-2026-10-14,Toronto Fc,Orlando City,fora,0.3323,0.305,0.0273,0.305,2026-10-14T23:30:00Z,,24.0,MLS,,
-2026-10-13,mls-mim-atl-2026-10-14,Cf Montreal,Atlanta Utd,empate,0.2688,0.255,0.0138,0.255,2026-10-14T23:30:00Z,,943.0,MLS,,
-2026-10-13,mls-clb-clt-2026-10-14,Columbus Crew,Charlotte,fora,0.3421,0.28,0.0621,0.28,2026-10-14T23:30:00Z,,336.0,MLS,,
-2026-10-13,elc-qpr-der-2026-10-14,Qpr,Derby,fora,0.2867,0.175,0.1117,0.175,2026-10-14T18:45:00Z,,386.0,Championship,,
-2026-10-13,elc-por-she-2026-10-14,Portsmouth,Sheffield United,fora,0.3289,0.285,0.0439,0.285,2026-10-14T18:45:00Z,,116.0,Championship,,
-2026-10-13,elc-nor-sot-2026-10-14,Norwich,Southampton,fora,0.4043,0.355,0.0493,0.355,2026-10-14T18:45:00Z,,321.0,Championship,,
-2026-10-13,elc-lin-whu-2026-10-14,Lincoln,West Ham,casa,0.3316,0.195,0.1366,0.195,2026-10-14T19:00:00Z,,374.0,Championship,,
-2026-10-14,mls-stl-vwh-2026-10-14,St. Louis City,Vancouver Whitecaps,empate,0.2524,0.245,0.0074,0.245,2026-10-15T00:30:00Z,,216.0,MLS,,
-2026-10-14,mls-nas-skc-2026-10-14,Nashville Sc,Sporting Kansas City,empate,0.1918,0.125,0.0668,0.125,2026-10-15T00:30:00Z,,429.0,MLS,,
-2026-10-14,mls-dal-sea-2026-10-14,Fc Dallas,Seattle Sounders,empate,0.2585,0.235,0.0235,0.235,2026-10-15T00:30:00Z,,457.0,MLS,,
-2026-10-14,mls-chi-phi-2026-10-14,Chicago Fire,Philadelphia Union,fora,0.3623,0.355,0.0073,0.355,2026-10-15T00:30:00Z,,1368.0,MLS,,
-2026-10-14,mls-rsl-sje-2026-10-14,Real Salt Lake,San Jose Earthquakes,fora,0.3393,0.265,0.0743,0.265,2026-10-15T01:30:00Z,,6810.0,MLS,,
-2026-10-14,mls-col-min-2026-10-14,Colorado Rapids,Minnesota United,fora,0.2868,0.225,0.0618,0.225,2026-10-15T01:30:00Z,,252.0,MLS,,
-2026-10-14,mls-laf-aus-2026-10-14,Los Angeles Fc,Austin Fc,fora,0.2113,0.135,0.0763,0.135,2026-10-15T02:30:00Z,,1690.0,MLS,,
-2026-10-14,mls-lag-por-2026-10-14,Los Angeles Galaxy,Portland Timbers,empate,0.2523,0.24,0.0123,0.24,2026-10-15T02:30:00Z,,77.0,MLS,,
-2026-10-14,mls-sdg-hou-2026-10-14,San Diego Fc,Houston Dynamo,fora,0.2992,0.275,0.0242,0.275,2026-10-15T02:30:00Z,,131.0,MLS,,
+data,slug,casa,fora,pick,p_modelo,p_mercado,edge,preco,inicio,resultado,volume,liga,vencedor,retorno,preco_exec,preco_poly_fechamento,preco_pinnacle_fech,clv_poly,clv_pinnacle
+2026-10-11,bra-cam-san-2026-10-11,Atletico-Mg,Santos,casa,0.4618,0.39,0.0718,0.39,2026-10-11T19:00:00Z,acerto,,Brasileirao Serie A,casa,1.5641,,,,,
+2026-10-11,bra-fla-flu-2026-10-11,Flamengo Rj,Fluminense,fora,0.1959,0.14,0.0559,0.14,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,casa,-1.0,,,,,
+2026-10-11,bra-pal-cor1-2026-10-11,Palmeiras,Corinthians,fora,0.1563,0.15,0.0063,0.15,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,casa,-1.0,,,,,
+2026-10-11,bra-gre-int-2026-10-11,Gremio,Internacional,casa,0.4405,0.33,0.1105,0.33,2026-10-11T20:30:00Z,erro,,Brasileirao Serie A,empate,-1.0,,,,,
+2026-10-11,bra-bah-mir-2026-10-11,Bahia,Mirassol,empate,0.2673,0.225,0.0423,0.225,2026-10-11T22:30:00Z,erro,,Brasileirao Serie A,casa,-1.0,,,,,
+2026-10-11,bra-cor-bot-2026-10-12,Coritiba,Botafogo Rj,casa,0.4181,0.36,0.0581,0.36,2026-10-12T19:00:00Z,erro,,Brasileirao Serie A,empate,-1.0,,,,,
+2026-10-11,bra-cha-cap-2026-10-12,Chapecoense-Sc,Athletico-Pr,casa,0.3158,0.235,0.0808,0.235,2026-10-12T22:30:00Z,erro,,Brasileirao Serie A,fora,-1.0,,,,,
+2026-10-11,epl-cov-new-2026-10-12,Coventry,Newcastle,casa,0.3263,0.295,0.0313,0.295,2026-10-12T19:00:00Z,acerto,7282.0,Premier League,casa,2.3898,,,,,
+2026-10-11,lal-lev-sev-2026-10-12,Levante,Sevilla,casa,0.4537,0.355,0.0987,0.355,2026-10-12T19:00:00Z,erro,4935.0,La Liga,empate,-1.0,,,,,
+2026-10-11,por-fam-alv-2026-10-12,Famalicao,Alverca,fora,0.2478,0.205,0.0428,0.205,2026-10-12T19:15:00Z,acerto,86.0,Primeira Liga,fora,3.878,,,,,
+2026-10-11,mls-stl-lag-2026-10-11,St. Louis City,Los Angeles Galaxy,fora,0.2141,0.165,0.0491,0.165,2026-10-11T23:00:00Z,erro,2222.0,MLS,casa,-1.0,,,,,
+2026-10-11,nor-kfu-vif-2026-10-12,Kfum Oslo,Valerenga,casa,0.4753,0.34,0.1353,0.34,2026-10-12T17:00:00Z,acerto,68.0,Eliteserien,casa,1.9412,,,,,
+2026-10-11,swe-mal-kal-2026-10-12,Malmo Ff,Kalmar,empate,0.2447,0.235,0.0097,0.235,2026-10-12T17:00:00Z,erro,0.0,Allsvenskan,casa,-1.0,,,,,
+2026-10-11,pol-rad-mot-2026-10-12,Radomiak Radom,Motor Lublin,casa,0.3947,0.385,0.0097,0.385,2026-10-12T16:00:00Z,erro,582.0,Ekstraklasa,fora,-1.0,,,,,
+2026-10-11,pol-kat-wie-2026-10-12,Gks Katowice,Wieczysta Krakow,casa,0.5561,0.465,0.0911,0.465,2026-10-12T18:30:00Z,acerto,177.0,Ekstraklasa,casa,1.1505,,,,,
+2026-10-11,den-agf-sjs-2026-10-12,Aarhus,Sonderjyske,fora,0.2567,0.175,0.0817,0.175,2026-10-12T17:00:00Z,erro,0.0,Danish Superliga,casa,-1.0,,,,,
+2026-10-11,swe-elf-hal-2026-10-12,Elfsborg,Halmstad,fora,0.1866,0.095,0.0916,0.095,2026-10-12T17:00:00Z,erro,0.0,Allsvenskan,casa,-1.0,,,,,
+2026-10-12,bra-bra-cru-2026-10-12,Bragantino,Cruzeiro,empate,0.294,0.255,0.039,0.255,2026-10-13T00:00:00Z,erro,802.0,Brasileirao Serie A,casa,-1.0,,,,,
+2026-10-12,elc-bur-cha-2026-10-13,Burnley,Charlton,fora,0.2916,0.165,0.1266,0.165,2026-10-13T18:45:00Z,erro,36.0,Championship,empate,-1.0,,,,,
+2026-10-12,elc-bri-bbr-2026-10-13,Bristol City,Blackburn,fora,0.2905,0.265,0.0255,0.265,2026-10-13T18:45:00Z,acerto,338.0,Championship,fora,2.7736,,,,,
+2026-10-12,elc-wre-wba-2026-10-13,Wrexham,West Brom,fora,0.3135,0.295,0.0185,0.295,2026-10-13T18:45:00Z,acerto,116.0,Championship,fora,2.3898,,,,,
+2026-10-12,elc-mil-swa-2026-10-13,Millwall,Swansea,casa,0.4178,0.395,0.0228,0.395,2026-10-13T18:45:00Z,erro,86.0,Championship,fora,-1.0,,,,,
+2026-10-12,elc-car-wat-2026-10-13,Cardiff,Watford,empate,0.2769,0.225,0.0519,0.225,2026-10-13T18:45:00Z,erro,5.0,Championship,casa,-1.0,,,,,
+2026-10-12,elc-sto-mid-2026-10-13,Stoke,Middlesbrough,casa,0.3445,0.265,0.0795,0.265,2026-10-13T19:00:00Z,erro,742.0,Championship,fora,-1.0,,,,,
+2026-10-12,elc-bir-pne-2026-10-13,Birmingham,Preston,fora,0.238,0.165,0.073,0.165,2026-10-13T19:00:00Z,erro,48.0,Championship,casa,-1.0,,,,,
+2026-10-12,elc-wol-bol-2026-10-13,Wolves,Bolton,fora,0.2294,0.115,0.1144,0.115,2026-10-13T18:45:00Z,acerto,3546.0,Championship,fora,7.6957,,,,,
+2026-10-13,mls-fcc-ner-2026-10-14,Fc Cincinnati,New England Revolution,fora,0.3614,0.265,0.0964,0.265,2026-10-14T23:30:00Z,acerto,20.0,MLS,fora,2.7736,,0.325,,0.06,
+2026-10-13,mls-mia-nyc-2026-10-14,Inter Miami,New York City,fora,0.2546,0.17,0.0846,0.17,2026-10-14T23:30:00Z,erro,45.0,MLS,casa,-1.0,,0.165,,-0.005,
+2026-10-13,mls-dcu-nyr-2026-10-14,Dc United,New York Red Bulls,empate,0.2685,0.235,0.0335,0.235,2026-10-14T23:30:00Z,erro,46.0,MLS,casa,-1.0,,0.245,,0.01,
+2026-10-13,mls-tor-orl-2026-10-14,Toronto Fc,Orlando City,fora,0.3323,0.305,0.0273,0.305,2026-10-14T23:30:00Z,erro,24.0,MLS,empate,-1.0,,0.345,,0.04,
+2026-10-13,mls-mim-atl-2026-10-14,Cf Montreal,Atlanta Utd,empate,0.2688,0.255,0.0138,0.255,2026-10-14T23:30:00Z,erro,943.0,MLS,fora,-1.0,,0.255,,0.0,
+2026-10-13,mls-clb-clt-2026-10-14,Columbus Crew,Charlotte,fora,0.3421,0.28,0.0621,0.28,2026-10-14T23:30:00Z,erro,336.0,MLS,casa,-1.0,,0.225,,-0.055,
+2026-10-13,elc-qpr-der-2026-10-14,Qpr,Derby,fora,0.2867,0.175,0.1117,0.175,2026-10-14T18:45:00Z,erro,386.0,Championship,casa,-1.0,,0.205,,0.03,
+2026-10-13,elc-por-she-2026-10-14,Portsmouth,Sheffield United,fora,0.3289,0.285,0.0439,0.285,2026-10-14T18:45:00Z,erro,116.0,Championship,casa,-1.0,,0.315,,0.03,
+2026-10-13,elc-nor-sot-2026-10-14,Norwich,Southampton,fora,0.4043,0.355,0.0493,0.355,2026-10-14T18:45:00Z,acerto,321.0,Championship,fora,1.8169,,0.325,,-0.03,
+2026-10-13,elc-lin-whu-2026-10-14,Lincoln,West Ham,casa,0.3316,0.195,0.1366,0.195,2026-10-14T19:00:00Z,erro,374.0,Championship,fora,-1.0,,0.185,,-0.01,
+2026-10-14,mls-stl-vwh-2026-10-14,St. Louis City,Vancouver Whitecaps,empate,0.2524,0.245,0.0074,0.245,2026-10-15T00:30:00Z,acerto,216.0,MLS,empate,3.0816,,0.255,,0.01,
+2026-10-14,mls-nas-skc-2026-10-14,Nashville Sc,Sporting Kansas City,empate,0.1918,0.125,0.0668,0.125,2026-10-15T00:30:00Z,erro,429.0,MLS,casa,-1.0,,0.115,,-0.01,
+2026-10-14,mls-dal-sea-2026-10-14,Fc Dallas,Seattle Sounders,empate,0.2585,0.235,0.0235,0.235,2026-10-15T00:30:00Z,erro,457.0,MLS,casa,-1.0,,0.245,,0.01,
+2026-10-14,mls-chi-phi-2026-10-14,Chicago Fire,Philadelphia Union,fora,0.3623,0.355,0.0073,0.355,2026-10-15T00:30:00Z,acerto,1368.0,MLS,fora,1.8169,,0.365,,0.01,
+2026-10-14,mls-rsl-sje-2026-10-14,Real Salt Lake,San Jose Earthquakes,fora,0.3393,0.265,0.0743,0.265,2026-10-15T01:30:00Z,erro,6810.0,MLS,empate,-1.0,,0.275,,0.01,
+2026-10-14,mls-col-min-2026-10-14,Colorado Rapids,Minnesota United,fora,0.2868,0.225,0.0618,0.225,2026-10-15T01:30:00Z,erro,252.0,MLS,empate,-1.0,,0.225,,0.0,
+2026-10-14,mls-laf-aus-2026-10-14,Los Angeles Fc,Austin Fc,fora,0.2113,0.135,0.0763,0.135,2026-10-15T02:30:00Z,erro,1690.0,MLS,casa,-1.0,,0.125,,-0.01,
+2026-10-14,mls-lag-por-2026-10-14,Los Angeles Galaxy,Portland Timbers,empate,0.2523,0.24,0.0123,0.24,2026-10-15T02:30:00Z,erro,77.0,MLS,casa,-1.0,,0.235,,-0.005,
+2026-10-14,mls-sdg-hou-2026-10-14,San Diego Fc,Houston Dynamo,fora,0.2992,0.275,0.0242,0.275,2026-10-15T02:30:00Z,erro,131.0,MLS,empate,-1.0,,0.275,,0.0,
+2026-10-15,lal-dep-lev-2026-10-16,La Coruna,Levante,casa,0.5171,0.47,0.0471,0.47,2026-10-16T19:00:00Z,,6428.0,La Liga,,,0.47,,,,
+2026-10-15,bun-ein-koe-2026-10-16,Ein Frankfurt,Fc Koln,empate,0.2558,0.24,0.0158,0.24,2026-10-16T18:30:00Z,,81.0,Bundesliga,,,0.24,,,,
+2026-10-15,fl1-lmf-tou-2026-10-16,Le Mans,Toulouse,casa,0.4388,0.32,0.1188,0.32,2026-10-16T18:45:00Z,,105.0,Ligue 1,,,0.32,,,,
+2026-10-15,bra-mir-int-2026-10-16,Mirassol,Internacional,casa,0.4579,0.46,-0.0021,0.46,2026-10-16T23:00:00Z,,12.0,Brasileirao Serie A,,,0.46,,,,
+2026-10-15,elc-bur-wol-2026-10-16,Burnley,Wolves,casa,0.416,0.33,0.086,0.33,2026-10-16T19:00:00Z,,1929.0,Championship,,,0.33,,,,
+2026-10-15,aut-scr-htb-2026-10-16,Sk Rapid,Hartberg,fora,0.2273,0.1,0.1273,0.1,2026-10-16T17:30:00Z,,0.0,Austria Bundesliga,,,0.1,,,,
+2026-10-15,den-hor-ran-2026-10-16,Horsens,Randers Fc,casa,0.4668,0.35,0.1168,0.35,2026-10-16T17:00:00Z,,0.0,Danish Superliga,,,0.35,,,,
+2026-10-15,swe-bro-dju-2026-10-16,Brommapojkarna,Djurgarden,casa,0.2672,0.16,0.1072,0.16,2026-10-16T17:00:00Z,,24.0,Allsvenskan,,,0.16,,,,
+2026-10-15,pol-wlo-wis-2026-10-16,Widzew Lodz,Wisla,empate,0.2878,0.27,0.0178,0.27,2026-10-16T18:30:00Z,,0.0,Ekstraklasa,,,0.27,,,,
+2026-10-15,pol-wie-cze-2026-10-16,Wieczysta Krakow,Rakow,empate,0.2697,0.24,0.0297,0.24,2026-10-16T16:00:00Z,,47.0,Ekstraklasa,,,0.24,,,,
+2026-10-15,chi-hen-jin-2026-10-16,Henan Songshan Longmen,Tianjin Jinmen Tiger,fora,0.2994,0.21,0.0894,0.21,2026-10-16T11:35:00Z,,522.0,Chinese Super League,,,0.21,,,,

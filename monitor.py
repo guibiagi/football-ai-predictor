@@ -28,6 +28,12 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.clv import clv_probability  # noqa: E402
 from src.data_loader import load_matches  # noqa: E402
+from src.football_data_fixtures import (  # noqa: E402
+    fetch_season_rows_since,
+    load_upcoming_pinnacle_cached,
+    lookup_pin_open_row,
+    merge_hist_with_fixtures,
+)
 from src.monitor_gates import load_gates, market_allowed  # noqa: E402
 from src.monitor_strategies import load_strategy_config, strategy_enabled  # noqa: E402
 from src.odds_utils import market_probs  # noqa: E402
@@ -279,6 +285,43 @@ def _ensure_forward_schema(log: pd.DataFrame) -> pd.DataFrame:
     return log
 
 
+def _pin_dataset_row(
+    df: pd.DataFrame,
+    comp: str,
+    home: str,
+    away: str,
+    today: date,
+) -> pd.Series | None:
+    """Odds Pinnacle (ps_*) para jogo de hoje: fixtures live ou histórico."""
+    row = lookup_pin_open_row(df, comp, home, away, pd.Timestamp(today, tz="UTC"))
+    if row is not None:
+        return row
+    pin_row = df[
+        (df.competition == comp)
+        & (df.home_team == home)
+        & (df.away_team == away)
+        & (df.date.dt.date >= today - timedelta(days=3))
+        & (df.date.dt.date <= today + timedelta(days=1))
+    ].sort_values("date").tail(1)
+    return pin_row.iloc[0] if not pin_row.empty else None
+
+
+def load_monitor_dataset() -> pd.DataFrame:
+    """Histórico + fixtures futuros com Pinnacle (football-data.co.uk)."""
+    path = DATA_XG if DATA_XG.exists() else DATA
+    hist = load_matches(path)
+    try:
+        hist_max = hist["date"].max()
+        if hist_max.tzinfo is None:
+            hist_max = hist_max.tz_localize("UTC")
+        extra = fetch_season_rows_since(hist_max)
+        fx = load_upcoming_pinnacle_cached()
+        hist = merge_hist_with_fixtures(hist, fx, extra_played=extra)
+    except Exception as exc:
+        print(f"Aviso: fixtures Pinnacle não carregados ({exc}). Só histórico até {hist['date'].max()}.")
+    return hist
+
+
 def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFrame:
     """Marca o resultado dos jogos já encerrados na Polymarket.
 
@@ -292,52 +335,52 @@ def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFra
     for i, r in log[log["resultado"].isna()].iterrows():
         try:
             ev = _get(f"{GAMMA}/events?slug={r['slug']}")
+            if not ev:
+                continue
+            ms = ev[0].get("markets", [])
+            if len(ms) != 3 or not all(m.get("closed") for m in ms):
+                continue
+            roles = outcome_roles(ms, r["casa"], r["fora"])
+            if roles is None:
+                continue
+            prices = []
+            for m in ms:
+                try:
+                    prices.append(float(json.loads(m["outcomePrices"])[0]))
+                except Exception:
+                    prices.append(0.0)
+            if max(prices) < 0.9:
+                continue
+            winner = roles[prices.index(max(prices))]
+            acertou = winner == r["pick"]
+            preco = float(r["preco_exec"] if pd.notna(r.get("preco_exec")) else r["preco"])
+            log.at[i, "resultado"] = "acerto" if acertou else "erro"
+            log.at[i, "vencedor"] = winner
+            log.at[i, "retorno"] = round((1.0 - preco) / preco if acertou else -1.0, 4)
+
+            kickoff = _parse_iso(str(r.get("inicio") or ""))
+            pi = pick_idx.get(r["pick"], 0)
+            token = None
+            if len(ms) > pi:
+                token, _ = parse_token_ids(ms[pi])
+            if token and kickoff and pd.isna(r.get("preco_poly_fechamento")):
+                close_p = closing_price_before_kickoff(token, kickoff)
+                if close_p is not None:
+                    log.at[i, "preco_poly_fechamento"] = round(close_p, 4)
+                    log.at[i, "clv_poly"] = round(clv_probability(preco, close_p), 4)
+            if hist_df is not None and pd.isna(r.get("preco_pinnacle_fech")):
+                pin = lookup_1x2_close(
+                    hist_df, str(r.get("liga", "")), r["casa"], r["fora"], kickoff or r["inicio"],
+                )
+                if pin:
+                    import numpy as np
+                    from src.odds_utils import market_probs
+
+                    p_devig = market_probs(np.array([pin], dtype=float))[0, pi]
+                    log.at[i, "preco_pinnacle_fech"] = round(float(p_devig), 4)
+                    log.at[i, "clv_pinnacle"] = round(clv_probability(preco, float(p_devig)), 4)
         except Exception:
             continue
-        if not ev:
-            continue
-        ms = ev[0].get("markets", [])
-        if len(ms) != 3 or not all(m.get("closed") for m in ms):
-            continue
-        roles = outcome_roles(ms, r["casa"], r["fora"])
-        if roles is None:
-            continue
-        prices = []
-        for m in ms:
-            try:
-                prices.append(float(json.loads(m["outcomePrices"])[0]))
-            except Exception:
-                prices.append(0.0)
-        if max(prices) < 0.9:
-            continue
-        winner = roles[prices.index(max(prices))]
-        acertou = winner == r["pick"]
-        preco = float(r["preco_exec"] if pd.notna(r.get("preco_exec")) else r["preco"])
-        log.at[i, "resultado"] = "acerto" if acertou else "erro"
-        log.at[i, "vencedor"] = winner
-        log.at[i, "retorno"] = round((1.0 - preco) / preco if acertou else -1.0, 4)
-
-        kickoff = _parse_iso(str(r.get("inicio") or ""))
-        pi = pick_idx.get(r["pick"], 0)
-        token = None
-        if len(ms) > pi:
-            token, _ = parse_token_ids(ms[pi])
-        if token and kickoff and pd.isna(r.get("preco_poly_fechamento")):
-            close_p = closing_price_before_kickoff(token, kickoff)
-            if close_p is not None:
-                log.at[i, "preco_poly_fechamento"] = round(close_p, 4)
-                log.at[i, "clv_poly"] = round(clv_probability(preco, close_p), 4)
-        if hist_df is not None and pd.isna(r.get("preco_pinnacle_fech")):
-            pin = lookup_1x2_close(
-                hist_df, str(r.get("liga", "")), r["casa"], r["fora"], kickoff or r["inicio"],
-            )
-            if pin:
-                import numpy as np
-                from src.odds_utils import market_probs
-
-                p_devig = market_probs(np.array([pin], dtype=float))[0, pi]
-                log.at[i, "preco_pinnacle_fech"] = round(float(p_devig), 4)
-                log.at[i, "clv_pinnacle"] = round(clv_probability(preco, float(p_devig)), 4)
     return log
 
 
@@ -398,7 +441,7 @@ def main() -> int:
     )
     a = ap.parse_args()
 
-    df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
+    df = load_monitor_dataset()
 
     if a.ligas:
         print("ligas no dataset:")
@@ -484,14 +527,8 @@ def main() -> int:
         home = lookup(idx, f["markets"][0]["title"])
         away = lookup(idx, f["markets"][2]["title"])
         if maker_mode:
-            pin_row = df[
-                (df.competition == comp)
-                & (df.home_team == home)
-                & (df.away_team == away)
-                & (df.date.dt.date == today)
-            ]
-            if not pin_row.empty and pin_row.iloc[0][["ps_h", "ps_d", "ps_a"]].notna().all():
-                r0 = pin_row.iloc[0]
+            r0 = _pin_dataset_row(df, comp, home, away, today)
+            if r0 is not None and r0[["ps_h", "ps_d", "ps_a"]].notna().all():
                 fair = market_probs(r0[["ps_h", "ps_d", "ps_a"]].to_numpy(dtype=float).reshape(1, -1))[0]
                 hs = float(strat_cfg.get("strategies", {}).get("maker_pin_fair", {}).get("half_spread", 0.02))
                 labels = ["casa", "empate", "fora"]
@@ -505,14 +542,7 @@ def main() -> int:
         if a.paper_rn1 and home and away and home != away:
             roles = outcome_roles(f["markets"], home, away)
             if roles:
-                pin_row = df[
-                    (df.competition == comp)
-                    & (df.home_team == home)
-                    & (df.away_team == away)
-                    & (df.date.dt.date >= today - timedelta(days=3))
-                    & (df.date.dt.date <= today + timedelta(days=1))
-                ].sort_values("date").tail(1)
-                ds = pin_row.iloc[0] if not pin_row.empty else None
+                ds = _pin_dataset_row(df, comp, home, away, today)
                 pr = scan_fixture(
                     comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
                 )
@@ -522,14 +552,7 @@ def main() -> int:
         if paper_pin_enabled and home and away and home != away:
             roles = outcome_roles(f["markets"], home, away)
             if roles:
-                pin_row = df[
-                    (df.competition == comp)
-                    & (df.home_team == home)
-                    & (df.away_team == away)
-                    & (df.date.dt.date >= today - timedelta(days=3))
-                    & (df.date.dt.date <= today + timedelta(days=1))
-                ].sort_values("date").tail(1)
-                ds = pin_row.iloc[0] if not pin_row.empty else None
+                ds = _pin_dataset_row(df, comp, home, away, today)
                 ppr = scan_pin_gap_fixture(
                     comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
                 )
