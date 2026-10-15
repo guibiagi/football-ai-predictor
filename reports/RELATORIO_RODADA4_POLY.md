@@ -104,4 +104,4 @@ Explorado `vgregoire/polymarket-users` (configs `trades`, `ohlcv_*`); backtests 
 
 ## Conclusão
 
-Após Bonferroni e BH sobre **50** hipóteses registradas, nenhuma passou o critério completo (n≥300, ROI>0, IC95>0, p corrigido<0,05, implementação validada). A família **pin_poly_taker** (T-24h, gap 1¢, todas as pernas) chegou a n=141 no holdout, mas ROI negativo e p_BH≈1. **Neg-risk** mostrou ROI alto em proxy, porém marcado `implementation_validated=false` (não integrado ao monitor). Seguir com `--paper-rn1` e `--paper-taker-pin` para evidência forward.
+Após Bonferroni e BH sobre **75** hipóteses, nenhuma passou n≥300 + ROI>0 + IC95>0 + p corrigido<0,05 com implementação validada. Pin-Poly (T-24h gap1¢ all legs) n=141 holdout, ROI<0. Neg-risk: ROI proxy alto mas excluído (não validado). HF vgregoire/polymarket-users reservado para ampliar trades.

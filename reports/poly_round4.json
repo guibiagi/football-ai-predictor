@@ -1615,5 +1615,5 @@
   "generated_at": "2026-10-15T13:58:44.001459+00:00",
   "holdout_days": 365,
   "n_events_cache": 17074,
-  "conclusion": "Ap\u00f3s Bonferroni e BH sobre **50** hip\u00f3teses registradas, nenhuma passou o crit\u00e9rio completo (n\u2265300, ROI>0, IC95>0, p corrigido<0,05, implementa\u00e7\u00e3o validada). A fam\u00edlia **pin_poly_taker** (T-24h, gap 1\u00a2, todas as pernas) chegou a n=141 no holdout, mas ROI negativo e p_BH\u22481. **Neg-risk** mostrou ROI alto em proxy, por\u00e9m marcado `implementation_validated=false` (n\u00e3o integrado ao monitor). Seguir com `--paper-rn1` e `--paper-taker-pin` para evid\u00eancia forward."
+  "conclusion": "Ap\u00f3s Bonferroni e BH sobre **75** hip\u00f3teses, nenhuma passou n\u2265300 + ROI>0 + IC95>0 + p corrigido<0,05 com implementa\u00e7\u00e3o validada. Pin-Poly (T-24h gap1\u00a2 all legs) n=141 holdout, ROI<0. Neg-risk: ROI proxy alto mas exclu\u00eddo (n\u00e3o validado). HF vgregoire/polymarket-users reservado para ampliar trades."
 }
