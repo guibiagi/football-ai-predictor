@@ -1,113 +1,97 @@
-# ⚽ Football AI Predictor
+# Football AI Predictor (Poisson Dixon-Coles + monitor Polymarket)
 
-**Probabilistic football match prediction — educational project.**
+Modelo probabilístico de futebol com backtests walk-forward, avaliação contra linhas de fechamento (Pinnacle) e monitor de forward test na Polymarket.
 
-Predicts match outcomes using a **Poisson distribution model** trained on historical match data. Not a betting tool — a statistics and ML learning project.
-
-## 🧠 How it works
+## Como funciona
 
 ```
-Historical matches → Team attack/defense strengths → Expected goals (λ) → Poisson distribution → Score probability matrix → All predictions
+Jogos históricos → forças ataque/defesa (Poisson + Dixon-Coles ρ)
+                 → matriz de placares → 1X2, O/U, AH
+                 → (opcional) shrink para o mercado + isotônica por liga
 ```
 
-1. **Estimate expected goals** for each team based on historical attacking and defensive strength
-2. **Apply Poisson distribution** to get P(0 goals), P(1 goal), P(2 goals), etc.
-3. **Build a score matrix** by multiplying probabilities (assuming independence)
-4. **Extract all probabilities** from the matrix: win/draw/loss, both teams score, over/under, most likely scores
+O **monitor** (`monitor.py`) compara o modelo com preços da Polymarket, grava `data/forward_test.csv` e só alerta com edge executável (preço ask/bid, volume, gate por liga).
 
-## 🚀 Quick start
+## Quick start
 
 ```bash
-# Install dependencies
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 
-# Run a prediction
-python run_prediction.py "Brazil" "France"
+# Previsão pontual
+python3 run_prediction.py "Brazil" "France"
 
-# Run all tests
-PYTHONPATH=. python -m pytest tests/ -v
+# Backtest de skill vs mercado
+python3 backtest_skill.py
+
+# Métricas reproduzíveis (JSON em reports/)
+python3 backtest_write_metrics.py
+
+# Simulação acelerada do monitor (últimas 2 temporadas)
+python3 backtest_monitor_sim.py
+
+# Monitor Polymarket (não aposta)
+python3 monitor.py
+python3 monitor.py --report
+
+# Testes
+PYTHONPATH=. python3 -m pytest tests/ -v
 ```
 
-## 📁 Project structure
+## Estrutura
 
+| Caminho | Função |
+|---------|--------|
+| `src/poisson_model.py` | Poisson + Dixon-Coles, decay temporal |
+| `src/blend_model.py` | Mistura gols / xG / SOT no treino |
+| `src/market_blend.py` | Shrink para fechamento sem margem + isotônica |
+| `src/team_matching.py` | `rapidfuzz` + `data/team_aliases.json` |
+| `src/reporting.py` | JSON de métricas, bootstrap, calibração |
+| `monitor.py` | Forward test + CLV (Polymarket + Pinnacle quando há match) |
+| `data/monitor_gates.json` | Ligas/mercados elegíveis para alerta |
+| `reports/` | `metrics_YYYYMMDD.json`, `monitor_sim_2seasons.json` |
+
+## Forward test e CLV
+
+Colunas novas em `data/forward_test.csv` (linhas antigas continuam válidas):
+
+- `preco_exec` — preço de execução (best ask/bid quando a API informa)
+- `preco_poly_fechamento` — último preço CLOB antes do kickoff
+- `preco_pinnacle_fech` — probabilidade devig do fechamento Pinnacle (match no dataset)
+- `clv_poly`, `clv_pinnacle` — CLV em pontos de probabilidade na pick
+
+`settle()` preenche resultado e CLV ao resolver jogos.
+
+## Gates de alerta
+
+Gerados sem vazamento a partir de backtests:
+
+```bash
+python3 scripts/build_monitor_gates.py
 ```
-football-ai-predictor/
-├── README.md              # You are here
-├── requirements.txt       # Dependencies
-├── run_prediction.py      # Quick CLI prediction script
-├── data/
-│   └── matches.csv        # Historical match data
-├── notebooks/
-│   ├── 01_exploracao.ipynb     # (coming soon) Data exploration
-│   └── 02_modelo_poisson.ipynb # (coming soon) Model walkthrough
-├── src/
-│   ├── __init__.py
-│   ├── data_loader.py     # Load, validate, clean match data
-│   ├── poisson_model.py   # Poisson prediction model
-│   ├── features.py        # (coming soon) Feature engineering
-│   ├── metrics.py         # (coming soon) Model evaluation
-│   ├── simulator.py       # (coming soon) Match simulator
-│   └── app.py             # (coming soon) Streamlit dashboard
-└── tests/
-    ├── __init__.py
-    ├── test_data_loader.py
-    └── test_poisson_model.py
+
+Só alerta onde `log_loss_gain_vs_close >= -0.005` no histórico walk-forward (por liga e mercado 1X2 / O/U).
+
+## Métricas e comparação
+
+```bash
+python3 backtest_write_metrics.py
+python3 scripts/compare_reports.py reports/metrics_A.json reports/metrics_B.json
 ```
 
-## 📊 Data
+## Auditoria de vazamento
 
-The project uses the **International Football Results** dataset by [Mart Jürisoo](https://github.com/martj42/international_results), containing **25,433 matches from 2000 to 2026** across 127 competitions and 314 national teams.
+- Treino e ρ Dixon-Coles usam apenas jogos **anteriores** à data prevista (`expanding_window_backtest`).
+- Shrink/isotônica: calibrados na **primeira metade** do OOS por liga; avaliados na segunda (simulação e `backtest_write_metrics`).
+- `reference_date = max(date)` no `fit()` é seguro dentro de cada janela de treino (sem futuro).
+- Recalibração O/U em `backtest_totals.py` ainda usa metade inicial do OOS — tratar como otimismo leve ao interpretar.
 
-- Source: [github.com/martj42/international_results](https://github.com/martj42/international_results)
-- Format: CSV (1.7 MB), ready to use — no Kaggle login required
-- Includes: FIFA World Cup, continental championships, qualifiers, friendlies, Nations League
-- Neutral venue flag included for tournament matches
+## Avisos
 
-| Column | Type | Description |
-|--------|------|-------------|
-| date | YYYY-MM-DD | Match date |
-| competition | string | e.g. "World Cup", "Brasileirão" |
-| season | int | Year of the season |
-| stage | string | "Group", "Round of 16", "Quarterfinal", etc. |
-| home_team | string | Home team name |
-| away_team | string | Away team name |
-| home_goals | int | Goals scored by home team |
-| away_goals | int | Goals scored by away team |
-| neutral | bool | True if match is on neutral ground |
+- Probabilidades, não certezas. ROI de curto prazo é ruído; priorize log-loss e CLV.
+- Sem Kelly no monitor — stake fixa nas simulações.
+- Não é recomendação de aposta.
 
-## 🎯 MVP roadmap
+## Dados
 
-- [x] **MVP 1**: Simple Poisson model with global + team averages
-- [ ] **MVP 2**: Add offensive/defensive strength adjustments (regression-based)
-- [ ] **MVP 3**: Add Elo ratings or custom team rating
-- [ ] **MVP 4**: Add recent form, rest days, competition stage
-- [ ] **MVP 5**: Adapt from World Cup to Brasileirão
-- [ ] **MVP 6**: Streamlit dashboard for interactive predictions
-
-## ⚠️ Important caveats
-
-- This is a **probabilistic** model — it estimates likelihoods, not certainties
-- **Small sample sizes** (e.g., World Cup with 64 games) lead to noisy estimates
-- The model assumes **goal independence** between teams (Poisson assumption)
-- It does NOT account for: injuries, red cards, weather, tactical changes, motivation
-- **NEVER use this for real betting** — it's an educational tool
-
-## 📚 Why Poisson?
-
-Football goals are:
-- **Rare** (~2.5 per match on average)
-- **Discrete** (0, 1, 2, 3... — not 1.7)
-- **Roughly independent** within short time intervals
-
-The Poisson distribution is the simplest model that captures these properties. It's the right starting point before moving to more complex models (Dixon-Coles, XGBoost, etc.).
-
-## 🧪 Testing philosophy
-
-- **Temporal splits only** — never shuffle football data (future information leak)
-- **Log loss > accuracy** — we care about calibrated probabilities, not just right/wrong
-- **Fallback for small data** — teams with fewer than N games use global averages
-
----
-
-*Built for learning. AI that's good doesn't give certainty — it shows uncertainty honestly.*
+Principal: `data/matches_xg.csv` (football-data.co.uk + xG/SOT). Internacionais: `data/matches.csv`.
