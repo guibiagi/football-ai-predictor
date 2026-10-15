@@ -69,11 +69,13 @@ def _fetch_auxiliary_soccer_markets(max_pages: int = 25) -> list[dict]:
     return out
 
 
-def _poly_yes_price_at_kickoff(token: str, kickoff: datetime) -> float | None:
+def _poly_yes_price_at_kickoff(
+    token: str, kickoff: datetime, cache_only: bool = False,
+) -> float | None:
     if kickoff.tzinfo is None:
         kickoff = kickoff.replace(tzinfo=timezone.utc)
     end_ts = int(kickoff.timestamp())
-    hist = price_history(token, end_ts - 72 * 3600, end_ts)
+    hist = price_history(token, end_ts - 72 * 3600, end_ts, cache_only=cache_only)
     if not hist:
         return None
     last = max(hist, key=lambda h: h.get("t", 0))

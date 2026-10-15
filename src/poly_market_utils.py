@@ -51,10 +51,18 @@ def yes_won(market: dict) -> bool | None:
     return None
 
 
-def price_history(token_id: str, start_ts: int, end_ts: int, fidelity: int = 60) -> list[dict]:
+def price_history(
+    token_id: str,
+    start_ts: int,
+    end_ts: int,
+    fidelity: int = 60,
+    cache_only: bool = False,
+) -> list[dict]:
     cache = HIST_CACHE / f"{token_id}_{start_ts}_{end_ts}_{fidelity}.json"
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
+    if cache_only:
+        return []
     url = (
         f"{CLOB}/prices-history?market={token_id}"
         f"&startTs={start_ts}&endTs={end_ts}&fidelity={fidelity}"
