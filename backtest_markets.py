@@ -82,7 +82,9 @@ def roda(df: pd.DataFrame, comp: str) -> pd.DataFrame | None:
     # home_goals/away_goals já vêm do backtest (resultado real); trazer de novo
     # no merge criaria home_goals_x/_y e quebraria tudo abaixo.
     cols = ["date", "home_team", "away_team",
+            "odds_open_h", "odds_open_d", "odds_open_a",
             "psc_h", "psc_d", "psc_a", "b365c_h", "b365c_d", "b365c_a",
+            "ou_open_over", "ou_open_under",
             "ou_close_over", "ou_close_under", "ou_psc_over", "ou_psc_under",
             "ah_line", "ah_close_h", "ah_close_a"]
     preds = preds.merge(sub[[c for c in cols if c in sub.columns]],

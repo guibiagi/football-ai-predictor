@@ -78,6 +78,8 @@ def expanding_window_backtest(
                          test_start.date(), len(train), len(test))
             continue
 
+        # fit() usa apenas `train` (date < test_start); ρ Dixon-Coles estimado no
+        # mesmo conjunto — sem jogos do período de teste.
         model = model_factory()
         model.fit(train)
 
