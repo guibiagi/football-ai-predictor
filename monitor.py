@@ -78,7 +78,25 @@ ALIASES = {
     "paranaense": "athletico-pr",
     "flamengo": "flamengo rj",
     "botafogo": "botafogo rj",
+    # Inglaterra: football-data abrevia, Polymarket escreve por extenso.
+    "wolverhampton": "wolves",
+    "queens": "qpr",
+    "manchester united": "man united",
+    "manchester city": "man city",
+    "nottingham forest": "nott'm forest",
+    "sheffield wednesday": "sheffield weds",
+    "west bromwich albion": "west brom",
+    "club atletico de madrid": "ath madrid",
+    "d.c. united": "dc united",
+    "shanghai haigang": "shanghai port",  # mesmo clube, nome chinês
+    "qingdao xihaian": "qingdao west coast",  # Xihai'an = West Coast
+    "real racing club": "santander",
+    "west ham united": "west ham",
 }
+# Palavra que aparece em clube de tudo quanto é liga. Como atalho, ela casa o
+# time errado ('Stoke City' → Man City, 'Manchester City' → Bristol City).
+GENERIC = {"united", "city", "town", "county", "rovers", "wanderers", "athletic",
+           "albion", "west", "north", "south", "east", "real", "sporting", "club"}
 
 
 def _get(url: str):
@@ -115,7 +133,11 @@ def _clean(name: str) -> str:
     for p in CLUB_PREFIXES:
         if n.startswith(p):
             n = n[len(p):]
-    return n.replace("paulista", "").strip()
+    n = n.replace("paulista", "").strip()
+    for s in (" afc", " fc", " cf", " sc"):  # 'Hull City AFC', 'Real Madrid CF'
+        if n.endswith(s):
+            n = n[: -len(s)]
+    return n.strip()
 
 
 def normalize(name: str) -> str:
@@ -142,10 +164,16 @@ def build_map(teams: list[str]) -> dict[str, str]:
     idx: dict[str, str] = {}
     for t in teams:
         idx[_clean(t)] = t  # chave exata, autoritativa
+    # Atalho só para palavra que aponta para UM time. 'sheffield' aparece em
+    # United e Weds; antes o primeiro em ordem alfabética levava, calado.
+    owners: dict[str, set[str]] = {}
     for t in teams:
         for w in _clean(t).replace("-", " ").split():
-            if len(w) > 3:
-                idx.setdefault(w, t)
+            if len(w) > 3 and w not in GENERIC:
+                owners.setdefault(w, set()).add(t)
+    for w, ts in owners.items():
+        if len(ts) == 1:
+            idx.setdefault(w, next(iter(ts)))
     return idx
 
 
@@ -160,7 +188,7 @@ def lookup(idx: dict[str, str], name: str) -> str | None:
     if key in idx:
         return idx[key]
     first = key.split()[0] if key.split() else key
-    alias = ALIASES.get(first)
+    alias = ALIASES.get(key) or ALIASES.get(first)
     if alias and alias in idx:
         return idx[alias]
     words = key.replace("-", " ").split()
@@ -353,6 +381,8 @@ def settle(log: pd.DataFrame) -> pd.DataFrame:
     mercados foi identificada com certeza — se estiver ambíguo, deixa pendente
     em vez de chutar.
     """
+    # coluna toda vazia é lida como float64 e recusa "acerto"/"erro"
+    log["resultado"] = log["resultado"].astype(object)
     for i, r in log[log["resultado"].isna()].iterrows():
         try:
             ev = _get(f"{GAMMA}/events?slug={r['slug']}")
@@ -565,6 +595,22 @@ if __name__ == "__main__":
         assert lookup(idx3, "Halmstads BK") == "Halmstad"
         assert lookup(idx3, "IF Elfsborg") == "Elfsborg"
         assert lookup(idx3, "Time Que Nao Existe") is None
+        # self-check: Inglaterra — nome por extenso e palavra genérica/ambígua
+        idx4 = build_map(["Wolves", "Bolton", "Sheffield United", "Sheffield Weds",
+                          "Bristol City", "Stoke", "West Brom", "QPR", "Hull"])
+        assert lookup(idx4, "Wolverhampton Wanderers FC") == "Wolves"
+        assert lookup(idx4, "Bolton Wanderers FC") == "Bolton"
+        assert lookup(idx4, "Sheffield Wednesday FC") == "Sheffield Weds"
+        assert lookup(idx4, "Sheffield United FC") == "Sheffield United"
+        assert lookup(idx4, "Manchester City FC") is None, "City sequestrou Bristol City"
+        assert lookup(idx4, "Stoke City FC") == "Stoke"
+        assert lookup(idx4, "Queens Park Rangers FC") == "QPR"
+        assert lookup(idx4, "Hull City AFC") == "Hull"
+        assert lookup(build_map(["Man City", "Man United"]), "Stoke City FC") is None
+        idx5 = build_map(["Real Madrid", "Betis", "Sociedad", "Ath Madrid"])
+        assert lookup(idx5, "Real Betis Balompié") == "Betis", "Real sequestrou Betis"
+        assert lookup(idx5, "Real Madrid CF") == "Real Madrid"
+        assert lookup(idx5, "Club Atlético de Madrid") == "Ath Madrid"
         # self-check: liga da Polymarket → competição do dataset
         ci = _comp_index(pd.DataFrame({"competition": ["Championship", "Serie A",
                                                       "Brasileirao Serie A", "Eliteserien"]}))

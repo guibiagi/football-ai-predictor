@@ -83,7 +83,8 @@ def roda(df: pd.DataFrame, comp: str) -> pd.DataFrame | None:
     # no merge criaria home_goals_x/_y e quebraria tudo abaixo.
     cols = ["date", "home_team", "away_team",
             "psc_h", "psc_d", "psc_a", "b365c_h", "b365c_d", "b365c_a",
-            "ou_close_over", "ou_close_under", "ou_psc_over", "ou_psc_under"]
+            "ou_close_over", "ou_close_under", "ou_psc_over", "ou_psc_under",
+            "ah_line", "ah_close_h", "ah_close_a"]
     preds = preds.merge(sub[[c for c in cols if c in sub.columns]],
                         on=["date", "home_team", "away_team"], how="inner")
     return preds if len(preds) >= 100 else None
