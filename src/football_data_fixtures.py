@@ -13,6 +13,7 @@ import pandas as pd
 from src.team_matching import build_map, load_aliases, lookup
 
 BASE = "https://www.football-data.co.uk"
+FIXTURES_CSV_URL = f"{BASE}/fixtures.csv"
 UA = {"User-Agent": "Mozilla/5.0"}
 CACHE_PATH = Path(__file__).resolve().parent.parent / "data" / "pinnacle_fixtures_live.json"
 CACHE_TTL_SEC = 6 * 3600
@@ -35,6 +36,8 @@ COMP_TO_CODE = {
     "Ekstraklasa": "POL",
     "Chinese Super League": "CHN",
 }
+
+CODE_TO_COMP = {code: comp for comp, code in COMP_TO_CODE.items()}
 
 
 def _season_code_for_now() -> str:
@@ -82,7 +85,7 @@ def _parse_seasonal_fixtures(raw: pd.DataFrame, competition: str) -> pd.DataFram
             psh, psd, psa = r.get("AvgCH"), r.get("AvgCD"), r.get("AvgCA")
         if pd.isna(psh) or pd.isna(psd) or pd.isna(psa):
             continue
-        dt = pd.to_datetime(r.get("Date"), dayfirst=True, errors="coerce")
+        dt = pd.to_datetime(r.get("Date"), dayfirst=True, errors="coerce", utc=True)
         if pd.isna(dt):
             continue
         home = str(r.get(home_col) or "").strip()
@@ -102,6 +105,65 @@ def _parse_seasonal_fixtures(raw: pd.DataFrame, competition: str) -> pd.DataFram
             "ps_h": float(psh),
             "ps_d": float(psd),
             "ps_a": float(psa),
+            "psc_h": float(r.get("PSCH")) if pd.notna(r.get("PSCH")) else float("nan"),
+            "psc_d": float(r.get("PSCD")) if pd.notna(r.get("PSCD")) else float("nan"),
+            "psc_a": float(r.get("PSCA")) if pd.notna(r.get("PSCA")) else float("nan"),
+        })
+    return pd.DataFrame(rows)
+
+
+def _odds_triplet(r: pd.Series) -> tuple[float, float, float] | None:
+    psh, psd, psa = r.get("PSH"), r.get("PSD"), r.get("PSA")
+    if pd.isna(psh):
+        psh, psd, psa = r.get("PPH"), r.get("PPD"), r.get("PPA")
+    if pd.isna(psh):
+        psh, psd, psa = r.get("AvgCH"), r.get("AvgCD"), r.get("AvgCA")
+    if pd.isna(psh) or pd.isna(psd) or pd.isna(psa):
+        return None
+    return float(psh), float(psd), float(psa)
+
+
+def fetch_fixtures_csv_pinnacle(competitions: list[str] | None = None) -> pd.DataFrame:
+    """Jogos futuros agendados (fixtures.csv global) com Pinnacle/PPH."""
+    competitions = competitions or list(COMP_TO_CODE.keys())
+    allowed = {COMP_TO_CODE[c] for c in competitions if c in COMP_TO_CODE}
+    raw = _fetch_csv(FIXTURES_CSV_URL)
+    if raw is None or raw.empty or "Div" not in raw.columns:
+        return pd.DataFrame()
+    rows = []
+    for _, r in raw.iterrows():
+        code = str(r.get("Div") or "").strip()
+        if code not in allowed:
+            continue
+        comp = CODE_TO_COMP.get(code)
+        if not comp:
+            continue
+        odds = _odds_triplet(r)
+        if odds is None:
+            continue
+        psh, psd, psa = odds
+        dt = pd.to_datetime(r.get("Date"), format="%d/%m/%Y", errors="coerce", utc=True)
+        if pd.isna(dt):
+            dt = pd.to_datetime(r.get("Date"), dayfirst=True, errors="coerce", utc=True)
+        if pd.isna(dt):
+            continue
+        home = str(r.get("HomeTeam") or "").strip()
+        away = str(r.get("AwayTeam") or "").strip()
+        if not home or not away:
+            continue
+        rows.append({
+            "date": dt,
+            "competition": comp,
+            "season": _season_code_for_now(),
+            "stage": "fixture",
+            "home_team": home,
+            "away_team": away,
+            "home_goals": pd.NA,
+            "away_goals": pd.NA,
+            "neutral": False,
+            "ps_h": psh,
+            "ps_d": psd,
+            "ps_a": psa,
             "psc_h": float(r.get("PSCH")) if pd.notna(r.get("PSCH")) else float("nan"),
             "psc_d": float(r.get("PSCD")) if pd.notna(r.get("PSCD")) else float("nan"),
             "psc_a": float(r.get("PSCA")) if pd.notna(r.get("PSCA")) else float("nan"),
@@ -175,10 +237,13 @@ def fetch_season_rows_since(
 
 
 def fetch_upcoming_pinnacle(competitions: list[str] | None = None) -> pd.DataFrame:
-    """Baixa jogos futuros com Pinnacle (PSH) das ligas do monitor."""
+    """Baixa jogos futuros com odds Pinnacle (PSH/PPH) das ligas do monitor."""
     competitions = competitions or list(COMP_TO_CODE.keys())
-    season = _season_code_for_now()
     parts: list[pd.DataFrame] = []
+    fx_global = fetch_fixtures_csv_pinnacle(competitions)
+    if not fx_global.empty:
+        parts.append(fx_global)
+    season = _season_code_for_now()
     for comp in competitions:
         code = COMP_TO_CODE.get(comp)
         if not code:
@@ -195,7 +260,15 @@ def fetch_upcoming_pinnacle(competitions: list[str] | None = None) -> pd.DataFra
             parts.append(part)
     if not parts:
         return pd.DataFrame()
-    return pd.concat(parts, ignore_index=True)
+    out = pd.concat(parts, ignore_index=True)
+    out["date"] = pd.to_datetime(out["date"], utc=True)
+    out["_d"] = out["date"].dt.normalize()
+    return (
+        out.sort_values("date")
+        .drop_duplicates(subset=["competition", "home_team", "away_team", "_d"], keep="first")
+        .drop(columns=["_d"])
+        .reset_index(drop=True)
+    )
 
 
 def _cache_valid() -> bool:
