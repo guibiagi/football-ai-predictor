@@ -29,7 +29,15 @@
 | **H5** | Calibração pura (sem trade rule): Brier/log-loss de preço 1h antes do settle vs outcome | n/a (métrica apenas no holdout) |
 
 **Total de testes de ROI (variantes com regra de trade):**  
-H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3: 3 = 3; H4: 4 = 4 → **25 testes de ROI** (+ H5 apenas calibração).
+H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3: 3 = 3; H4: 4 = 4 → **25 testes base** (+ H5 apenas calibração).
+
+### Adendo (2026-10-17): segmentação por liquidez
+
+- **Dimensão extra:** cada uma das 25 variantes de ROI é avaliada em **3 tercis** de liquidez (T1 baixa, T2 média, T3 alta), usando volume USD reportado na Gamma no momento da decisão (proxy: volume acumulado do mercado; limitação documentada).
+- **Tercis:** cortes em `log1p(volume)` sobre o universo de mercados do backtest (fixos antes do holdout).
+- **Execução:** stake nominal **US$ 25** (faixa 10–50); spread + impacto linear `0.5 × stake / max(250, 2% volume)` em pontos de probabilidade, mais meio-spread 0,5 pp e taxa taker 2%.
+- **Hipótese exploratória do usuário:** reação lenta concentrada em **T1** (baixa liquidez).
+- **Correção múltipla atualizada:** 25 × 3 = **75 testes de ROI** entram em Bonferroni e BH (H5 calibração fora da família de ROI).
 
 ## Critério de “sobrevivência”
 
