@@ -260,7 +260,7 @@ def outcome_roles(ms: list[dict], casa: str, fora: str) -> list[str] | None:
     idx = build_map([casa, fora])
     roles = []
     for m in ms:
-        title = m.get("groupItemTitle") or m.get("question") or ""
+        title = m.get("groupItemTitle") or m.get("question") or m.get("title") or ""
         if "draw" in title.lower():
             roles.append("empate")
             continue
@@ -302,8 +302,9 @@ def _pin_dataset_row(
         & (df.away_team == away)
         & (df.date.dt.date >= today - timedelta(days=3))
         & (df.date.dt.date <= today + timedelta(days=1))
-    ].sort_values("date").tail(1)
-    return pin_row.iloc[0] if not pin_row.empty else None
+    ].sort_values("date")
+    pin_row = pin_row[pin_row[["ps_h", "ps_d", "ps_a"]].notna().all(axis=1)]
+    return pin_row.iloc[-1] if not pin_row.empty else None
 
 
 def load_monitor_dataset() -> pd.DataFrame:
@@ -521,6 +522,9 @@ def main() -> int:
     maker_quotes: list[str] = []
     paper_rows: list[dict] = []
     paper_pin_rows: list[dict] = []
+    rn1_with_pin = 0
+    rn1_in_band = 0
+    rn1_no_pin = 0
     for f in fixtures:
         comp = f["liga"]
         model, idx = get_model(comp)
@@ -543,6 +547,17 @@ def main() -> int:
             roles = outcome_roles(f["markets"], home, away)
             if roles:
                 ds = _pin_dataset_row(df, comp, home, away, today)
+                if ds is not None and ds[["ps_h", "ps_d", "ps_a"]].notna().all():
+                    from src.paper_rn1 import pin_fair_for_fixture
+
+                    rn1_with_pin += 1
+                    fav = max(
+                        pin_fair_for_fixture(ds, i) or 0.0 for i in range(3)
+                    )
+                    if 0.60 <= fav <= 0.80:
+                        rn1_in_band += 1
+                elif a.paper_rn1:
+                    rn1_no_pin += 1
                 pr = scan_fixture(
                     comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
                 )
@@ -605,18 +620,26 @@ def main() -> int:
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
 
+    if a.paper_rn1:
+        print(
+            f"\nPAPER RN1 diagnóstico: {len(fixtures)} jogos Poly hoje | "
+            f"{rn1_with_pin} com fair Pin (ps_*/PPH) | {rn1_in_band} na faixa 0.60–0.80 | "
+            f"{rn1_no_pin} sem linha Pin no dataset"
+        )
+
     if paper_rows:
         plog = ensure_log()
         newp = pd.DataFrame(paper_rows)
         plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
         plog.to_csv(PAPER_LOG, index=False)
-        print(f"\nPAPER RN1: {len(paper_rows)} sinais hoje → {PAPER_LOG.name}")
+        print(f"PAPER RN1: {len(paper_rows)} sinais hoje → {PAPER_LOG.name}")
         for pr in paper_rows:
             print(f"  [{pr['liga']}] {pr['casa']} x {pr['fora']}: fair={pr['fair_pin']:.2f} "
                   f"bid={pr['bid']:.2f} poly={pr['poly_exec']:.2f} pick={pr['pick']}")
 
     if a.paper_rn1 and not paper_rows:
-        print("\nPAPER RN1: nenhum jogo na faixa 0.60–0.80 com Pin ps no dataset hoje.")
+        print("PAPER RN1: nenhum sinal executável na faixa 0.60–0.80 hoje "
+              "(volume mínimo / preço Poly).")
 
     if paper_pin_rows:
         plogp = ensure_pin_log()
