@@ -53,25 +53,22 @@ def _devig_power_binary(odds: np.ndarray, tol: float = 1e-9) -> np.ndarray:
     return out
 
 
-def _devig_shin_binary(odds: np.ndarray, tol: float = 1e-8) -> np.ndarray:
-    """Shin (1991) aproximado para 2 resultados."""
+def _devig_shin_binary(odds: np.ndarray, tol: float = 1e-10) -> np.ndarray:
+    """Shin (1992): pi_i = (sqrt(z²+4(1-z)q_i²)-z) / (2(1-z)), q_i=1/o_i, sum pi = 1."""
     out = np.empty(len(odds))
-    n = 2
     for i, row in enumerate(odds):
-        imp = 1.0 / row
-        z = 0.0
-        for _ in range(100):
-            denom = np.sqrt(1.0 + z) + z * (n - 1) * imp
-            p = imp / denom
-            s = p.sum()
-            z_new = max(0.0, (s - 1.0) / (n - 1) / imp.sum())
-            if abs(z_new - z) < tol:
-                z = z_new
-                break
-            z = z_new
-        denom = np.sqrt(1.0 + z) + z * (n - 1) * imp
-        p = imp / denom
-        out[i] = p[0]
+        q = 1.0 / row
+        z_lo, z_hi = 0.0, 1.0 - 1e-12
+        for _ in range(80):
+            z = (z_lo + z_hi) / 2.0
+            p = (np.sqrt(z * z + 4.0 * (1.0 - z) * q * q) - z) / (2.0 * (1.0 - z))
+            if p.sum() > 1.0:
+                z_lo = z
+            else:
+                z_hi = z
+        z = (z_lo + z_hi) / 2.0
+        p = (np.sqrt(z * z + 4.0 * (1.0 - z) * q * q) - z) / (2.0 * (1.0 - z))
+        out[i] = float(p[0])
     return out
 
 
@@ -141,12 +138,13 @@ def bootstrap_best_strategy_null_p(
     best_obs = max(rois)
     if not np.isfinite(best_obs):
         return 1.0
+    centered = [r - r.mean() for r in strategy_returns if len(r)]
+    if not centered:
+        return 1.0
     count = 0
     for _ in range(n_boot):
         sim_best = -np.inf
-        for rets in strategy_returns:
-            if len(rets) == 0:
-                continue
+        for rets in centered:
             idx = rng.integers(0, len(rets), size=len(rets))
             sim = rets[idx].mean()
             sim_best = max(sim_best, sim)
@@ -233,7 +231,7 @@ def summarize_bets(
     rets = flat_bet_returns(odds_side[mask], won)
     clv = []
     for i, is_over in zip(np.where(mask)[0], side_over[mask]):
-        p_entry = p_open_fair[i] if is_over else 1.0 - p_open_fair[i]
+        p_entry = 1.0 / odds_side[i]
         p_close = p_close_fair[i] if is_over else 1.0 - p_close_fair[i]
         clv.append(clv_probability(p_entry, p_close))
     clv_arr = np.array(clv, dtype=float)

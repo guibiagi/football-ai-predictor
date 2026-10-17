@@ -7,6 +7,7 @@ from src.ou_backtest import (
     aggregate_variant_results,
     bh_fdr_adjust,
     bonferroni_adjust,
+    bootstrap_best_strategy_null_p,
     bootstrap_p_roi_nonpos,
     bootstrap_roi_ci,
     devig_binary,
@@ -22,6 +23,13 @@ def test_devig_binary_sums_reasonable():
         assert np.all(p > 0) and np.all(p < 1)
         p2 = devig_binary(odds, method=method)
         np.testing.assert_allclose(p, p2)
+
+
+def test_shin_devig_removes_margin_extreme():
+    odds = np.array([[1.05, 9.0]])
+    p_over = devig_binary(odds, method="shin")[0]
+    p_under = 1.0 - p_over
+    np.testing.assert_allclose(p_over + p_under, 1.0, rtol=0, atol=1e-8)
 
 
 def test_odds_valid_filters_bad():
@@ -47,7 +55,6 @@ def test_bootstrap_roi_ci_constant():
 
 
 def test_bootstrap_p_negative_roi_near_one():
-    """ROI negativo: H0 ROI<=0 não deve dar p pequeno (bug do review)."""
     rets = np.full(200, -0.05)
     p = bootstrap_p_roi_nonpos(rets, n_boot=2000, rng=np.random.default_rng(42))
     assert p > 0.9
@@ -57,6 +64,21 @@ def test_bootstrap_p_positive_roi_small():
     rets = np.full(200, 0.08)
     p = bootstrap_p_roi_nonpos(rets, n_boot=2000, rng=np.random.default_rng(42))
     assert p < 0.05
+
+
+def test_bootstrap_best_strategy_null_detects_planted_edge():
+    rng = np.random.default_rng(0)
+    losers = [rng.normal(-0.02, 0.5, size=500) for _ in range(15)]
+    winner = np.concatenate([np.full(1500, 0.12), rng.normal(-0.01, 0.3, size=500)])
+    p = bootstrap_best_strategy_null_p(losers + [winner], n_boot=3000, rng=np.random.default_rng(1))
+    assert p < 0.05
+
+
+def test_bootstrap_best_strategy_null_flat_strategies_high_p():
+    rng = np.random.default_rng(0)
+    flat = [rng.normal(0.0, 0.4, size=400) for _ in range(10)]
+    p = bootstrap_best_strategy_null_p(flat, n_boot=2000, rng=np.random.default_rng(2))
+    assert p > 0.2
 
 
 def test_aggregate_variant_results():

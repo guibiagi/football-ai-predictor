@@ -3,9 +3,9 @@
     "variant_id": "H1_shin_edge10_shin",
     "hypothesis": "H1_model",
     "split": "holdout",
-    "n": 264,
-    "roi": -0.0918181818181818,
-    "p_raw": 0.8973,
+    "n": 275,
+    "roi": -0.06512727272727273,
+    "p_raw": 0.8271,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -14,9 +14,9 @@
     "variant_id": "H1_shin_edge10_shin",
     "hypothesis": "H1_model",
     "split": "train",
-    "n": 2058,
-    "roi": -0.08738581146744412,
-    "p_raw": 0.9998,
+    "n": 1849,
+    "roi": -0.07804218496484587,
+    "p_raw": 0.9983,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -25,9 +25,9 @@
     "variant_id": "H1_shin_edge5_shin",
     "hypothesis": "H1_model",
     "split": "holdout",
-    "n": 880,
-    "roi": -0.040340909090909094,
-    "p_raw": 0.8654,
+    "n": 916,
+    "roi": -0.03644104803493449,
+    "p_raw": 0.8515,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -36,9 +36,9 @@
     "variant_id": "H1_shin_edge5_shin",
     "hypothesis": "H1_model",
     "split": "train",
-    "n": 5275,
-    "roi": -0.07002085308056873,
-    "p_raw": 1.0,
+    "n": 5105,
+    "roi": -0.06469147894221351,
+    "p_raw": 0.9999,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -49,7 +49,7 @@
     "split": "holdout",
     "n": 238,
     "roi": -0.08403361344537816,
-    "p_raw": 0.8756,
+    "p_raw": 0.8737,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -60,7 +60,7 @@
     "split": "train",
     "n": 1651,
     "roi": -0.0762023016353725,
-    "p_raw": 0.9973,
+    "p_raw": 0.9968,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -71,7 +71,7 @@
     "split": "holdout",
     "n": 1324,
     "roi": -0.049108761329305146,
-    "p_raw": 0.9565,
+    "p_raw": 0.9583,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -93,7 +93,7 @@
     "split": "holdout",
     "n": 860,
     "roi": -0.028872093023255826,
-    "p_raw": 0.7788,
+    "p_raw": 0.7962,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -115,7 +115,7 @@
     "split": "holdout",
     "n": 527,
     "roi": 0.0031688804554079577,
-    "p_raw": 0.4802,
+    "p_raw": 0.4751,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -137,7 +137,7 @@
     "split": "holdout",
     "n": 258,
     "roi": -0.0742248062015504,
-    "p_raw": 0.8498,
+    "p_raw": 0.85,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -148,7 +148,7 @@
     "split": "train",
     "n": 1780,
     "roi": -0.07728651685393258,
-    "p_raw": 0.998,
+    "p_raw": 0.9968,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -159,7 +159,7 @@
     "split": "holdout",
     "n": 1330,
     "roi": -0.046819548872180455,
-    "p_raw": 0.9433,
+    "p_raw": 0.9425,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -181,7 +181,7 @@
     "split": "holdout",
     "n": 897,
     "roi": -0.02917502787068005,
-    "p_raw": 0.7891,
+    "p_raw": 0.7814,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -192,7 +192,7 @@
     "split": "train",
     "n": 5050,
     "roi": -0.06761782178217822,
-    "p_raw": 0.9999,
+    "p_raw": 1.0,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -203,7 +203,7 @@
     "split": "holdout",
     "n": 548,
     "roi": 0.003740875912408767,
-    "p_raw": 0.4706,
+    "p_raw": 0.471,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -214,7 +214,7 @@
     "split": "train",
     "n": 3409,
     "roi": -0.0665180404810795,
-    "p_raw": 0.9996,
+    "p_raw": 0.9995,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -225,7 +225,7 @@
     "split": "holdout",
     "n": 87,
     "roi": 0.03321839080459771,
-    "p_raw": 0.4051,
+    "p_raw": 0.3942,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -236,7 +236,7 @@
     "split": "train",
     "n": 410,
     "roi": 0.009317073170731703,
-    "p_raw": 0.4454,
+    "p_raw": 0.4395,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -247,7 +247,7 @@
     "split": "holdout",
     "n": 341,
     "roi": 0.049237536656891505,
-    "p_raw": 0.2142,
+    "p_raw": 0.2108,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -258,7 +258,7 @@
     "split": "train",
     "n": 1390,
     "roi": -0.06502158273381295,
-    "p_raw": 0.9828,
+    "p_raw": 0.9793,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -269,7 +269,7 @@
     "split": "holdout",
     "n": 930,
     "roi": -0.026913978494623656,
-    "p_raw": 0.7736,
+    "p_raw": 0.7735,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -291,7 +291,7 @@
     "split": "holdout",
     "n": 6,
     "roi": 0.25500000000000006,
-    "p_raw": 0.3509,
+    "p_raw": 0.3451,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -302,7 +302,7 @@
     "split": "train",
     "n": 16,
     "roi": 0.16749999999999998,
-    "p_raw": 0.4018,
+    "p_raw": 0.4001,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -313,7 +313,7 @@
     "split": "holdout",
     "n": 3,
     "roi": 0.29000000000000004,
-    "p_raw": 0.3004,
+    "p_raw": 0.2941,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -324,7 +324,7 @@
     "split": "train",
     "n": 11,
     "roi": 0.04363636363636363,
-    "p_raw": 0.3822,
+    "p_raw": 0.3876,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -335,7 +335,7 @@
     "split": "holdout",
     "n": 18,
     "roi": -0.042777777777777776,
-    "p_raw": 0.5641,
+    "p_raw": 0.5767,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -346,7 +346,7 @@
     "split": "train",
     "n": 31,
     "roi": 0.07419354838709677,
-    "p_raw": 0.4145,
+    "p_raw": 0.4129,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -357,7 +357,7 @@
     "split": "holdout",
     "n": 9,
     "roi": 0.2977777777777778,
-    "p_raw": 0.2984,
+    "p_raw": 0.2866,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -368,7 +368,7 @@
     "split": "train",
     "n": 15,
     "roi": 0.016666666666666666,
-    "p_raw": 0.4882,
+    "p_raw": 0.4924,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -379,7 +379,7 @@
     "split": "holdout",
     "n": 50,
     "roi": -0.08,
-    "p_raw": 0.6804,
+    "p_raw": 0.6728,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -390,7 +390,7 @@
     "split": "train",
     "n": 414,
     "roi": 0.0011352657004830933,
-    "p_raw": 0.4891,
+    "p_raw": 0.4945,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -401,7 +401,7 @@
     "split": "holdout",
     "n": 16,
     "roi": -0.1525,
-    "p_raw": 0.6866,
+    "p_raw": 0.6915,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -412,7 +412,7 @@
     "split": "train",
     "n": 80,
     "roi": 0.19874999999999998,
-    "p_raw": 0.1053,
+    "p_raw": 0.105,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -423,7 +423,7 @@
     "split": "holdout",
     "n": 2131,
     "roi": -0.05445330830595965,
-    "p_raw": 0.9939,
+    "p_raw": 0.9948,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -445,7 +445,7 @@
     "split": "holdout",
     "n": 2131,
     "roi": -0.017301736274049746,
-    "p_raw": 0.7884,
+    "p_raw": 0.7882,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -456,7 +456,7 @@
     "split": "train",
     "n": 10570,
     "roi": -0.013297067171239364,
-    "p_raw": 0.9136,
+    "p_raw": 0.9186,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -467,7 +467,7 @@
     "split": "holdout",
     "n": 391,
     "roi": -0.05601023017902814,
-    "p_raw": 0.8542,
+    "p_raw": 0.8544,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -478,7 +478,7 @@
     "split": "train",
     "n": 977,
     "roi": -0.02519959058341863,
-    "p_raw": 0.7655,
+    "p_raw": 0.7658,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -489,7 +489,7 @@
     "split": "holdout",
     "n": 444,
     "roi": -0.005878378378378383,
-    "p_raw": 0.546,
+    "p_raw": 0.5474,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -500,7 +500,7 @@
     "split": "train",
     "n": 2869,
     "roi": -0.07627047751829906,
-    "p_raw": 1.0,
+    "p_raw": 0.9999,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -511,7 +511,7 @@
     "split": "holdout",
     "n": 469,
     "roi": -0.006247334754797453,
-    "p_raw": 0.5419,
+    "p_raw": 0.5484,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -533,7 +533,7 @@
     "split": "holdout",
     "n": 38,
     "roi": -0.2781578947368421,
-    "p_raw": 0.9662,
+    "p_raw": 0.9685,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -544,7 +544,7 @@
     "split": "train",
     "n": 224,
     "roi": -0.07084821428571429,
-    "p_raw": 0.8454,
+    "p_raw": 0.8526,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -555,7 +555,7 @@
     "split": "holdout",
     "n": 35,
     "roi": -0.04914285714285715,
-    "p_raw": 0.6136,
+    "p_raw": 0.6176,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -566,7 +566,7 @@
     "split": "train",
     "n": 264,
     "roi": -0.10034090909090909,
-    "p_raw": 0.9385,
+    "p_raw": 0.9361,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -577,7 +577,7 @@
     "split": "holdout",
     "n": 38,
     "roi": 0.11947368421052634,
-    "p_raw": 0.2123,
+    "p_raw": 0.2128,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -588,7 +588,7 @@
     "split": "train",
     "n": 189,
     "roi": -0.08920634920634922,
-    "p_raw": 0.877,
+    "p_raw": 0.8718,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -599,7 +599,7 @@
     "split": "holdout",
     "n": 92,
     "roi": 0.0018478260869565259,
-    "p_raw": 0.5019,
+    "p_raw": 0.489,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -610,7 +610,7 @@
     "split": "train",
     "n": 489,
     "roi": -0.04376278118609407,
-    "p_raw": 0.8171,
+    "p_raw": 0.8185,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -621,7 +621,7 @@
     "split": "holdout",
     "n": 55,
     "roi": -0.24654545454545457,
-    "p_raw": 0.9418,
+    "p_raw": 0.9387,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -632,7 +632,7 @@
     "split": "train",
     "n": 296,
     "roi": -0.05108108108108109,
-    "p_raw": 0.7653,
+    "p_raw": 0.7714,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -643,7 +643,7 @@
     "split": "holdout",
     "n": 73,
     "roi": -0.01821917808219177,
-    "p_raw": 0.5586,
+    "p_raw": 0.5579,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -654,7 +654,7 @@
     "split": "train",
     "n": 337,
     "roi": -0.047655786350148374,
-    "p_raw": 0.7866,
+    "p_raw": 0.7767,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -665,7 +665,7 @@
     "split": "holdout",
     "n": 79,
     "roi": -0.060506329113924055,
-    "p_raw": 0.7016,
+    "p_raw": 0.7021,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -676,7 +676,7 @@
     "split": "train",
     "n": 505,
     "roi": -0.07758415841584157,
-    "p_raw": 0.9585,
+    "p_raw": 0.9583,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -687,7 +687,7 @@
     "split": "holdout",
     "n": 62,
     "roi": -0.02161290322580645,
-    "p_raw": 0.5575,
+    "p_raw": 0.563,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -698,7 +698,7 @@
     "split": "train",
     "n": 295,
     "roi": -0.07111864406779662,
-    "p_raw": 0.8656,
+    "p_raw": 0.858,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -709,7 +709,7 @@
     "split": "holdout",
     "n": 40,
     "roi": -0.11325000000000003,
-    "p_raw": 0.7699,
+    "p_raw": 0.7612,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -720,7 +720,7 @@
     "split": "train",
     "n": 361,
     "roi": -0.1056509695290859,
-    "p_raw": 0.9776,
+    "p_raw": 0.9803,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -731,7 +731,7 @@
     "split": "holdout",
     "n": 89,
     "roi": 0.188876404494382,
-    "p_raw": 0.0363,
+    "p_raw": 0.0365,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -742,7 +742,7 @@
     "split": "train",
     "n": 414,
     "roi": -0.06282608695652177,
-    "p_raw": 0.8491,
+    "p_raw": 0.8503,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -753,7 +753,7 @@
     "split": "holdout",
     "n": 46,
     "roi": -0.043478260869565216,
-    "p_raw": 0.6151,
+    "p_raw": 0.6247,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -764,7 +764,7 @@
     "split": "train",
     "n": 311,
     "roi": -0.18807073954983922,
-    "p_raw": 0.9987,
+    "p_raw": 0.9992,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -775,7 +775,7 @@
     "split": "holdout",
     "n": 12,
     "roi": 0.2591666666666666,
-    "p_raw": 0.2116,
+    "p_raw": 0.2105,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -786,7 +786,7 @@
     "split": "train",
     "n": 132,
     "roi": 0.038939393939393954,
-    "p_raw": 0.341,
+    "p_raw": 0.3438,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -797,7 +797,7 @@
     "split": "holdout",
     "n": 90,
     "roi": -0.13500000000000004,
-    "p_raw": 0.8849,
+    "p_raw": 0.8756,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -808,7 +808,7 @@
     "split": "train",
     "n": 250,
     "roi": -0.011120000000000026,
-    "p_raw": 0.5659,
+    "p_raw": 0.5663,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -819,7 +819,7 @@
     "split": "holdout",
     "n": 32,
     "roi": 0.17093750000000002,
-    "p_raw": 0.2123,
+    "p_raw": 0.214,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -830,7 +830,7 @@
     "split": "train",
     "n": 288,
     "roi": 0.03663194444444444,
-    "p_raw": 0.2917,
+    "p_raw": 0.283,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -841,7 +841,7 @@
     "split": "holdout",
     "n": 20,
     "roi": 0.28650000000000003,
-    "p_raw": 0.1232,
+    "p_raw": 0.1212,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -852,7 +852,7 @@
     "split": "train",
     "n": 283,
     "roi": -0.12409893992932863,
-    "p_raw": 0.9788,
+    "p_raw": 0.978,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -863,7 +863,7 @@
     "split": "holdout",
     "n": 59,
     "roi": -0.1471186440677966,
-    "p_raw": 0.8547,
+    "p_raw": 0.8593,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false
@@ -874,7 +874,7 @@
     "split": "train",
     "n": 274,
     "roi": -0.1063138686131387,
-    "p_raw": 0.9464,
+    "p_raw": 0.9496,
     "p_bonf": 1.0,
     "q_bh": 1.0,
     "survives": false

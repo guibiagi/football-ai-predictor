@@ -45,13 +45,7 @@ VARIANT_LOG = ROOT / "reports" / "ou_variants_log.json"
 CHANGELOG = ROOT / "reports/OU_BACKTEST_CHANGELOG.md"
 CACHE = ROOT / "reports" / "ou_predictions_cache.pkl"
 
-PREV_SNAPSHOT = {
-    "n_matches": 12717,
-    "ll_model": 0.6869,
-    "ll_pin": 0.6718,
-    "survivors": 1,
-    "white_p": 0.5067,
-}
+LAST_RUN_JSON = ROOT / "reports" / "ou_backtest_last_run.json"
 
 
 def _roda(df: pd.DataFrame, comp: str, model_factory) -> pd.DataFrame | None:
@@ -226,9 +220,9 @@ def run_h3(
         roi, lo, hi = bootstrap_roi_ci(rets)
         clv = []
         for i, is_over in zip(np.where(mask)[0], side_over[mask]):
-            pe = p_fair[i] if is_over else 1 - p_fair[i]
+            p_entry = 1.0 / odds_side[i]
             pc = frame["p_close_fair"][i] if is_over else 1 - frame["p_close_fair"][i]
-            clv.append(clv_probability(pe, pc))
+            clv.append(clv_probability(p_entry, pc))
         clv_arr = np.array(clv)
         pm = frame["p_over"][mask]
         ym = frame["y"][mask]
@@ -355,6 +349,27 @@ def _low_scoring_leagues_train(
     return set(g[g <= g.median()].index)
 
 
+def _holdout_odds_date_range(
+    poisson_parts: list,
+    holdout_by_comp: dict[str, str | None],
+    inprog_by_comp: dict[str, str | None],
+) -> tuple[pd.Timestamp | None, pd.Timestamp | None, int]:
+    """Datas reais dos jogos no holdout com odds Pinnacle abertura válidas."""
+    dates: list[pd.Timestamp] = []
+    for comp, p, _rho in poisson_parts:
+        p = p.copy()
+        p["competition"] = comp
+        open_pin = p[["ou_ps_over", "ou_ps_under"]].to_numpy()
+        ok = _odds_validas(open_pin)
+        _, ho = _split_masks(p, holdout_by_comp, inprog_by_comp)
+        sel = ok & ho
+        if sel.any():
+            dates.extend(p.loc[sel, "date"].tolist())
+    if not dates:
+        return None, None, 0
+    return min(dates), max(dates), len(dates)
+
+
 def _calib_table(calib: pd.DataFrame) -> str:
     hdr = "| bin | n | pred | actual |\n|-----|---|------|--------|"
     rows = [
@@ -420,29 +435,48 @@ def format_report(
             f"{r.roi:+.2%} | {ci} | {clv} | {clvp} | "
             f"{r.p_raw:.3f} | {pb:.3f} | {qb:.3f} | {'sim' if r.survives else 'não'} |"
         )
-    survivors = [r for r in agg if r.survives]
+    survivors_agg = [r for r in agg if r.survives]
+    per_liga_all = [r for r in results if "@" in r.variant_id]
+    survivors_pl = [r for r in per_liga_all if r.survives]
     lines += ["", "## Veredito", ""]
-    if survivors:
-        for r in survivors:
+    if survivors_agg or survivors_pl:
+        if survivors_agg:
+            lines.append("**Agregado (todas as ligas):**")
+            for r in survivors_agg:
+                lines.append(
+                    f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
+                    f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}"
+                )
+        if survivors_pl:
+            lines.append("", "**Por liga (família de testes):**")
+            for r in survivors_pl:
+                lines.append(
+                    f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
+                    f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}"
+                )
+        if not survivors_agg:
             lines.append(
-                f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
-                f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}"
+                "\nNenhuma variante **agregada** sobrevive; ver linhas por liga acima se houver."
             )
     else:
         lines.append(
-            "**Nenhuma variante sobrevive** aos critérios pré-registrados "
-            "(ROI>0, p bootstrap <0,05 e Bonferroni ou BH-FDR) em treino ou holdout agregado."
+            "**Nenhuma variante sobrevive** (agregado nem por liga) aos critérios pré-registrados "
+            "(ROI>0, p bootstrap <0,05 e Bonferroni ou BH-FDR)."
         )
     per_liga = [r for r in results if "@" in r.variant_id and r.split == "holdout"]
     lines += [
         "",
         "## Por liga (holdout, H1a edge 5% multiplicativo)",
         "",
-        "| Liga | n | ROI | p raw |",
-        "|------|---|-----|-------|",
+        "| Liga | n | ROI | p raw | q BH | Sobrevive |",
+        "|------|---|-----|-------|------|-----------|",
     ]
     for r in sorted(per_liga, key=lambda x: x.variant_id):
-        lines.append(f"| {r.variant_id.split('@', 1)[-1]} | {r.n} | {r.roi:+.2%} | {r.p_raw:.3f} |")
+        qb = r.meta.get("q_bh", float("nan"))
+        lines.append(
+            f"| {r.variant_id.split('@', 1)[-1]} | {r.n} | {r.roi:+.2%} | {r.p_raw:.3f} | "
+            f"{qb:.3f} | {'sim' if r.survives else 'não'} |"
+        )
     lines += [
         "",
         "## Calibração (modelo, decílicos)",
@@ -460,33 +494,49 @@ def format_report(
     return "\n".join(lines)
 
 
-def write_changelog(global_ll: dict, n_matches: int, survivors: int, null_p: float) -> None:
-    body = f"""# Changelog — correções pós-review PR #5
-
-## Bugs corrigidos
-
-1. **p-value bootstrap**: ROI ≤ 0 agora dá p ≈ 1 (antes invertia e gerava falsos sobreviventes).
-2. **Devig vazado**: H1d/H3–H5 usam multiplicativo; H1b usa power; H1_shin usa Shin; CLV com o mesmo devig na abertura e fechamento.
-3. **H4 NaN**: `nanmean` no drift; jogos sem histórico finito não apostam.
-4. **Holdout**: última temporada **completa** por liga; temporada em andamento fora do treino/holdout.
-5. **H5b**: ligas baixo gols definidas só com dados de treino (sem holdout/em curso).
-6. **H2**: removido como família separada (equivalente a H1 com `edge/w`).
-7. **Variantes**: Shin, power com todos os limiares, H3 `Avg`, testes por liga; família de testes múltiplos ampliada.
-8. **White RC**: renomeado para bootstrap do melhor ROI (não é Hansen SPA).
-
-## Números vs relatório anterior (commit 378b26b)
-
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| n jogos OOS | {PREV_SNAPSHOT['n_matches']} | {n_matches} |
-| Log-loss modelo | {PREV_SNAPSHOT['ll_model']:.4f} | {global_ll['ll_model']:.4f} |
-| Log-loss Pinnacle | {PREV_SNAPSHOT['ll_pin']:.4f} | {global_ll['ll_pin']:.4f} |
-| Sobreviventes | {PREV_SNAPSHOT['survivors']} (H2_w0.25 holdout, artefato) | {survivors} |
-| Teste nulo melhor ROI | p={PREV_SNAPSHOT['white_p']:.4f} | p={null_p:.4f} |
-
-O sobrevivente anterior (H2_w0.25 holdout, n=9, q_BH=0,082) desaparece com o p-value corrigido (q→1,0).
-"""
-    CHANGELOG.write_text(body, encoding="utf-8")
+def write_changelog(current: dict) -> None:
+    prev: dict | None = None
+    if LAST_RUN_JSON.exists():
+        try:
+            prev = json.loads(LAST_RUN_JSON.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            prev = None
+    lines = [
+        "# Changelog — execução vs `reports/ou_backtest_last_run.json` anterior",
+        "",
+    ]
+    if prev is None:
+        lines.append("_Sem execução anterior registrada; métricas atuais abaixo._")
+    else:
+        lines += [
+            "| Métrica | Anterior | Atual |",
+            "|---------|----------|-------|",
+        ]
+        keys = [
+            ("n_matches", "n jogos OOS", ".0f"),
+            ("ll_model", "Log-loss modelo", ".4f"),
+            ("ll_pin", "Log-loss Pinnacle", ".4f"),
+            ("survivors_agg", "Sobreviventes agregado", ".0f"),
+            ("survivors_per_league", "Sobreviventes por liga", ".0f"),
+            ("null_p", "Teste nulo melhor ROI", ".4f"),
+            ("holdout_n", "Jogos holdout (com P abertura)", ".0f"),
+        ]
+        for key, label, fmt in keys:
+            a, b = prev.get(key), current.get(key)
+            if a is None or b is None:
+                continue
+            lines.append(f"| {label} | {a:{fmt}} | {b:{fmt}} |")
+        lines.append("")
+    lines += [
+        "## Snapshot atual",
+        "",
+        "```json",
+        json.dumps(current, indent=2, ensure_ascii=False),
+        "```",
+        "",
+    ]
+    CHANGELOG.write_text("\n".join(lines), encoding="utf-8")
+    LAST_RUN_JSON.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def main() -> int:
@@ -510,11 +560,6 @@ def main() -> int:
         ho, prog = _season_layout(df, comp)
         holdout_by_comp[comp] = ho
         inprog_by_comp[comp] = prog
-
-    holdout_info = (
-        "última temporada completa por liga; em curso excluída "
-        f"({sum(1 for v in inprog_by_comp.values() if v)} ligas com season em andamento)"
-    )
 
     import pickle
 
@@ -668,9 +713,36 @@ def main() -> int:
     } for r in combined]
     save_variant_log(VARIANT_LOG, log_entries)
 
+    ho_min, ho_max, ho_n = _holdout_odds_date_range(
+        poisson_parts, holdout_by_comp, inprog_by_comp,
+    )
+    n_inprog = sum(1 for v in inprog_by_comp.values() if v)
+    if ho_min is not None and ho_max is not None:
+        holdout_info = (
+            f"código season holdout = última temporada completa por liga "
+            f"({n_inprog} ligas com season em curso excluída do treino/holdout); "
+            f"**jogos com Pinnacle abertura no holdout:** {ho_n} partidas, "
+            f"**{ho_min.date().isoformat()}** a **{ho_max.date().isoformat()}** "
+            f"(cobertura parcial do calendário 2025/26 — odds abertura só em parte da temporada)"
+        )
+    else:
+        holdout_info = "sem jogos de holdout com odds de abertura Pinnacle"
+
     n_variants = len({r.variant_id for r in all_results})
-    survivors = sum(1 for r in all_results if r.survives)
-    write_changelog(global_ll, global_ll["n"], survivors, null_p)
+    survivors_agg = sum(1 for r in all_results if r.survives)
+    survivors_pl = sum(1 for r in per_league if r.survives)
+    snapshot = {
+        "n_matches": global_ll["n"],
+        "ll_model": global_ll["ll_model"],
+        "ll_pin": global_ll["ll_pin"],
+        "survivors_agg": survivors_agg,
+        "survivors_per_league": survivors_pl,
+        "null_p": null_p,
+        "holdout_n": ho_n,
+        "holdout_date_min": ho_min.isoformat() if ho_min is not None else None,
+        "holdout_date_max": ho_max.isoformat() if ho_max is not None else None,
+    }
+    write_changelog(snapshot)
     report = format_report(
         combined, global_ll, calib, null_p, len(poisson_parts),
         global_ll["n"], holdout_info, n_variants, len(combined),
@@ -678,7 +750,7 @@ def main() -> int:
     REPORT.write_text(report, encoding="utf-8")
     print(f"\nRelatório: {REPORT}")
     print(f"Linhas na família de testes: {len(combined)}")
-    print(f"Sobreviventes (agregado): {survivors}")
+    print(f"Sobreviventes (agregado): {survivors_agg}; por liga: {survivors_pl}")
     return 0
 
 

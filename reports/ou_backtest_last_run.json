@@ -1,0 +1,11 @@
+{
+  "n_matches": 12717,
+  "ll_model": 0.68693188948668,
+  "ll_pin": 0.6717976322442326,
+  "survivors_agg": 0,
+  "survivors_per_league": 0,
+  "null_p": 0.8275862068965517,
+  "holdout_n": 2131,
+  "holdout_date_min": "2025-07-25T00:00:00",
+  "holdout_date_max": "2026-01-14T00:00:00"
+}
