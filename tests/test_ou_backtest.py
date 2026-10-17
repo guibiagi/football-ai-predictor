@@ -3,6 +3,8 @@
 import numpy as np
 
 from src.ou_backtest import (
+    VariantResult,
+    aggregate_variant_results,
     bh_fdr_adjust,
     bonferroni_adjust,
     bootstrap_roi_ci,
@@ -41,6 +43,16 @@ def test_bootstrap_roi_ci_constant():
     roi, lo, hi = bootstrap_roi_ci(rets, n_boot=500, rng=np.random.default_rng(0))
     assert abs(roi - 0.1) < 1e-9
     assert lo <= roi <= hi
+
+
+def test_aggregate_variant_results():
+    a = VariantResult("v1", "H1", "train", 2, 0.1, 0.0, 0.2, 0.0, 50.0, 0.5,
+                      0.5, 0.5, 0.2, 0.2, False, meta={"returns": [1.0, -1.0]})
+    b = VariantResult("v1", "H1", "train", 1, 0.5, 0.0, 1.0, 0.0, 100.0, 0.5,
+                      0.5, 0.5, 0.2, 0.2, False, meta={"returns": [0.5]})
+    agg = aggregate_variant_results([a, b])
+    assert len(agg) == 1
+    assert agg[0].n == 3
 
 
 def test_multiple_testing_adjust():

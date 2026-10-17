@@ -254,7 +254,13 @@ def summarize_bets(
         brier_model=brier_binary(pm, ym),
         brier_pin=brier_binary(pc, ym),
         survives=False,
-        meta={"returns": rets.tolist()},
+        meta={
+            "returns": rets.tolist(),
+            "clv": clv_arr.tolist(),
+            "p_model": pm.tolist(),
+            "y": ym.tolist(),
+            "p_close": pc.tolist(),
+        },
     )
 
 
@@ -284,6 +290,59 @@ def apply_survival_flags(results: list[VariantResult],
             r.n > 0 and r.roi > 0 and r.p_raw < 0.05
             and (pb < 0.05 or qb < 0.10)
         )
+
+
+def aggregate_variant_results(results: list[VariantResult]) -> list[VariantResult]:
+    """Agrega resultados por liga numa linha por (variant_id, hypothesis, split)."""
+    buckets: dict[tuple[str, str, str], list[VariantResult]] = {}
+    for r in results:
+        key = (r.variant_id, r.hypothesis, r.split)
+        buckets.setdefault(key, []).append(r)
+    out: list[VariantResult] = []
+    for (vid, hyp, split), rs in sorted(buckets.items()):
+        rets, clv, pm, ym, pc = [], [], [], [], []
+        for r in rs:
+            m = r.meta
+            if not m.get("returns"):
+                continue
+            rets.extend(m["returns"])
+            clv.extend(m.get("clv", []))
+            pm.extend(m.get("p_model", []))
+            ym.extend(m.get("y", []))
+            pc.extend(m.get("p_close", []))
+        if not rets:
+            out.append(VariantResult(vid, hyp, split, 0, 0.0, np.nan, np.nan,
+                                     np.nan, np.nan, 1.0, np.nan, np.nan, np.nan, np.nan, False))
+            continue
+        rets_a = np.array(rets, dtype=float)
+        clv_a = np.array(clv, dtype=float) if clv else np.array([])
+        pm_a = np.array(pm, dtype=float) if pm else np.array([])
+        ym_a = np.array(ym, dtype=float) if ym else np.array([])
+        pc_a = np.array(pc, dtype=float) if pc else np.array([])
+        roi, lo, hi = bootstrap_roi_ci(rets_a)
+        ll_m = log_loss_binary(pm_a, ym_a) if len(pm_a) else float("nan")
+        ll_p = log_loss_binary(pc_a, ym_a) if len(pc_a) else float("nan")
+        br_m = brier_binary(pm_a, ym_a) if len(pm_a) else float("nan")
+        br_p = brier_binary(pc_a, ym_a) if len(pc_a) else float("nan")
+        out.append(VariantResult(
+            variant_id=vid,
+            hypothesis=hyp,
+            split=split,
+            n=len(rets_a),
+            roi=roi,
+            roi_ci_lo=lo,
+            roi_ci_hi=hi,
+            clv_mean=float(np.nanmean(clv_a)) if len(clv_a) else float("nan"),
+            clv_pos_pct=float(np.nanmean(clv_a > 0) * 100) if len(clv_a) else float("nan"),
+            p_raw=bootstrap_p_roi_nonpos(rets_a),
+            log_loss_model=ll_m,
+            log_loss_pin=ll_p,
+            brier_model=br_m,
+            brier_pin=br_p,
+            survives=False,
+            meta={"returns": rets_a.tolist()},
+        ))
+    return out
 
 
 def save_variant_log(path: Path, entries: list[dict[str, Any]]) -> None:

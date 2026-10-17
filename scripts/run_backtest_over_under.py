@@ -24,6 +24,7 @@ from backtest_markets import (  # noqa: E402
 from backtest_skill import MIN_MATCHES  # noqa: E402
 from src.blend_model import BlendModel  # noqa: E402
 from src.ou_backtest import (  # noqa: E402
+    aggregate_variant_results,
     apply_survival_flags,
     bh_fdr_adjust,
     bonferroni_adjust,
@@ -200,7 +201,13 @@ def run_h3(frame: dict, p: pd.DataFrame, soft_cols: tuple[str, str],
             brier_model=brier_binary(pm, ym),
             brier_pin=brier_binary(pc, ym),
             survives=False,
-            meta={"returns": rets.tolist()},
+            meta={
+                "returns": rets.tolist(),
+                "clv": clv_arr.tolist(),
+                "p_model": pm.tolist(),
+                "y": ym.tolist(),
+                "p_close": pc.tolist(),
+            },
         ))
     return results
 
@@ -274,13 +281,16 @@ def _early_season_mask(p: pd.DataFrame) -> np.ndarray:
     return (p["date"] - p["season_start"]).dt.days <= 60
 
 
-def _low_scoring_mask(df: pd.DataFrame, p: pd.DataFrame, train_mask: np.ndarray) -> np.ndarray:
-    g = df[train_mask].groupby("competition").apply(
-        lambda x: (x.home_goals + x.away_goals).mean()
+def _low_scoring_leagues(df: pd.DataFrame) -> set[str]:
+    """Ligas com média de gols abaixo da mediana global (fixo no dataset)."""
+    g = df.groupby("competition").apply(
+        lambda x: (x.home_goals + x.away_goals).mean(), include_groups=False,
     )
-    med = g.median()
-    low = set(g[g <= med].index)
-    return p.competition.isin(low).to_numpy()
+    return set(g[g <= g.median()].index)
+
+
+def _low_scoring_mask(p: pd.DataFrame, low_leagues: set[str]) -> np.ndarray:
+    return p.competition.isin(low_leagues).to_numpy()
 
 
 def _calib_table(calib: pd.DataFrame) -> str:
@@ -319,7 +329,7 @@ def format_report(
         "",
         f"White reality check (melhor ROI vs permutação): **p = {white_p:.4f}**",
         "",
-        "## Resultados por hipótese (treino vs holdout)",
+        "## Resultados por hipótese (agregado em todas as ligas; treino vs holdout)",
         "",
         "| Hipótese | Variante | Split | n | ROI | IC95% | CLV médio | %CLV+ | p raw | p Bonf | q BH | Sobrevive |",
         "|----------|----------|-------|---|-----|-------|-----------|-------|-------|--------|------|-----------|",
@@ -340,9 +350,17 @@ def format_report(
         "",
     ]
     if survivors:
-        lines.append("Variantes que passam os critérios pré-registrados:")
+        lines.append("Variantes que passam os critérios pré-registrados (ver nota de amostra):")
         for r in survivors:
-            lines.append(f"- **{r.variant_id}** ({r.split}): ROI {r.roi:+.2%}, p={r.p_raw:.3f}")
+            caveat = " ⚠️ amostra pequena" if r.n < 100 else ""
+            lines.append(
+                f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
+                f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}{caveat}"
+            )
+        lines.append(
+            "\n**Nota:** sobrevivência estatística com `n` muito baixo (ex.: holdout) "
+            "não implica edge real — interpretar com extrema cautela."
+        )
     else:
         lines.append(
             "**Nenhuma variante sobrevive** aos critérios (ROI>0, p bootstrap <0,05 e "
@@ -445,8 +463,11 @@ def main() -> int:
         "br_pin": brier_binary(pc, ys),
     }
     calib = calibration_bins(pm, ys)
+    low_leagues = _low_scoring_leagues(df)
 
     for comp, p, rho in poisson_parts:
+        p = p.copy()
+        p["competition"] = comp
         p_over = _over25(
             p.expected_goals_home.to_numpy(), p.expected_goals_away.to_numpy(), rho,
         )
@@ -469,14 +490,15 @@ def main() -> int:
             all_results.extend(run_h3(frame, p, ("ou_max_over", "ou_max_under"), 0.05, "Max"))
         all_results.extend(run_h4(frame, p, fade=False))
         all_results.extend(run_h4(frame, p, fade=True))
-        train_m = _split_masks(p)[0]
         early = _early_season_mask(p)
-        low = _low_scoring_mask(df, p, train_m)
+        low = _low_scoring_mask(p, low_leagues)
         all_results.extend(run_h5(frame, p, early, "early60d"))
         all_results.extend(run_h5(frame, p, low, "low_goals"))
         all_results.extend(run_h5(frame, p, ~early, "not_early"))
 
     for comp, p, rho in blend_parts:
+        p = p.copy()
+        p["competition"] = comp
         p_over = _over25(
             p.expected_goals_home.to_numpy(), p.expected_goals_away.to_numpy(), rho,
         )
@@ -486,7 +508,9 @@ def main() -> int:
                 frame, p, e, "multiplicative", "H1c_blend", "H1_blend_xg",
             ))
 
-    # Multiple testing
+    all_results = aggregate_variant_results(all_results)
+
+    # Multiple testing (uma linha por variante × split, agregada em todas as ligas)
     p_raw = np.array([r.p_raw for r in all_results])
     p_bonf = bonferroni_adjust(p_raw)
     q_bh = bh_fdr_adjust(p_raw)
@@ -510,7 +534,7 @@ def main() -> int:
             "n": r.n,
             "roi": r.roi,
             "p_raw": r.p_raw,
-            "survives": r.survives,
+            "survives": bool(r.survives),
         })
     save_variant_log(VARIANT_LOG, log_entries)
 
