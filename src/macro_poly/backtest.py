@@ -102,10 +102,17 @@ def _build_trade(
     clv: float | None = None,
     tradeable: bool = True,
 ) -> Trade | None:
-    raw_vol = volume_at_decision(m, decision_ts, store)
-    if terciles is not None and (raw_vol is None or raw_vol <= 0):
+    if terciles is not None and store.is_incomplete(m.token_yes):
         return None
-    vol_d = raw_vol if raw_vol is not None else 1.0
+    raw_vol = volume_at_decision(m, decision_ts, store)
+    if terciles is not None and raw_vol is None:
+        return None
+    if terciles is not None and raw_vol <= 0:
+        vol_d = 1.0
+        liq_seg = "T1_low"
+    else:
+        vol_d = raw_vol if raw_vol is not None else 1.0
+        liq_seg = terciles.label(vol_d) if terciles else "ALL"
     side_mid = mid_yes if buy_yes else 1.0 - mid_yes
     p_entry = taker_ask_with_slippage(side_mid, vol_d)
     won = (m.outcome_yes == 1) if buy_yes else (m.outcome_yes == 0)
@@ -121,7 +128,7 @@ def _build_trade(
         clv=clv,
         holdout=m.event_id in holdout_events,
         volume_at_decision=vol_d,
-        liquidity_tercile=terciles.label(vol_d) if terciles else "ALL",
+        liquidity_tercile=liq_seg,
         pre_prob=pre_prob,
         log_loss=ll,
         brier=br,
@@ -364,7 +371,14 @@ def run_favorite_longshot(
 ) -> tuple[str, list[Trade], list[float], list[float], dict[str, int]]:
     trades: list[Trade] = []
     hid = label
-    stats = {"eligible": 0, "traded": 0, "dropped_no_history": 0, "dropped_no_price": 0}
+    stats = {
+        "eligible": 0,
+        "traded": 0,
+        "dropped_no_history": 0,
+        "dropped_no_price": 0,
+        "dropped_incomplete_trade_history": 0,
+        "zero_volume_assigned_t1": 0,
+    }
     for m in markets:
         if m.category != category or m.outcome_yes is None or m.release_ts is None:
             continue
@@ -386,11 +400,65 @@ def run_favorite_longshot(
             continue
         if side == "long" and mid > long_max:
             continue
+        if terciles is not None and store.is_incomplete(m.token_yes):
+            stats["dropped_incomplete_trade_history"] += 1
+            continue
+        vol0 = volume_at_decision(m, open_ts, store)
+        if terciles is not None and vol0 is not None and vol0 <= 0:
+            stats["zero_volume_assigned_t1"] += 1
         tr = _build_trade(hid, m, open_ts, mid, True, holdout_events, terciles, store, open_ts)
         if tr:
             trades.append(tr)
             stats["traded"] += 1
     return hid, trades, [], [], stats
+
+
+def first_intraday_entry_ts(
+    m: MacroMarket,
+    cache_dir: Path,
+    mode: str,
+    th: float,
+) -> int | None:
+    if m.release_ts is None:
+        return None
+    w_start, w_end = _market_window(m, m.release_ts, 21 * 86400, 3 * 86400)
+    hist = _histories_for_market(m, cache_dir, w_start, w_end)
+    if len(hist) < 5:
+        return None
+    for i in range(1, len(hist)):
+        t0, p0 = int(hist[i - 1]["t"]), float(hist[i - 1]["p"])
+        t1, p1 = int(hist[i]["t"]), float(hist[i]["p"])
+        if abs(p1 - p0) < th:
+            continue
+        if mode == "H4a" and m.release_ts - 3600 <= t1 <= m.release_ts + 3600:
+            continue
+        if mode == "H4b" and not (m.release_ts - 48 * 3600 <= t1 <= m.release_ts):
+            continue
+        return t1
+    return None
+
+
+def terciles_from_intraday_training(
+    markets: list[MacroMarket],
+    holdout_events: set[str],
+    cache_dir: Path,
+    mode: str,
+    move_threshold: float,
+    store: TradeVolumeStore,
+) -> LiquidityTerciles | None:
+    vols: list[float] = []
+    for m in markets:
+        if m.event_id in holdout_events or m.outcome_yes is None:
+            continue
+        t1 = first_intraday_entry_ts(m, cache_dir, mode, move_threshold)
+        if t1 is None or store.is_incomplete(m.token_yes):
+            continue
+        v = volume_at_decision(m, t1, store)
+        if v is not None and v > 0:
+            vols.append(v)
+    if len(vols) < 9:
+        return None
+    return compute_terciles(vols)
 
 
 def run_intraday_moves(
@@ -422,7 +490,6 @@ def run_intraday_moves(
                     continue
                 if mode == "H4b" and not (m.release_ts - 48 * 3600 <= t1 <= m.release_ts):
                     continue
-                # H4a fade: reverte movimento; H4b continuação: segue movimento
                 moved_up = p1 > p0
                 bet_yes = (not moved_up) if mode == "H4a" else moved_up
                 tr = _build_trade(hid, m, t1, p1, bet_yes, holdout_events, terciles, store, t1)
@@ -539,36 +606,44 @@ def run_full_backtest(
     store = TradeVolumeStore(trade_cache)
     for m in markets:
         if getattr(m, "condition_id", None):
-            store.register(m.token_yes, m.condition_id)
+            store.register(
+                m.token_yes,
+                m.condition_id,
+                getattr(m, "token_no", None),
+                float(m.volume or 0.0),
+                m.start_ts,
+            )
 
-    def _warm(cid_tid: tuple[str, str]) -> None:
-        cid, tid = cid_tid
+    def _warm(tid: str) -> None:
         store.volume_at(tid, 2_000_000_000)
 
-    unique_pairs = {(m.condition_id, m.token_yes) for m in markets if m.condition_id}
+    unique_tokens = {m.token_yes for m in markets if m.condition_id}
     with ThreadPoolExecutor(max_workers=10) as pool:
-        list(pool.map(_warm, unique_pairs))
+        list(pool.map(_warm, unique_tokens))
 
-    def vol_decision_h2(m: MacroMarket) -> int:
+    def vol_decision_h2a(m: MacroMarket) -> int:
         return (m.release_ts or 0) - 24 * 3600
+
+    def vol_decision_h2b(m: MacroMarket) -> int:
+        return (m.release_ts or 0) - 4 * 3600
 
     def vol_decision_h3(m: MacroMarket) -> int:
         return (m.start_ts or 0) + 3600
 
-    def vol_decision_h4(m: MacroMarket) -> int:
-        return m.release_ts or 0
-
-    coverage = store.coverage_fraction(
-        [m for m in markets if m.event_id not in holdout_events],
-        vol_decision_h2,
-    )
+    train_markets = [m for m in markets if m.event_id not in holdout_events]
+    coverage = store.coverage_fraction(train_markets, vol_decision_h2a)
     liquidity_enabled = coverage >= 0.35
     segments: tuple[str, ...] = (
         LIQUIDITY_SEGMENTS_TERCILE if liquidity_enabled else ("ALL",)
     )
 
-    terciles_h2 = (
-        terciles_from_training(markets, holdout_events, vol_decision_h2, store)
+    terciles_h2a = (
+        terciles_from_training(markets, holdout_events, vol_decision_h2a, store)
+        if liquidity_enabled
+        else None
+    )
+    terciles_h2b = (
+        terciles_from_training(markets, holdout_events, vol_decision_h2b, store)
         if liquidity_enabled
         else None
     )
@@ -577,8 +652,17 @@ def run_full_backtest(
         if liquidity_enabled
         else None
     )
-    terciles_h4 = (
-        terciles_from_training(markets, holdout_events, vol_decision_h4, store)
+    terciles_h4a = (
+        terciles_from_intraday_training(
+            markets, holdout_events, cache_dir, "H4a", 0.03, store
+        )
+        if liquidity_enabled
+        else None
+    )
+    terciles_h4b = (
+        terciles_from_intraday_training(
+            markets, holdout_events, cache_dir, "H4b", 0.03, store
+        )
         if liquidity_enabled
         else None
     )
@@ -613,27 +697,41 @@ def run_full_backtest(
     )
     bundles.extend(
         run_fomc_divergence(
-            markets, holdout_events, cache_dir, [0.10], [24], terciles_h2, store
+            markets, holdout_events, cache_dir, [0.10], [24], terciles_h2a, store
         )
     )
     bundles.extend(
-        run_cpi_divergence(markets, holdout_events, cache_dir, [0.1, 0.2], terciles_h2, store)
+        run_cpi_divergence(markets, holdout_events, cache_dir, [0.1, 0.2], terciles_h2b, store)
     )
-    for label, side, cat, terc in [
-        ("H3a_fav", "fav", "cpi", terciles_h3),
-        ("H3a_long", "long", "cpi", terciles_h3),
-        ("H3b_fav", "fav", "fomc", terciles_h3),
-    ]:
+    h3_variants = [
+        ("H3a_fav", "fav", "cpi", terciles_h3, 0.55, 0.25),
+        ("H3a_long", "long", "cpi", terciles_h3, 0.55, 0.25),
+        ("H3b_fav", "fav", "fomc", terciles_h3, 0.60, 0.25),
+    ]
+    for label, side, cat, terc, fav_min, long_max in h3_variants:
         hid, tr, ll, br, st = run_favorite_longshot(
-            markets, holdout_events, cache_dir, cat, 0.55, 0.25, label, side, terc, store
+            markets,
+            holdout_events,
+            cache_dir,
+            cat,
+            fav_min,
+            long_max,
+            label,
+            side,
+            terc,
+            store,
         )
         h3_stats[hid] = st
         bundles.append((hid, tr, ll, br))
     bundles.extend(
-        run_intraday_moves(markets, holdout_events, cache_dir, "H4a", [0.03, 0.05], terciles_h4, store)
+        run_intraday_moves(
+            markets, holdout_events, cache_dir, "H4a", [0.03, 0.05], terciles_h4a, store
+        )
     )
     bundles.extend(
-        run_intraday_moves(markets, holdout_events, cache_dir, "H4b", [0.03, 0.05], terciles_h4, store)
+        run_intraday_moves(
+            markets, holdout_events, cache_dir, "H4b", [0.03, 0.05], terciles_h4b, store
+        )
     )
 
     tradeable_bundles = [
@@ -692,17 +790,20 @@ def run_full_backtest(
             }
         )
 
-    tercile_ref = terciles_h2 or terciles_h4
+    tercile_ref = terciles_h2a or terciles_h4a
+    trade_meta = store.incomplete_summary()
     return {
         "holdout_event_count": len(holdout_events),
         "market_count": len(markets),
         "liquidity_segmentation_enabled": liquidity_enabled,
         "liquidity_trade_coverage_train": coverage,
+        "trade_history_incomplete": trade_meta,
         "liquidity_terciles_usd": (
             {"q33": tercile_ref.q33, "q66": tercile_ref.q66} if tercile_ref else None
         ),
         "liquidity_terciles_note": (
-            "Volume cumulativo data-api trades até decision_ts; cortes por hipótese no treino"
+            "Volume cumulativo data-api (YES+NO) até decision_ts; cortes no treino por hipótese "
+            "(H2a 24h, H2b 4h, H3 abertura+1h, H4 no instante da entrada do sinal)"
             if liquidity_enabled
             else "Segmentação desligada: cobertura de trades insuficiente"
         ),

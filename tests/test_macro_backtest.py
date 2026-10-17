@@ -22,6 +22,7 @@ def _m(eid: str, rts: int) -> MacroMarket:
         question="q",
         market_slug="ms",
         token_yes="tok",
+        token_no=None,
         condition_id="0xabc",
         end_date="2025-01-01T00:00:00Z",
         start_ts=rts - 86400,
@@ -127,16 +128,32 @@ def test_h4_fade_direction_via_runner(tmp_path):
     path = cache / f"{token}_{w_start}_{w_end}_60.json"
     path.write_text(json.dumps({"fetch_failed": False, "history": hist}))
     store = TradeVolumeStore(tmp_path / "trades")
-    store.register(token, m.condition_id)
-    # mock trades file so volume exists
+    store.register(token, m.condition_id, None, 10_000.0)
     (tmp_path / "trades").mkdir()
-    (tmp_path / "trades" / f"{m.condition_id}.json").write_text(
+    (tmp_path / "trades" / f"{m.condition_id}_v3.json").write_text(
         json.dumps(
             {
                 "failed": False,
                 "trades": [
-                    {"asset": token, "timestamp": 800_000, "size": 100, "price": 0.5}
+                    {
+                        "asset": token,
+                        "timestamp": 800_000,
+                        "size": 100,
+                        "price": 0.5,
+                        "transactionHash": "0xabc",
+                    }
                 ],
+                "meta": {
+                    "pages_fetched": 1,
+                    "trades_kept": 1,
+                    "trade_volume_total_usd": 50.0,
+                    "gamma_volume_usd": 10000.0,
+                    "gamma_ratio": 0.005,
+                    "gamma_ratio_below_min": True,
+                    "hit_page_cap": False,
+                    "fetch_error": False,
+                    "complete": True,
+                },
             }
         )
     )

@@ -8,6 +8,14 @@ from zoneinfo import ZoneInfo
 
 # Dia do mês da decisão (calendário publicado pelo Fed; Mar/2024 = 20, não 18).
 FOMC_STATEMENT_DAY: dict[tuple[int, int], int] = {
+    (2023, 1): 31,
+    (2023, 3): 22,
+    (2023, 5): 3,
+    (2023, 6): 14,
+    (2023, 7): 26,
+    (2023, 9): 20,
+    (2023, 11): 1,
+    (2023, 12): 13,
     (2024, 1): 31,
     (2024, 3): 20,
     (2024, 5): 1,

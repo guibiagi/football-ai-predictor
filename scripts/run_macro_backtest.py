@@ -12,6 +12,16 @@ from src.macro_poly.backtest import run_full_backtest
 from src.macro_poly.discovery import MacroMarket
 
 CHANGELOG = """
+## Changelog vs v3 (re-review Opus 5559976794)
+
+| Correção | Efeito |
+|----------|--------|
+| Trades data-api: paginação `before`, YES+NO, meta vs Gamma | Volume completo; mercados incompletos sinalizados |
+| H3: volume zero → T1_low (não drop silencioso) | Cobertura H3 em `h3_coverage_stats` |
+| Tercis H2b/H4 no instante de entrada (treino) | Segmentos alinhados à regra de trade |
+| H3b favorito pré-reg **0,60** (FOMC) | Restaura limiar documentado |
+| Calendário FOMC 2023 | Releases 2023 quando existirem no manifest |
+
 ## Changelog vs v2 (abb273a)
 
 | Correção | Efeito |
@@ -50,6 +60,8 @@ def _load_manifest(path: Path) -> list[MacroMarket]:
             clean["start_ts"] = None
         if "condition_id" not in clean:
             clean["condition_id"] = ""
+        if "token_no" not in clean:
+            clean["token_no"] = None
         markets.append(MacroMarket(**clean))
     return markets
 
@@ -63,7 +75,8 @@ def _write_report(results: dict, path: Path) -> None:
         f"**Mercados no manifest:** {results['market_count']}  ",
         f"**Eventos no holdout (~30%):** {results['holdout_event_count']}  ",
         f"**Liquidez por trades:** {'sim' if results.get('liquidity_segmentation_enabled') else 'não'} "
-        f"(cobertura treino={results.get('liquidity_trade_coverage_train', '—')})  ",
+        f"(cobertura treino={results.get('liquidity_trade_coverage_train', '—')}; "
+        f"histórico incompleto={results.get('trade_history_incomplete', {})})  ",
         f"**Testes ROI na família múltipla:** {n_trade}  ",
         f"**Tercis (volume trades cumulativo, treino):** "
         f"q33={results.get('liquidity_terciles_usd', {}).get('q33', '—') if results.get('liquidity_terciles_usd') else '—'}, "
@@ -89,7 +102,9 @@ def _write_report(results: dict, path: Path) -> None:
             lines.append(
                 f"- **{k}**: elegíveis={st.get('eligible', 0)}, "
                 f"trades={st.get('traded', 0)}, sem histórico={st.get('dropped_no_history', 0)}, "
-                f"sem preço na abertura={st.get('dropped_no_price', 0)}"
+                f"sem preço na abertura={st.get('dropped_no_price', 0)}, "
+                f"trades API incompleto={st.get('dropped_incomplete_trade_history', 0)}, "
+                f"volume zero→T1={st.get('zero_volume_assigned_t1', 0)}"
             )
     lines.extend(
         [
@@ -161,7 +176,7 @@ def _write_report(results: dict, path: Path) -> None:
             "",
             "## Limitações",
             "",
-            "- Volume = soma size×price em trades data-api até decision_ts (paginação limitada).",
+            "- Volume = soma size×price (tokens YES+NO) até decision_ts; mercados com fetch incompleto excluídos dos tercis.",
             "- H3: ver cobertura acima — maioria dos mercados não gera trade (filtro fav/longshot).",
             "- Fidelidade CLOB 60 min → variantes H1 1/5/15 min frequentemente idênticas.",
             "- H2 usa proxies fracos (não FedWatch/consenso).",

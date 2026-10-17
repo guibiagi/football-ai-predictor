@@ -37,8 +37,9 @@ H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3
 
 ### Segmentação por liquidez (adendo)
 
-- **Dimensão extra:** cada variante de ROI tradeável em **3 tercis** de liquidez (T1/T2/T3), com volume USD **cumulativo de trades (data-api)** até `decision_ts` (cortes estimados só no treino, por hipótese).
-- **Tercis:** cortes em `log1p(volume)` sobre o universo de mercados do backtest (fixos antes do holdout).
+- **Dimensão extra:** cada variante de ROI tradeável em **3 tercis** de liquidez (T1/T2/T3), com volume USD **cumulativo de trades (data-api, tokens YES e NO)** até `decision_ts` da regra (cortes **q33/q66** estimados só no **treino**, **por hipótese**, no instante de entrada relevante: H2a 24h antes do release, H2b 4h, H3 abertura+1h, H4 no candle do sinal).
+- **Tercis:** quantis em volume USD bruto (não `log1p`); mercados com histórico de trades incompleto (API truncada ou ratio trade/Gamma &lt; limiar) ficam **fora** da segmentação por tercil; volume zero no instante → **T1_low**.
+- **Família de testes (células n≥3):** após deduplicação v2, a lista efetiva de segmentos T1/T2/T3 entrou na correção múltipla **após** a revisão v2 (não estava fixada no pré-registro inicial de 25×3).
 - **Execução:** stake nominal **US$ 25** (faixa 10–50); spread + impacto linear `0.5 × stake / max(250, 2% volume)` em pontos de probabilidade, mais meio-spread 0,5 pp e taxa taker 2%.
 - **Hipótese exploratória do usuário:** reação lenta concentrada em **T1** (baixa liquidez).
 - **Correção múltipla atualizada:** 25 × 3 = **75 testes de ROI** entram em Bonferroni e BH (H5 calibração fora da família de ROI).

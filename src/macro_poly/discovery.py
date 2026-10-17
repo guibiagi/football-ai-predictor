@@ -47,6 +47,7 @@ class MacroMarket:
     question: str
     market_slug: str
     token_yes: str
+    token_no: str | None
     condition_id: str
     end_date: str
     start_ts: int | None
@@ -185,6 +186,7 @@ def discover_macro_markets(max_per_tag: int = 400) -> list[MacroMarket]:
                     try:
                         ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
                         token_yes = ids[0]
+                        token_no = ids[1] if len(ids) > 1 else None
                     except (json.JSONDecodeError, TypeError, IndexError):
                         continue
                     question = m.get("question") or ""
@@ -217,6 +219,7 @@ def discover_macro_markets(max_per_tag: int = 400) -> list[MacroMarket]:
                             question=question,
                             market_slug=m.get("slug") or "",
                             token_yes=token_yes,
+                            token_no=token_no,
                             condition_id=cid,
                             end_date=m.get("endDate") or "",
                             start_ts=start_ts,
