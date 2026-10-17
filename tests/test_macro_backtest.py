@@ -130,7 +130,7 @@ def test_h4_fade_direction_via_runner(tmp_path):
     store = TradeVolumeStore(tmp_path / "trades")
     store.register(token, m.condition_id, None, 10_000.0)
     (tmp_path / "trades").mkdir()
-    (tmp_path / "trades" / f"{m.condition_id}_v3.json").write_text(
+    (tmp_path / "trades" / f"{m.condition_id}_v4.json").write_text(
         json.dumps(
             {
                 "failed": False,
@@ -149,10 +149,12 @@ def test_h4_fade_direction_via_runner(tmp_path):
                     "trade_volume_total_usd": 50.0,
                     "gamma_volume_usd": 10000.0,
                     "gamma_ratio": 0.005,
-                    "gamma_ratio_below_min": True,
+                    "gamma_ratio_below_min": False,
+                    "oldest_trade_ts": 800_000,
                     "hit_page_cap": False,
                     "fetch_error": False,
                     "complete": True,
+                    "pagination_mode": "start_end_offset",
                 },
             }
         )

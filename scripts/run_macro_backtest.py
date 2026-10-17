@@ -12,6 +12,16 @@ from src.macro_poly.backtest import run_full_backtest
 from src.macro_poly.discovery import MacroMarket
 
 CHANGELOG = """
+## Changelog vs v4 (re-review Opus 5560067731)
+
+| Correção | Efeito |
+|----------|--------|
+| Paginação real: `start`/`end` + `offset`, `takerOnly=false` | `before` descartado; teste de integração no repo |
+| Tercis por trades desligados se histórico incompleto | Família **ALL**; slippage via volume Gamma |
+| Dedupe `(txHash, asset, side, size)` | Contagem de fills correta |
+| H3 na família múltipla (agregado) | Sem células T1 fictícias com n=0 |
+| Pré-reg: 75 testes condicionais | Só com segmentação validada |
+
 ## Changelog vs v3 (re-review Opus 5559976794)
 
 | Correção | Efeito |
@@ -76,7 +86,8 @@ def _write_report(results: dict, path: Path) -> None:
         f"**Eventos no holdout (~30%):** {results['holdout_event_count']}  ",
         f"**Liquidez por trades:** {'sim' if results.get('liquidity_segmentation_enabled') else 'não'} "
         f"(cobertura treino={results.get('liquidity_trade_coverage_train', '—')}; "
-        f"histórico incompleto={results.get('trade_history_incomplete', {})})  ",
+        f"proxy={results.get('liquidity_proxy', '—')}; "
+        f"trade_seg_ok={results.get('trade_segmentation_feasible', '—')})  ",
         f"**Testes ROI na família múltipla:** {n_trade}  ",
         f"**Tercis (volume trades cumulativo, treino):** "
         f"q33={results.get('liquidity_terciles_usd', {}).get('q33', '—') if results.get('liquidity_terciles_usd') else '—'}, "
@@ -147,6 +158,28 @@ def _write_report(results: dict, path: Path) -> None:
             f"{h['brier'] if h['brier'] is not None else '—'} | "
             f"{h['holdout_n']} | "
             f"{h['holdout_roi'] if h['holdout_roi'] is not None else '—'} |"
+        )
+
+    h3b = next(
+        (
+            h
+            for h in results["hypotheses"]
+            if h.get("description") == "H3b_fav" and h.get("liquidity_segment") == "ALL"
+        ),
+        None,
+    )
+    if h3b and h3b.get("n"):
+        lines.extend(
+            [
+                "",
+                "### Lead exploratório (paper-only, não sobrevivente)",
+                "",
+                f"**H3b_fav** (FOMC favorito ≥0,60 na abertura+1h): n={h3b['n']}, "
+                f"hit={h3b['hit_rate']:.0%}, ROI médio={h3b['roi_mean']:.3f}, "
+                f"holdout n={h3b['holdout_n']} (1 evento). "
+                "Não passa critério de sobrevivência (holdout n&lt;3); tratar como hipótese para acompanhamento, não edge confirmado.",
+                "",
+            ]
         )
 
     tradeable_survivors = [

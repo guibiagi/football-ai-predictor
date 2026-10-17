@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from src.macro_poly.http_util import get_json
 
 DATA_API = "https://data-api.polymarket.com/trades"
-PAGE_LIMIT = 100  # API returns at most ~100 rows per request
-MAX_PAGES = 500  # safety cap on cursor pages
-GAMMA_COVERAGE_MIN = 0.45  # trade USD / gamma volume
+PAGE_LIMIT = 100
+MAX_OFFSET = 10000
+WINDOW_SEC = 30 * 86400
+MAX_PAGES_PER_WINDOW = (MAX_OFFSET // PAGE_LIMIT) + 1
+GAMMA_COVERAGE_MIN = 0.45  # pre-registered exclusion for trade-based volume
 
 
 @dataclass
@@ -20,27 +23,39 @@ class TradeFetchMeta:
     gamma_volume_usd: float
     gamma_ratio: float | None
     gamma_ratio_below_min: bool
+    oldest_trade_ts: int | None
     hit_page_cap: bool
     fetch_error: bool
     complete: bool
+    pagination_mode: str
 
 
-def fetch_trades_paged(
+def trade_dedupe_key(t: dict) -> tuple:
+    return (
+        str(t.get("transactionHash") or ""),
+        str(t.get("asset") or ""),
+        str(t.get("side") or ""),
+        str(t.get("size") or ""),
+    )
+
+
+def _fetch_window(
     condition_id: str,
     token_ids: set[str],
-    start_ts: int | None = None,
-) -> tuple[list[dict], TradeFetchMeta]:
-    """Fetch all trades for a market (newest-first API; cursor via ``before``)."""
+    start: int,
+    end: int,
+) -> tuple[list[dict], int, bool, bool]:
+    """Offset pagination inside [start, end]. Returns rows, pages, hit_cap, fetch_error."""
     rows: list[dict] = []
-    seen_tx: set[str] = set()
     pages = 0
     hit_cap = False
     fetch_error = False
-    before: int | None = None
-    while pages < MAX_PAGES:
-        url = f"{DATA_API}?market={condition_id}&limit={PAGE_LIMIT}"
-        if before is not None:
-            url += f"&before={before}"
+    offset = 0
+    while pages < MAX_PAGES_PER_WINDOW:
+        url = (
+            f"{DATA_API}?market={condition_id}&limit={PAGE_LIMIT}&offset={offset}"
+            f"&start={start}&end={end}&takerOnly=false"
+        )
         try:
             batch = get_json(url)
         except Exception:
@@ -49,40 +64,83 @@ def fetch_trades_paged(
         pages += 1
         if not batch:
             break
-        oldest_ts = min(int(t.get("timestamp") or 0) for t in batch)
         for t in batch:
-            tx = str(t.get("transactionHash") or "")
-            if tx and tx in seen_tx:
-                continue
-            if tx:
-                seen_tx.add(tx)
-            ts = int(t.get("timestamp") or 0)
-            if start_ts is not None and ts < start_ts:
-                continue
             if str(t.get("asset")) in token_ids:
                 rows.append(t)
         if len(batch) < PAGE_LIMIT:
             break
-        next_before = oldest_ts - 1
-        if before is not None and next_before >= before:
+        offset += PAGE_LIMIT
+        if offset > MAX_OFFSET:
+            hit_cap = True
             break
-        before = next_before
-    else:
-        hit_cap = True
+    return rows, pages, hit_cap, fetch_error
 
-    total_usd = sum(float(t.get("size") or 0) * float(t.get("price") or 0) for t in rows)
+
+def fetch_trades_paged(
+    condition_id: str,
+    token_ids: set[str],
+    start_ts: int | None = None,
+) -> tuple[list[dict], TradeFetchMeta]:
+    """
+    Fetch trades via data-api ``start``/``end`` windows + ``offset`` (``before`` is ineffective).
+
+    ``complete`` is False when any window hits the offset cap with a full page, on fetch error,
+    or when the earliest kept trade is still after ``start_ts`` (truncated early history).
+    """
+    end_ts = int(time.time())
+    floor = int(start_ts or 0)
+    merged: list[dict] = []
+    seen: set[tuple] = set()
+    total_pages = 0
+    hit_cap = False
+    fetch_error = False
+
+    if floor >= end_ts:
+        floor = max(0, end_ts - WINDOW_SEC)
+
+    window_start = floor
+    while window_start < end_ts:
+        window_end = min(window_start + WINDOW_SEC, end_ts)
+        chunk, pages, cap, err = _fetch_window(condition_id, token_ids, window_start, window_end)
+        total_pages += pages
+        hit_cap = hit_cap or cap
+        fetch_error = fetch_error or err
+        for t in chunk:
+            key = trade_dedupe_key(t)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(t)
+        window_start = window_end
+        if err:
+            break
+
+    oldest: int | None = None
+    if merged:
+        oldest = min(int(t.get("timestamp") or 0) for t in merged)
+
+    complete = (
+        not hit_cap
+        and not fetch_error
+        and oldest is not None
+        and (start_ts is None or oldest <= start_ts + 86400)
+    )
+
+    total_usd = sum(float(t.get("size") or 0) * float(t.get("price") or 0) for t in merged)
     meta = TradeFetchMeta(
-        pages_fetched=pages,
-        trades_kept=len(rows),
+        pages_fetched=total_pages,
+        trades_kept=len(merged),
         trade_volume_total_usd=total_usd,
         gamma_volume_usd=0.0,
         gamma_ratio=None,
         gamma_ratio_below_min=False,
+        oldest_trade_ts=oldest,
         hit_page_cap=hit_cap,
         fetch_error=fetch_error,
-        complete=not hit_cap and not fetch_error,
+        complete=complete,
+        pagination_mode="start_end_offset",
     )
-    return rows, meta
+    return merged, meta
 
 
 def _meta_from_dict(d: dict) -> TradeFetchMeta:
@@ -90,8 +148,13 @@ def _meta_from_dict(d: dict) -> TradeFetchMeta:
     if "gamma_ratio_below_min" not in md:
         ratio = md.get("gamma_ratio")
         md["gamma_ratio_below_min"] = ratio is not None and ratio < GAMMA_COVERAGE_MIN
-        if not md.get("hit_page_cap") and not md.get("fetch_error"):
-            md["complete"] = True
+    if "oldest_trade_ts" not in md:
+        md["oldest_trade_ts"] = None
+    if "pagination_mode" not in md:
+        md["pagination_mode"] = "legacy"
+    # v3 caches used broken `before` pagination — never treat as complete
+    if md.get("pagination_mode") == "legacy":
+        md["complete"] = False
     return TradeFetchMeta(**md)
 
 
@@ -103,7 +166,7 @@ def load_trades_cached(
     start_ts: int | None = None,
 ) -> tuple[list[dict] | None, TradeFetchMeta]:
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_dir / f"{condition_id}_v3.json"
+    path = cache_dir / f"{condition_id}_v4.json"
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("failed"):
@@ -116,6 +179,8 @@ def load_trades_cached(
     if gamma_volume > 100:
         meta.gamma_ratio = meta.trade_volume_total_usd / gamma_volume
         meta.gamma_ratio_below_min = meta.gamma_ratio < GAMMA_COVERAGE_MIN
+        if meta.gamma_ratio_below_min:
+            meta.complete = False
     payload = {
         "condition_id": condition_id,
         "failed": False,
@@ -177,9 +242,13 @@ class TradeVolumeStore:
         self._ensure(token_yes)
         return self._meta.get(token_yes)
 
-    def volume_at(self, token_yes: str, decision_ts: int) -> float | None:
+    def trade_volume_usable(self, token_yes: str) -> bool:
         self._ensure(token_yes)
-        if self.is_incomplete(token_yes):
+        meta = self._meta.get(token_yes)
+        return meta is not None and meta.complete and not meta.gamma_ratio_below_min
+
+    def volume_at(self, token_yes: str, decision_ts: int) -> float | None:
+        if not self.trade_volume_usable(token_yes):
             return None
         trades = self._trades.get(token_yes)
         if trades is None:
@@ -194,11 +263,35 @@ class TradeVolumeStore:
             if ts is None:
                 continue
             n += 1
-            if not self.is_incomplete(m.token_yes):
+            if self.trade_volume_usable(m.token_yes):
                 v = self.volume_at(m.token_yes, ts)
                 if v is not None:
                     ok += 1
         return ok / max(n, 1)
+
+    def segmentation_feasible(self, min_complete_frac: float = 0.8) -> tuple[bool, dict[str, int]]:
+        complete = 0
+        capped_legacy_100 = 0
+        gamma_low = 0
+        for tid in self._reg:
+            self._ensure(tid)
+            meta = self._meta.get(tid)
+            if meta is None:
+                continue
+            if meta.complete:
+                complete += 1
+            if meta.trades_kept == 100 and meta.pagination_mode == "legacy":
+                capped_legacy_100 += 1
+            if meta.gamma_ratio_below_min:
+                gamma_low += 1
+        n = len(self._reg)
+        feasible = n > 0 and (complete / n) >= min_complete_frac
+        return feasible, {
+            "registered": n,
+            "trade_history_complete": complete,
+            "legacy_capped_at_100": capped_legacy_100,
+            "gamma_ratio_below_min": gamma_low,
+        }
 
     def incomplete_summary(self) -> dict[str, int]:
         fetch_inc = 0

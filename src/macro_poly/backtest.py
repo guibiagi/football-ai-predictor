@@ -29,7 +29,7 @@ from src.macro_poly.stats import (
 )
 from src.macro_poly.market_preprocess import dedupe_fomc_events
 from src.macro_poly.trade_volume import TradeVolumeStore
-from src.macro_poly.volume import volume_at_decision
+from src.macro_poly.volume import gamma_liquidity_usd, volume_at_decision
 
 FEE_RATE = 0.02
 LIQUIDITY_SEGMENTS_TERCILE = ("T1_low", "T2_mid", "T3_high")
@@ -77,12 +77,28 @@ def terciles_from_training(
     for m in markets:
         if m.event_id in holdout_events or m.release_ts is None:
             continue
+        if not store.trade_volume_usable(m.token_yes):
+            continue
         ts = decision_ts_fn(m)
         if ts is None:
             continue
-        v = volume_at_decision(m, ts, store)
+        v = store.volume_at(m.token_yes, ts)
         if v is not None and v > 0:
             vols.append(v)
+    if len(vols) < 9:
+        return None
+    return compute_terciles(vols)
+
+
+def terciles_from_training_gamma(
+    markets: list[MacroMarket],
+    holdout_events: set[str],
+) -> LiquidityTerciles | None:
+    vols = [
+        gamma_liquidity_usd(m)
+        for m in markets
+        if m.event_id not in holdout_events and m.release_ts is not None
+    ]
     if len(vols) < 9:
         return None
     return compute_terciles(vols)
@@ -102,17 +118,21 @@ def _build_trade(
     clv: float | None = None,
     tradeable: bool = True,
 ) -> Trade | None:
-    if terciles is not None and store.is_incomplete(m.token_yes):
-        return None
-    raw_vol = volume_at_decision(m, decision_ts, store)
-    if terciles is not None and raw_vol is None:
-        return None
-    if terciles is not None and raw_vol <= 0:
-        vol_d = 1.0
-        liq_seg = "T1_low"
+    if terciles is not None:
+        if not store.trade_volume_usable(m.token_yes):
+            return None
+        raw_vol = store.volume_at(m.token_yes, decision_ts)
+        if raw_vol is None:
+            return None
+        if raw_vol <= 0:
+            vol_d = 1.0
+            liq_seg = "T1_low"
+        else:
+            vol_d = raw_vol
+            liq_seg = terciles.label(vol_d)
     else:
-        vol_d = raw_vol if raw_vol is not None else 1.0
-        liq_seg = terciles.label(vol_d) if terciles else "ALL"
+        vol_d = volume_at_decision(m, decision_ts, store)
+        liq_seg = "ALL"
     side_mid = mid_yes if buy_yes else 1.0 - mid_yes
     p_entry = taker_ask_with_slippage(side_mid, vol_d)
     won = (m.outcome_yes == 1) if buy_yes else (m.outcome_yes == 0)
@@ -400,12 +420,13 @@ def run_favorite_longshot(
             continue
         if side == "long" and mid > long_max:
             continue
-        if terciles is not None and store.is_incomplete(m.token_yes):
-            stats["dropped_incomplete_trade_history"] += 1
-            continue
-        vol0 = volume_at_decision(m, open_ts, store)
-        if terciles is not None and vol0 is not None and vol0 <= 0:
-            stats["zero_volume_assigned_t1"] += 1
+        if terciles is not None:
+            if not store.trade_volume_usable(m.token_yes):
+                stats["dropped_incomplete_trade_history"] += 1
+                continue
+            vol0 = store.volume_at(m.token_yes, open_ts)
+            if vol0 is not None and vol0 <= 0:
+                stats["zero_volume_assigned_t1"] += 1
         tr = _build_trade(hid, m, open_ts, mid, True, holdout_events, terciles, store, open_ts)
         if tr:
             trades.append(tr)
@@ -451,9 +472,9 @@ def terciles_from_intraday_training(
         if m.event_id in holdout_events or m.outcome_yes is None:
             continue
         t1 = first_intraday_entry_ts(m, cache_dir, mode, move_threshold)
-        if t1 is None or store.is_incomplete(m.token_yes):
+        if t1 is None or not store.trade_volume_usable(m.token_yes):
             continue
-        v = volume_at_decision(m, t1, store)
+        v = store.volume_at(m.token_yes, t1)
         if v is not None and v > 0:
             vols.append(v)
     if len(vols) < 9:
@@ -631,8 +652,9 @@ def run_full_backtest(
         return (m.start_ts or 0) + 3600
 
     train_markets = [m for m in markets if m.event_id not in holdout_events]
+    trade_seg_feasible, trade_seg_stats = store.segmentation_feasible()
     coverage = store.coverage_fraction(train_markets, vol_decision_h2a)
-    liquidity_enabled = coverage >= 0.35
+    liquidity_enabled = trade_seg_feasible and coverage >= 0.35
     segments: tuple[str, ...] = (
         LIQUIDITY_SEGMENTS_TERCILE if liquidity_enabled else ("ALL",)
     )
@@ -676,6 +698,7 @@ def run_full_backtest(
         if liquidity_enabled
         else None
     )
+    gamma_terciles_ref = terciles_from_training_gamma(markets, holdout_events)
 
     bundles: list[tuple[str, list[Trade], list[float], list[float]]] = []
     h3_stats: dict[str, dict[str, int]] = {}
@@ -751,9 +774,39 @@ def run_full_backtest(
         tradeable = not any(hid.startswith(p) for p in DIAGNOSTIC_PREFIXES)
         summaries.append(summarize_hypothesis(hid, seg, tr, ll, br, tradeable))
 
+    if liquidity_enabled:
+        h3_bases = {b[0] for b in tradeable_bundles if b[0].startswith("H3")}
+        for base in h3_bases:
+            has_family_cell = any(
+                s.description == base and s.n >= MIN_TRADES_FOR_TEST and s.tradeable
+                for s in summaries
+            )
+            if has_family_cell:
+                continue
+            bundle = next((b for b in tradeable_bundles if b[0] == base), None)
+            if not bundle:
+                continue
+            _, trades, ll, br = bundle
+            if len(trades) < MIN_TRADES_FOR_TEST:
+                continue
+            summaries.append(
+                summarize_hypothesis(base, "ALL", trades, ll, br, tradeable=True)
+            )
+
     tradeable_summaries = [
         s for s in summaries if s.tradeable and s.n >= MIN_TRADES_FOR_TEST
     ]
+    if not liquidity_enabled:
+        seen_base: set[str] = set()
+        deduped: list[HypothesisResult] = []
+        for s in tradeable_summaries:
+            if s.liquidity_segment != "ALL":
+                continue
+            if s.description in seen_base:
+                continue
+            seen_base.add(s.description)
+            deduped.append(s)
+        tradeable_summaries = deduped
     p_raws = [s.p_raw for s in tradeable_summaries]
     bonf = bonferroni(p_raws) if p_raws else []
     bh = benjamini_hochberg(p_raws) if p_raws else []
@@ -790,14 +843,17 @@ def run_full_backtest(
             }
         )
 
-    tercile_ref = terciles_h2a or terciles_h4a
+    tercile_ref = terciles_h2a or terciles_h4a or gamma_terciles_ref
     trade_meta = store.incomplete_summary()
     return {
         "holdout_event_count": len(holdout_events),
         "market_count": len(markets),
         "liquidity_segmentation_enabled": liquidity_enabled,
+        "trade_segmentation_feasible": trade_seg_feasible,
+        "trade_segmentation_stats": trade_seg_stats,
         "liquidity_trade_coverage_train": coverage,
         "trade_history_incomplete": trade_meta,
+        "liquidity_proxy": "gamma_volume" if not liquidity_enabled else "data_api_trades",
         "liquidity_terciles_usd": (
             {"q33": tercile_ref.q33, "q66": tercile_ref.q66} if tercile_ref else None
         ),
@@ -805,7 +861,10 @@ def run_full_backtest(
             "Volume cumulativo data-api (YES+NO) até decision_ts; cortes no treino por hipótese "
             "(H2a 24h, H2b 4h, H3 abertura+1h, H4 no instante da entrada do sinal)"
             if liquidity_enabled
-            else "Segmentação desligada: cobertura de trades insuficiente"
+            else (
+                "Segmentação por tercil de trades **inviável** (API truncada / gamma_ratio); "
+                "família múltipla em agregado ALL; slippage com volume Gamma do manifest"
+            )
         ),
         "h3_coverage_stats": h3_stats,
         "stake_usd_assumed": 25.0,

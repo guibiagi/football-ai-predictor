@@ -42,7 +42,7 @@ H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3
 - **Família de testes (células n≥3):** após deduplicação v2, a lista efetiva de segmentos T1/T2/T3 entrou na correção múltipla **após** a revisão v2 (não estava fixada no pré-registro inicial de 25×3).
 - **Execução:** stake nominal **US$ 25** (faixa 10–50); spread + impacto linear `0.5 × stake / max(250, 2% volume)` em pontos de probabilidade, mais meio-spread 0,5 pp e taxa taker 2%.
 - **Hipótese exploratória do usuário:** reação lenta concentrada em **T1** (baixa liquidez).
-- **Correção múltipla atualizada:** 25 × 3 = **75 testes de ROI** entram em Bonferroni e BH (H5 calibração fora da família de ROI).
+- **Correção múltipla:** no máximo **25 × 3 = 75** células ROI **somente se** a segmentação por trades data-api for validada (histórico completo até `start_ts` + ratio trade/Gamma ≥ 0,45). Caso contrário, a família reportada usa **variantes agregadas (ALL)** com slippage via volume Gamma — ver relatório (`n_tests` medido).
 
 ## Critério de “sobrevivência”
 
