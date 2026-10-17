@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,10 +27,13 @@ from src.macro_poly.stats import (
     bootstrap_p_value_roi,
     trade_roi_binary,
 )
+from src.macro_poly.market_preprocess import dedupe_fomc_events
+from src.macro_poly.trade_volume import TradeVolumeStore
 from src.macro_poly.volume import volume_at_decision
 
 FEE_RATE = 0.02
-LIQUIDITY_SEGMENTS = ("T1_low", "T2_mid", "T3_high")
+LIQUIDITY_SEGMENTS_TERCILE = ("T1_low", "T2_mid", "T3_high")
+MIN_TRADES_FOR_TEST = 3
 DIAGNOSTIC_PREFIXES = ("H1a", "H1b", "H1c")
 
 
@@ -67,12 +71,20 @@ def terciles_from_training(
     markets: list[MacroMarket],
     holdout_events: set[str],
     decision_ts_fn,
-) -> LiquidityTerciles:
-    vols = []
+    store: TradeVolumeStore,
+) -> LiquidityTerciles | None:
+    vols: list[float] = []
     for m in markets:
         if m.event_id in holdout_events or m.release_ts is None:
             continue
-        vols.append(volume_at_decision(m, decision_ts_fn(m)))
+        ts = decision_ts_fn(m)
+        if ts is None:
+            continue
+        v = volume_at_decision(m, ts, store)
+        if v is not None and v > 0:
+            vols.append(v)
+    if len(vols) < 9:
+        return None
     return compute_terciles(vols)
 
 
@@ -83,13 +95,17 @@ def _build_trade(
     mid_yes: float,
     buy_yes: bool,
     holdout_events: set[str],
-    terciles: LiquidityTerciles,
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
     decision_ts: int,
     pre_prob: float | None = None,
     clv: float | None = None,
     tradeable: bool = True,
-) -> Trade:
-    vol_d = volume_at_decision(m, decision_ts)
+) -> Trade | None:
+    raw_vol = volume_at_decision(m, decision_ts, store)
+    if terciles is not None and (raw_vol is None or raw_vol <= 0):
+        return None
+    vol_d = raw_vol if raw_vol is not None else 1.0
     side_mid = mid_yes if buy_yes else 1.0 - mid_yes
     p_entry = taker_ask_with_slippage(side_mid, vol_d)
     won = (m.outcome_yes == 1) if buy_yes else (m.outcome_yes == 0)
@@ -105,7 +121,7 @@ def _build_trade(
         clv=clv,
         holdout=m.event_id in holdout_events,
         volume_at_decision=vol_d,
-        liquidity_tercile=terciles.label(vol_d),
+        liquidity_tercile=terciles.label(vol_d) if terciles else "ALL",
         pre_prob=pre_prob,
         log_loss=ll,
         brier=br,
@@ -155,7 +171,8 @@ def run_post_release_drift(
     holdout_events: set[str],
     cache_dir: Path,
     hypothesis_prefix: str,
-    terciles: LiquidityTerciles,
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
 ) -> list[tuple[str, list[Trade], list[float], list[float]]]:
     """Diagnóstico: compra vencedor conhecido — não entra em testes de ROI tradeáveis."""
     results = []
@@ -176,26 +193,25 @@ def run_post_release_drift(
             pre = price_at_or_before(hist, m.release_ts - 3600)
             close_ts = m.release_ts + max(deltas_min) * 60 * 2
             p_later = price_at_or_after(hist, close_ts, max_lag_sec=ENTRY_MAX_LAG_SEC)
-            p_entry_side = taker_ask_with_slippage(
-                mid if buy_yes else 1.0 - mid,
-                volume_at_decision(m, entry_ts),
-            )
+            vol_e = volume_at_decision(m, entry_ts, store) or 1.0
+            p_entry_side = taker_ask_with_slippage(mid if buy_yes else 1.0 - mid, vol_e)
             clv = (p_later - p_entry_side) if buy_yes and p_later is not None else None
-            trades.append(
-                _build_trade(
-                    hid,
-                    m,
-                    entry_ts,
-                    mid,
-                    buy_yes,
-                    holdout_events,
-                    terciles,
-                    decision_ts=entry_ts,
-                    pre_prob=pre,
-                    clv=clv,
-                    tradeable=False,
-                )
+            tr = _build_trade(
+                hid,
+                m,
+                entry_ts,
+                mid,
+                buy_yes,
+                holdout_events,
+                terciles,
+                store,
+                decision_ts=entry_ts,
+                pre_prob=pre,
+                clv=clv,
+                tradeable=False,
             )
+            if tr:
+                trades.append(tr)
         log_losses = [t.log_loss for t in trades if t.log_loss is not None]
         briers = [t.brier for t in trades if t.brier is not None]
         results.append((hid, trades, log_losses, briers))
@@ -222,7 +238,8 @@ def run_fomc_divergence(
     cache_dir: Path,
     thresholds_pp: list[float],
     windows_h: list[int],
-    terciles: LiquidityTerciles,
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
 ) -> list[tuple[str, list[Trade], list[float], list[float]]]:
     by_event: dict[str, list[MacroMarket]] = {}
     for m in markets:
@@ -270,18 +287,19 @@ def run_fomc_divergence(
                     if abs(p_implied - p_ext) < th:
                         continue
                     bet_yes = p_ext > p_implied if is_cut else p_ext < p_implied
-                    results_map[hid].append(
-                        _build_trade(
-                            hid,
-                            m,
-                            entry_ts,
-                            mid,
-                            bet_yes,
-                            holdout_events,
-                            terciles,
-                            decision_ts=entry_ts,
-                        )
+                    tr = _build_trade(
+                        hid,
+                        m,
+                        entry_ts,
+                        mid,
+                        bet_yes,
+                        holdout_events,
+                        terciles,
+                        store,
+                        decision_ts=entry_ts,
                     )
+                    if tr:
+                        results_map[hid].append(tr)
         prev_winner = winner_label or prev_winner
 
     return [(hid, results_map[hid], ll_map[hid], br_map[hid]) for hid in sorted(results_map)]
@@ -292,15 +310,16 @@ def run_cpi_divergence(
     holdout_events: set[str],
     cache_dir: Path,
     surprise_thresholds: list[float],
-    terciles: LiquidityTerciles,
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
 ) -> list[tuple[str, list[Trade], list[float], list[float]]]:
     cpi = sorted(
         [m for m in markets if m.category == "cpi" and m.release_ts],
         key=lambda x: (x.release_ts or 0, x.market_id),
     )
-    last_mom: float | None = None
     out: list[tuple[str, list[Trade], list[float], list[float]]] = []
     for th in surprise_thresholds:
+        last_mom: float | None = None
         trades: list[Trade] = []
         hid = f"H2b_{th}pp"
         for m in cpi:
@@ -321,11 +340,11 @@ def run_cpi_divergence(
             if mid is None:
                 continue
             bet_yes = last_mom > (m.threshold_pct or 0)
-            trades.append(
-                _build_trade(
-                    hid, m, entry_ts, mid, bet_yes, holdout_events, terciles, entry_ts
-                )
+            tr = _build_trade(
+                hid, m, entry_ts, mid, bet_yes, holdout_events, terciles, store, entry_ts
             )
+            if tr:
+                trades.append(tr)
             last_mom = m.threshold_pct
         out.append((hid, trades, [], []))
     return out
@@ -340,31 +359,38 @@ def run_favorite_longshot(
     long_max: float,
     label: str,
     side: str,
-    terciles: LiquidityTerciles,
-) -> tuple[str, list[Trade], list[float], list[float]]:
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
+) -> tuple[str, list[Trade], list[float], list[float], dict[str, int]]:
     trades: list[Trade] = []
     hid = label
+    stats = {"eligible": 0, "traded": 0, "dropped_no_history": 0, "dropped_no_price": 0}
     for m in markets:
         if m.category != category or m.outcome_yes is None or m.release_ts is None:
             continue
         if m.start_ts is None:
             continue
+        stats["eligible"] += 1
         open_ts = m.start_ts + 3600
-        w_start, w_end = _market_window(m, m.release_ts, 14 * 86400, 3 * 86400)
+        w_start = m.start_ts
+        w_end = max(m.release_ts + 3 * 86400, open_ts + 86400)
         hist = _histories_for_market(m, cache_dir, w_start, w_end)
         if not hist:
+            stats["dropped_no_history"] += 1
             continue
         mid = price_at_or_after(hist, open_ts, max_lag_sec=ENTRY_MAX_LAG_SEC)
         if mid is None:
+            stats["dropped_no_price"] += 1
             continue
         if side == "fav" and mid < fav_min:
             continue
         if side == "long" and mid > long_max:
             continue
-        trades.append(
-            _build_trade(hid, m, open_ts, mid, True, holdout_events, terciles, open_ts)
-        )
-    return hid, trades, [], []
+        tr = _build_trade(hid, m, open_ts, mid, True, holdout_events, terciles, store, open_ts)
+        if tr:
+            trades.append(tr)
+            stats["traded"] += 1
+    return hid, trades, [], [], stats
 
 
 def run_intraday_moves(
@@ -373,7 +399,8 @@ def run_intraday_moves(
     cache_dir: Path,
     mode: str,
     thresholds_pp: list[float],
-    terciles: LiquidityTerciles,
+    terciles: LiquidityTerciles | None,
+    store: TradeVolumeStore,
 ) -> list[tuple[str, list[Trade], list[float], list[float]]]:
     out = []
     for th in thresholds_pp:
@@ -398,9 +425,9 @@ def run_intraday_moves(
                 # H4a fade: reverte movimento; H4b continuação: segue movimento
                 moved_up = p1 > p0
                 bet_yes = (not moved_up) if mode == "H4a" else moved_up
-                trades.append(
-                    _build_trade(hid, m, t1, p1, bet_yes, holdout_events, terciles, t1)
-                )
+                tr = _build_trade(hid, m, t1, p1, bet_yes, holdout_events, terciles, store, t1)
+                if tr:
+                    trades.append(tr)
                 break
         out.append((hid, trades, [], []))
     return out
@@ -437,14 +464,33 @@ def run_h5_calibration(
 
 def _segment_bundles(
     bundles: list[tuple[str, list[Trade], list[float], list[float]]],
+    segments: tuple[str, ...],
 ) -> list[tuple[str, str, list[Trade], list[float], list[float]]]:
     out: list[tuple[str, str, list[Trade], list[float], list[float]]] = []
     for hid, trades, ll, br in bundles:
-        for seg in LIQUIDITY_SEGMENTS:
+        for seg in segments:
             seg_trades = [t for t in trades if t.liquidity_tercile == seg]
             seg_ll = [t.log_loss for t in seg_trades if t.log_loss is not None]
             seg_br = [t.brier for t in seg_trades if t.brier is not None]
             out.append((hid, seg, seg_trades, seg_ll, seg_br))
+    return out
+
+
+def _trade_fingerprint(trades: list[Trade]) -> tuple:
+    return tuple(sorted((t.market_id, t.event_ts, t.won, round(t.p_entry, 6)) for t in trades))
+
+
+def dedupe_identical_bundles(
+    bundles: list[tuple[str, list[Trade], list[float], list[float]]],
+) -> list[tuple[str, list[Trade], list[float], list[float]]]:
+    seen: set[tuple] = set()
+    out = []
+    for hid, trades, ll, br in bundles:
+        fp = _trade_fingerprint(trades)
+        if fp in seen:
+            continue
+        seen.add(fp)
+        out.append((hid, trades, ll, br))
     return out
 
 
@@ -486,95 +532,159 @@ def run_full_backtest(
     cache_dir: Path,
     holdout_frac: float = 0.3,
 ) -> dict[str, Any]:
+    markets = dedupe_fomc_events(markets)
     holdout_events = deterministic_holdout_events(markets, frac=holdout_frac)
 
-    def _decision_ts(m: MacroMarket) -> int:
+    trade_cache = cache_dir.parent / "trades"
+    store = TradeVolumeStore(trade_cache)
+    for m in markets:
+        if getattr(m, "condition_id", None):
+            store.register(m.token_yes, m.condition_id)
+
+    def _warm(cid_tid: tuple[str, str]) -> None:
+        cid, tid = cid_tid
+        store.volume_at(tid, 2_000_000_000)
+
+    unique_pairs = {(m.condition_id, m.token_yes) for m in markets if m.condition_id}
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        list(pool.map(_warm, unique_pairs))
+
+    def vol_decision_h2(m: MacroMarket) -> int:
+        return (m.release_ts or 0) - 24 * 3600
+
+    def vol_decision_h3(m: MacroMarket) -> int:
+        return (m.start_ts or 0) + 3600
+
+    def vol_decision_h4(m: MacroMarket) -> int:
         return m.release_ts or 0
 
-    terciles = terciles_from_training(markets, holdout_events, _decision_ts)
+    coverage = store.coverage_fraction(
+        [m for m in markets if m.event_id not in holdout_events],
+        vol_decision_h2,
+    )
+    liquidity_enabled = coverage >= 0.35
+    segments: tuple[str, ...] = (
+        LIQUIDITY_SEGMENTS_TERCILE if liquidity_enabled else ("ALL",)
+    )
+
+    terciles_h2 = (
+        terciles_from_training(markets, holdout_events, vol_decision_h2, store)
+        if liquidity_enabled
+        else None
+    )
+    terciles_h3 = (
+        terciles_from_training(markets, holdout_events, vol_decision_h3, store)
+        if liquidity_enabled
+        else None
+    )
+    terciles_h4 = (
+        terciles_from_training(markets, holdout_events, vol_decision_h4, store)
+        if liquidity_enabled
+        else None
+    )
+    terciles_h1 = (
+        terciles_from_training(
+            markets,
+            holdout_events,
+            lambda m: (m.release_ts or 0) + 60 * 60,
+            store,
+        )
+        if liquidity_enabled
+        else None
+    )
 
     bundles: list[tuple[str, list[Trade], list[float], list[float]]] = []
+    h3_stats: dict[str, dict[str, int]] = {}
+
     bundles.extend(
         run_post_release_drift(
-            markets, "cpi", [1, 5, 15, 60], holdout_events, cache_dir, "H1a", terciles
+            markets, "cpi", [60], holdout_events, cache_dir, "H1a", terciles_h1, store
         )
     )
     bundles.extend(
         run_post_release_drift(
-            markets, "pce", [1, 5, 15, 60], holdout_events, cache_dir, "H1b", terciles
+            markets, "pce", [60], holdout_events, cache_dir, "H1b", terciles_h1, store
         )
     )
     bundles.extend(
         run_post_release_drift(
-            markets, "fomc", [1, 5, 15, 60], holdout_events, cache_dir, "H1c", terciles
+            markets, "fomc", [60], holdout_events, cache_dir, "H1c", terciles_h1, store
         )
     )
     bundles.extend(
         run_fomc_divergence(
-            markets, holdout_events, cache_dir, [0.05, 0.10], [24, 4], terciles
+            markets, holdout_events, cache_dir, [0.10], [24], terciles_h2, store
         )
     )
     bundles.extend(
-        run_cpi_divergence(markets, holdout_events, cache_dir, [0.1, 0.2], terciles)
+        run_cpi_divergence(markets, holdout_events, cache_dir, [0.1, 0.2], terciles_h2, store)
     )
-    bundles.append(
-        run_favorite_longshot(
-            markets, holdout_events, cache_dir, "cpi", 0.55, 0.25, "H3a_fav", "fav", terciles
+    for label, side, cat, terc in [
+        ("H3a_fav", "fav", "cpi", terciles_h3),
+        ("H3a_long", "long", "cpi", terciles_h3),
+        ("H3b_fav", "fav", "fomc", terciles_h3),
+    ]:
+        hid, tr, ll, br, st = run_favorite_longshot(
+            markets, holdout_events, cache_dir, cat, 0.55, 0.25, label, side, terc, store
         )
-    )
-    bundles.append(
-        run_favorite_longshot(
-            markets, holdout_events, cache_dir, "cpi", 0.55, 0.25, "H3a_long", "long", terciles
-        )
-    )
-    bundles.append(
-        run_favorite_longshot(
-            markets, holdout_events, cache_dir, "fomc", 0.60, 0.25, "H3b_fav", "fav", terciles
-        )
+        h3_stats[hid] = st
+        bundles.append((hid, tr, ll, br))
+    bundles.extend(
+        run_intraday_moves(markets, holdout_events, cache_dir, "H4a", [0.03, 0.05], terciles_h4, store)
     )
     bundles.extend(
-        run_intraday_moves(markets, holdout_events, cache_dir, "H4a", [0.03, 0.05], terciles)
+        run_intraday_moves(markets, holdout_events, cache_dir, "H4b", [0.03, 0.05], terciles_h4, store)
     )
-    bundles.extend(
-        run_intraday_moves(markets, holdout_events, cache_dir, "H4b", [0.03, 0.05], terciles)
-    )
+
+    tradeable_bundles = [
+        b for b in bundles if not any(b[0].startswith(p) for p in DIAGNOSTIC_PREFIXES)
+    ]
+    tradeable_bundles = dedupe_identical_bundles(tradeable_bundles)
+    diag_bundles = [b for b in bundles if any(b[0].startswith(p) for p in DIAGNOSTIC_PREFIXES)]
+    bundles = diag_bundles + tradeable_bundles
 
     h5 = run_h5_calibration(markets, holdout_events, cache_dir)
 
-    segmented = _segment_bundles(bundles)
+    segmented = _segment_bundles(tradeable_bundles, segments)
+    diag_segmented = _segment_bundles(diag_bundles, segments)
+
     summaries = []
-    for hid, seg, tr, ll, br in segmented:
+    for hid, seg, tr, ll, br in diag_segmented + segmented:
         tradeable = not any(hid.startswith(p) for p in DIAGNOSTIC_PREFIXES)
         summaries.append(summarize_hypothesis(hid, seg, tr, ll, br, tradeable))
 
-    tradeable_summaries = [s for s in summaries if s.tradeable]
+    tradeable_summaries = [
+        s for s in summaries if s.tradeable and s.n >= MIN_TRADES_FOR_TEST
+    ]
     p_raws = [s.p_raw for s in tradeable_summaries]
-    bonf = bonferroni(p_raws)
-    bh = benjamini_hochberg(p_raws)
+    bonf = bonferroni(p_raws) if p_raws else []
+    bh = benjamini_hochberg(p_raws) if p_raws else []
 
     rows = []
     ti = 0
     for s in summaries:
-        if s.tradeable:
+        in_family = s.tradeable and s.n >= MIN_TRADES_FOR_TEST
+        if in_family:
             pb, ph = bonf[ti], bh[ti]
             ti += 1
         else:
             pb, ph = float("nan"), float("nan")
         survives = (
-            s.tradeable
-            and s.holdout_n >= 3
+            in_family
+            and s.holdout_n >= MIN_TRADES_FOR_TEST
             and (s.holdout_roi or 0) > 0
             and pb < 0.05
         )
         survives_bh = (
-            s.tradeable
-            and s.holdout_n >= 3
+            in_family
+            and s.holdout_n >= MIN_TRADES_FOR_TEST
             and (s.holdout_roi or 0) > 0
             and ph < 0.05
         )
         rows.append(
             {
                 **s.__dict__,
+                "in_test_family": in_family,
                 "p_bonferroni": pb,
                 "p_bh": ph,
                 "survives_bonferroni": survives,
@@ -582,13 +692,23 @@ def run_full_backtest(
             }
         )
 
+    tercile_ref = terciles_h2 or terciles_h4
     return {
         "holdout_event_count": len(holdout_events),
         "market_count": len(markets),
-        "liquidity_terciles_usd": {"q33": terciles.q33, "q66": terciles.q66},
-        "liquidity_terciles_note": "Cortes só no treino; volume interpolado até decision_ts",
+        "liquidity_segmentation_enabled": liquidity_enabled,
+        "liquidity_trade_coverage_train": coverage,
+        "liquidity_terciles_usd": (
+            {"q33": tercile_ref.q33, "q66": tercile_ref.q66} if tercile_ref else None
+        ),
+        "liquidity_terciles_note": (
+            "Volume cumulativo data-api trades até decision_ts; cortes por hipótese no treino"
+            if liquidity_enabled
+            else "Segmentação desligada: cobertura de trades insuficiente"
+        ),
+        "h3_coverage_stats": h3_stats,
         "stake_usd_assumed": 25.0,
-        "n_base_hypotheses": len(bundles),
+        "n_base_hypotheses": len(tradeable_bundles),
         "n_tradeable_tests": len(tradeable_summaries),
         "h5_calibration_holdout": h5,
         "hypotheses": rows,

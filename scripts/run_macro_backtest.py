@@ -12,6 +12,17 @@ from src.macro_poly.backtest import run_full_backtest
 from src.macro_poly.discovery import MacroMarket
 
 CHANGELOG = """
+## Changelog vs v2 (abb273a)
+
+| Correção | Efeito |
+|----------|--------|
+| FOMC exige Fed/FOMC; exclui ECB/BoJ/derivativos | Menos contaminação em H2/H4/H5 |
+| Dedupe um evento FOMC por reunião (ex. set/2026) | Um outcome por meeting |
+| Volume = trades data-api cumulativos até `decision_ts` | Tercis alinhados ao instante da entrada |
+| H3 janela desde `start_ts` | Cobertura H3 reportada (`h3_coverage_stats`) |
+| H2b estado resetado por limiar; H2a deduplicado | Família de testes menor |
+| Células com n&lt;3 fora da família múltipla | `in_test_family` no JSON |
+
 ## Changelog vs relatório anterior (PR #4 v1)
 
 | Correção | Efeito esperado nos números |
@@ -37,6 +48,8 @@ def _load_manifest(path: Path) -> list[MacroMarket]:
         clean = {k: row[k] for k in field_names if k in row}
         if "start_ts" not in clean:
             clean["start_ts"] = None
+        if "condition_id" not in clean:
+            clean["condition_id"] = ""
         markets.append(MacroMarket(**clean))
     return markets
 
@@ -49,9 +62,12 @@ def _write_report(results: dict, path: Path) -> None:
         "**Modo:** somente simulação (sem ordens reais).  ",
         f"**Mercados no manifest:** {results['market_count']}  ",
         f"**Eventos no holdout (~30%):** {results['holdout_event_count']}  ",
-        f"**Testes ROI tradeáveis (H2–H4 × 3 tercis):** {n_trade}  ",
-        f"**Tercis volume (treino, USD interpolado):** q33={results.get('liquidity_terciles_usd', {}).get('q33', '—')}, "
-        f"q66={results.get('liquidity_terciles_usd', {}).get('q66', '—')}  ",
+        f"**Liquidez por trades:** {'sim' if results.get('liquidity_segmentation_enabled') else 'não'} "
+        f"(cobertura treino={results.get('liquidity_trade_coverage_train', '—')})  ",
+        f"**Testes ROI na família múltipla:** {n_trade}  ",
+        f"**Tercis (volume trades cumulativo, treino):** "
+        f"q33={results.get('liquidity_terciles_usd', {}).get('q33', '—') if results.get('liquidity_terciles_usd') else '—'}, "
+        f"q66={results.get('liquidity_terciles_usd', {}).get('q66', '—') if results.get('liquidity_terciles_usd') else '—'}  ",
         f"**Stake simulado:** US$ {results.get('stake_usd_assumed', 25)}  ",
         "",
         "Pré-registro: [HIPOTESES_MACRO_POLY_PREREG.md](HIPOTESES_MACRO_POLY_PREREG.md)",
@@ -65,6 +81,16 @@ def _write_report(results: dict, path: Path) -> None:
     lines.append(
         f"n={h5.get('n', 0)}, log-loss={h5.get('log_loss')}, Brier={h5.get('brier')}"
     )
+    h3s = results.get("h3_coverage_stats") or {}
+    if h3s:
+        lines.append("")
+        lines.append("### H3 — cobertura (mercados elegíveis vs trades simulados)")
+        for k, st in h3s.items():
+            lines.append(
+                f"- **{k}**: elegíveis={st.get('eligible', 0)}, "
+                f"trades={st.get('traded', 0)}, sem histórico={st.get('dropped_no_history', 0)}, "
+                f"sem preço na abertura={st.get('dropped_no_price', 0)}"
+            )
     lines.extend(
         [
             "",
@@ -135,7 +161,8 @@ def _write_report(results: dict, path: Path) -> None:
             "",
             "## Limitações",
             "",
-            "- Volume interpolado entre start/end (proxy; não é book histórico).",
+            "- Volume = soma size×price em trades data-api até decision_ts (paginação limitada).",
+            "- H3: ver cobertura acima — maioria dos mercados não gera trade (filtro fav/longshot).",
             "- Fidelidade CLOB 60 min → variantes H1 1/5/15 min frequentemente idênticas.",
             "- H2 usa proxies fracos (não FedWatch/consenso).",
             "- Adendo de liquidez no pré-registro é **pós-hoc** (ver arquivo).",

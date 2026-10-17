@@ -37,7 +37,7 @@ H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3
 
 ### Segmentação por liquidez (adendo)
 
-- **Dimensão extra:** cada uma das 25 variantes de ROI é avaliada em **3 tercis** de liquidez (T1 baixa, T2 média, T3 alta), usando volume USD reportado na Gamma no momento da decisão (proxy: volume acumulado do mercado; limitação documentada).
+- **Dimensão extra:** cada variante de ROI tradeável em **3 tercis** de liquidez (T1/T2/T3), com volume USD **cumulativo de trades (data-api)** até `decision_ts` (cortes estimados só no treino, por hipótese).
 - **Tercis:** cortes em `log1p(volume)` sobre o universo de mercados do backtest (fixos antes do holdout).
 - **Execução:** stake nominal **US$ 25** (faixa 10–50); spread + impacto linear `0.5 × stake / max(250, 2% volume)` em pontos de probabilidade, mais meio-spread 0,5 pp e taxa taker 2%.
 - **Hipótese exploratória do usuário:** reação lenta concentrada em **T1** (baixa liquidez).

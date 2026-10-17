@@ -22,7 +22,12 @@ CPI_THRESHOLD_RE = re.compile(
 )
 FOMC_EXCLUDE_RE = re.compile(
     r"say\b|mention|anyone|will anyone|board meeting|derivative|flips\b|how many|"
-    r"powell says|jerome powell|who will|nominate|chair in|rate cut by\.\.\.",
+    r"powell says|jerome powell|who will|nominate|chair in|rate cut by\.\.\.|"
+    r"favored for|odds\b|minute-level|50-50|negrisk",
+    re.I,
+)
+NON_FED_CB_RE = re.compile(
+    r"\becb\b|european central|bank of japan|\bboj\b|bank of england|\bboe\b",
     re.I,
 )
 FOMC_RATE_RE = re.compile(
@@ -42,6 +47,7 @@ class MacroMarket:
     question: str
     market_slug: str
     token_yes: str
+    condition_id: str
     end_date: str
     start_ts: int | None
     volume: float
@@ -105,7 +111,12 @@ def _classify_cpi_pce(title: str, question: str) -> str | None:
 
 def is_fomc_rate_event(event_title: str, question: str) -> bool:
     blob = f"{event_title} {question}"
+    blob_l = blob.lower()
+    if NON_FED_CB_RE.search(blob):
+        return False
     if FOMC_EXCLUDE_RE.search(blob):
+        return False
+    if not re.search(r"\bfed\b|\bfomc\b", blob_l):
         return False
     if not FOMC_RATE_RE.search(blob):
         return False
@@ -193,6 +204,9 @@ def discover_macro_markets(max_per_tag: int = 400) -> list[MacroMarket]:
                         if rel is None:
                             continue
                     start_ts = iso_to_ts(m.get("startDate") or "") or event_start
+                    cid = m.get("conditionId") or ""
+                    if not cid:
+                        continue
                     vol = float(m.get("volume") or ev.get("volume") or 0)
                     rows.append(
                         MacroMarket(
@@ -203,6 +217,7 @@ def discover_macro_markets(max_per_tag: int = 400) -> list[MacroMarket]:
                             question=question,
                             market_slug=m.get("slug") or "",
                             token_yes=token_yes,
+                            condition_id=cid,
                             end_date=m.get("endDate") or "",
                             start_ts=start_ts,
                             volume=vol,

@@ -22,6 +22,7 @@ def _m(eid: str, rts: int) -> MacroMarket:
         question="q",
         market_slug="ms",
         token_yes="tok",
+        condition_id="0xabc",
         end_date="2025-01-01T00:00:00Z",
         start_ts=rts - 86400,
         volume=1000.0,
@@ -102,13 +103,47 @@ def test_fomc_excludes_mention_markets():
     )
 
 
-def test_h4_fade_direction():
-    p0, p1 = 0.6, 0.5
-    moved_up = p1 > p0
-    bet_yes_h4a = not moved_up
-    bet_yes_h4b = moved_up
-    assert bet_yes_h4a is True
-    assert bet_yes_h4b is False
+def test_h4_fade_direction_via_runner(tmp_path):
+    from src.macro_poly.backtest import run_intraday_moves
+    from src.macro_poly.trade_volume import TradeVolumeStore
+
+    m = _m("e1", 1_000_000)
+    m = MacroMarket(
+        **{**m.__dict__, "outcome_yes": 1, "release_ts": 1_000_000, "start_ts": 900_000}
+    )
+    cache = tmp_path / "prices"
+    cache.mkdir()
+    token = m.token_yes
+    w_start, w_end = 900_000, 1_000_000 + 3 * 86400
+    hist = [
+        {"t": 820_000, "p": 0.55},
+        {"t": 840_000, "p": 0.55},
+        {"t": 860_000, "p": 0.55},
+        {"t": 880_000, "p": 0.55},
+        {"t": 900_000, "p": 0.5},
+    ]
+    import json
+
+    path = cache / f"{token}_{w_start}_{w_end}_60.json"
+    path.write_text(json.dumps({"fetch_failed": False, "history": hist}))
+    store = TradeVolumeStore(tmp_path / "trades")
+    store.register(token, m.condition_id)
+    # mock trades file so volume exists
+    (tmp_path / "trades").mkdir()
+    (tmp_path / "trades" / f"{m.condition_id}.json").write_text(
+        json.dumps(
+            {
+                "failed": False,
+                "trades": [
+                    {"asset": token, "timestamp": 800_000, "size": 100, "price": 0.5}
+                ],
+            }
+        )
+    )
+    out = run_intraday_moves([m], set(), cache, "H4a", [0.03], None, store)
+    tr = out[0][1][0]
+    assert tr.event_ts == 900_000
+    assert tr.won is True  # fade down move -> buy YES
 
 
 def test_price_lookup():
