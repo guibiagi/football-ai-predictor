@@ -23,3 +23,5 @@ Thumbs.db
 *.bak
 data/skill_preds.pkl
 data/understat_xg.csv
+data/macro/prices/
+data/macro/trades/
