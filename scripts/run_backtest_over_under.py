@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from src.ou_backtest import (  # noqa: E402
     apply_survival_flags,
     bh_fdr_adjust,
     bonferroni_adjust,
+    bootstrap_best_strategy_null_p,
     bootstrap_roi_ci,
     calibration_bins,
     devig_binary,
@@ -35,13 +37,21 @@ from src.ou_backtest import (  # noqa: E402
     pick_edge_side,
     save_variant_log,
     summarize_bets,
-    white_reality_check_p,
 )
 from src.validation import expanding_window_backtest  # noqa: E402
 
-REPORT = ROOT / "reports" / "RELATORIO_OVER_UNDER.md"
+REPORT = ROOT / "reports/RELATORIO_OVER_UNDER.md"
 VARIANT_LOG = ROOT / "reports" / "ou_variants_log.json"
+CHANGELOG = ROOT / "reports/OU_BACKTEST_CHANGELOG.md"
 CACHE = ROOT / "reports" / "ou_predictions_cache.pkl"
+
+PREV_SNAPSHOT = {
+    "n_matches": 12717,
+    "ll_model": 0.6869,
+    "ll_pin": 0.6718,
+    "survivors": 1,
+    "white_p": 0.5067,
+}
 
 
 def _roda(df: pd.DataFrame, comp: str, model_factory) -> pd.DataFrame | None:
@@ -56,14 +66,9 @@ def _roda(df: pd.DataFrame, comp: str, model_factory) -> pd.DataFrame | None:
     )
     cols = [
         "date", "home_team", "away_team", "season",
-        "odds_open_h", "odds_open_d", "odds_open_a",
-        "psc_h", "psc_d", "psc_a", "b365c_h", "b365c_d", "b365c_a",
-        "ou_open_over", "ou_open_under",
-        "ou_close_over", "ou_close_under",
-        "ou_ps_over", "ou_ps_under",
-        "ou_psc_over", "ou_psc_under",
-        "ou_max_over", "ou_max_under",
-        "ou_avg_over", "ou_avg_under",
+        "ou_open_over", "ou_open_under", "ou_close_over", "ou_close_under",
+        "ou_ps_over", "ou_ps_under", "ou_psc_over", "ou_psc_under",
+        "ou_max_over", "ou_max_under", "ou_avg_over", "ou_avg_under",
         "xg_h", "xg_a",
     ]
     preds = preds.merge(
@@ -83,9 +88,52 @@ def _rho(df: pd.DataFrame, comp: str, p: pd.DataFrame) -> float:
         return 0.0
 
 
-def _holdout_mask(p: pd.DataFrame) -> np.ndarray:
-    last = p.groupby("competition")["season"].transform("max")
-    return (p["season"] == last).to_numpy()
+def _season_layout(df: pd.DataFrame, comp: str) -> tuple[str | None, str | None]:
+    """Retorna (holdout season, temporada em andamento excluída) para a liga."""
+    sub = df[df.competition == comp]
+    if sub.empty:
+        return None, None
+    g = sub.groupby("season").agg(n=("date", "count"), end=("date", "max"))
+    seasons = g.sort_values("end").index.tolist()
+    if not seasons:
+        return None, None
+    if len(seasons) == 1:
+        return seasons[0], None
+    last = seasons[-1]
+    med_n = float(g["n"].median())
+    dataset_max = df["date"].max()
+    incomplete = (
+        g.loc[last, "end"] >= dataset_max - pd.Timedelta(days=21)
+        and g.loc[last, "n"] < 0.85 * med_n
+    )
+    if incomplete:
+        return seasons[-2], last
+    return last, None
+
+
+def _holdout_mask(p: pd.DataFrame, holdout_by_comp: dict[str, str | None]) -> np.ndarray:
+    return np.array([
+        holdout_by_comp.get(c) is not None and s == holdout_by_comp[c]
+        for c, s in zip(p.competition, p.season)
+    ])
+
+
+def _in_progress_mask(p: pd.DataFrame, inprog_by_comp: dict[str, str | None]) -> np.ndarray:
+    return np.array([
+        inprog_by_comp.get(c) is not None and s == inprog_by_comp[c]
+        for c, s in zip(p.competition, p.season)
+    ])
+
+
+def _split_masks(
+    p: pd.DataFrame,
+    holdout_by_comp: dict[str, str | None],
+    inprog_by_comp: dict[str, str | None],
+) -> tuple[np.ndarray, np.ndarray]:
+    ho = _holdout_mask(p, holdout_by_comp)
+    prog = _in_progress_mask(p, inprog_by_comp)
+    train = ~ho & ~prog
+    return train, ho
 
 
 def _build_frame(
@@ -99,7 +147,7 @@ def _build_frame(
     p_close = np.full(len(p), np.nan)
     if ok.any():
         p_open[ok] = devig_binary(open_pin[ok], method=devig_method)
-        p_close[ok] = devig_binary(close_pin[ok], method="multiplicative")
+        p_close[ok] = devig_binary(close_pin[ok], method=devig_method)
     return {
         "ok": ok,
         "y": y,
@@ -108,20 +156,26 @@ def _build_frame(
         "close_pin": close_pin,
         "p_open_fair": p_open,
         "p_close_fair": p_close,
+        "devig": devig_method,
     }
 
 
-def _split_masks(p: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    ho = _holdout_mask(p)
-    return ~ho, ho
+def _masks_for(p: pd.DataFrame, holdout_by_comp, inprog_by_comp):
+    return _split_masks(p, holdout_by_comp, inprog_by_comp)
 
 
-def run_h1(frame: dict, p: pd.DataFrame, edge: float, devig: str,
-           variant: str, hypothesis: str, use_close: bool = False) -> list:
+def run_h1(
+    frame: dict, p: pd.DataFrame, edge: float, devig: str,
+    variant: str, hypothesis: str, holdout_by_comp, inprog_by_comp,
+    use_close: bool = False, league_tag: str = "",
+) -> list:
     results = []
     open_odds = frame["open_pin"] if not use_close else frame["close_pin"]
     p_mkt = frame["p_open_fair"] if not use_close else frame["p_close_fair"]
-    for split_name, mask_split in (("train", _split_masks(p)[0]), ("holdout", _split_masks(p)[1])):
+    suffix = f"@{league_tag}" if league_tag else ""
+    for split_name, mask_split in zip(
+        ("train", "holdout"), _masks_for(p, holdout_by_comp, inprog_by_comp),
+    ):
         m = frame["ok"] & mask_split
         if m.sum() == 0:
             continue
@@ -129,7 +183,9 @@ def run_h1(frame: dict, p: pd.DataFrame, edge: float, devig: str,
             frame["p_over"], p_mkt, open_odds, edge,
         )
         bet_m &= m
-        vid = f"{variant}_edge{int(edge*100)}_{devig}" + ("_close" if use_close else "")
+        vid = f"{variant}_edge{int(edge * 100)}_{devig}{suffix}" + (
+            "_close" if use_close else ""
+        )
         results.append(summarize_bets(
             vid, hypothesis, split_name, bet_m, odds_side, side_over,
             frame["y"], frame["p_over"], frame["p_close_fair"], frame["p_open_fair"],
@@ -137,30 +193,22 @@ def run_h1(frame: dict, p: pd.DataFrame, edge: float, devig: str,
     return results
 
 
-def run_h2(frame: dict, p: pd.DataFrame, w: float, edge: float = 0.05) -> list:
-    results = []
-    p_blend = w * frame["p_over"] + (1 - w) * frame["p_open_fair"]
-    p_blend = np.clip(p_blend, 1e-6, 1 - 1e-6)
-    for split_name, mask_split in (("train", _split_masks(p)[0]), ("holdout", _split_masks(p)[1])):
-        m = frame["ok"] & mask_split
-        bet_m, side_over, odds_side = pick_edge_side(
-            p_blend, frame["p_open_fair"], frame["open_pin"], edge,
-        )
-        bet_m &= m
-        vid = f"H2_w{w:.2f}"
-        results.append(summarize_bets(
-            vid, "H2_shrink", split_name, bet_m, odds_side, side_over,
-            frame["y"], p_blend, frame["p_close_fair"], frame["p_open_fair"],
-        ))
-    return results
-
-
-def run_h3(frame: dict, p: pd.DataFrame, soft_cols: tuple[str, str],
-           edge: float, book: str) -> list:
+def run_h3(
+    frame: dict, p: pd.DataFrame, soft_cols: tuple[str, str],
+    edge: float, book: str, holdout_by_comp, inprog_by_comp,
+    league_tag: str = "",
+) -> list:
+    from src.ou_backtest import (
+        VariantResult, brier_binary, bootstrap_p_roi_nonpos,
+        clv_probability, log_loss_binary,
+    )
     results = []
     soft = p[list(soft_cols)].to_numpy()
     ok_soft = _odds_validas(soft)
-    for split_name, mask_split in (("train", _split_masks(p)[0]), ("holdout", _split_masks(p)[1])):
+    suffix = f"@{league_tag}" if league_tag else ""
+    for split_name, mask_split in zip(
+        ("train", "holdout"), _masks_for(p, holdout_by_comp, inprog_by_comp),
+    ):
         m = frame["ok"] & ok_soft & mask_split
         if m.sum() == 0:
             continue
@@ -176,19 +224,17 @@ def run_h3(frame: dict, p: pd.DataFrame, soft_cols: tuple[str, str],
         won = np.where(side_over[mask], frame["y"][mask] == 1, frame["y"][mask] == 0)
         rets = flat_bet_returns(odds_side[mask], won)
         roi, lo, hi = bootstrap_roi_ci(rets)
-        from src.ou_backtest import bootstrap_p_roi_nonpos, clv_probability
         clv = []
         for i, is_over in zip(np.where(mask)[0], side_over[mask]):
             pe = p_fair[i] if is_over else 1 - p_fair[i]
             pc = frame["p_close_fair"][i] if is_over else 1 - frame["p_close_fair"][i]
             clv.append(clv_probability(pe, pc))
         clv_arr = np.array(clv)
-        from src.ou_backtest import VariantResult, log_loss_binary, brier_binary
         pm = frame["p_over"][mask]
         ym = frame["y"][mask]
         pc = frame["p_close_fair"][mask]
         results.append(VariantResult(
-            variant_id=f"H3_{book}_e{int(edge*100)}",
+            variant_id=f"H3_{book}_e{int(edge * 100)}{suffix}",
             hypothesis="H3_soft",
             split=split_name,
             n=int(mask.sum()),
@@ -212,11 +258,15 @@ def run_h3(frame: dict, p: pd.DataFrame, soft_cols: tuple[str, str],
     return results
 
 
-def run_h4(frame: dict, p: pd.DataFrame, fade: bool = False) -> list:
-    """Drift histórico expansivo por liga (sem fechamento do jogo atual)."""
+def run_h4(
+    frame: dict, p: pd.DataFrame, fade: bool,
+    holdout_by_comp, inprog_by_comp,
+) -> list:
+    from src.ou_backtest import VariantResult, bootstrap_p_roi_nonpos
     results = []
-    open_imp = 1.0 / frame["open_pin"][:, 0]
-    close_imp = 1.0 / frame["close_pin"][:, 0]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        open_imp = 1.0 / frame["open_pin"][:, 0]
+        close_imp = 1.0 / frame["close_pin"][:, 0]
     drift = close_imp - open_imp
     signal_over = np.zeros(len(p), dtype=bool)
     has_hist = np.zeros(len(p), dtype=bool)
@@ -226,26 +276,25 @@ def run_h4(frame: dict, p: pd.DataFrame, fade: bool = False) -> list:
         for j, i in enumerate(order):
             if j == 0:
                 continue
-            past = drift[order[:j]].mean()
+            past = float(np.nanmean(drift[order[:j]]))
+            if not np.isfinite(past):
+                continue
             has_hist[i] = True
-            if fade:
-                signal_over[i] = past <= 0
-            else:
-                signal_over[i] = past > 0
-    for split_name, mask_split in (("train", _split_masks(p)[0]), ("holdout", _split_masks(p)[1])):
+            signal_over[i] = (past <= 0) if fade else (past > 0)
+    for split_name, mask_split in zip(
+        ("train", "holdout"), _masks_for(p, holdout_by_comp, inprog_by_comp),
+    ):
         m = frame["ok"] & mask_split & has_hist
         side_over = signal_over
-        mask = m
         odds_side = np.where(side_over, frame["open_pin"][:, 0], frame["open_pin"][:, 1])
-        won = np.where(side_over[mask], frame["y"][mask] == 1, frame["y"][mask] == 0)
-        rets = flat_bet_returns(odds_side[mask], won)
+        won = np.where(side_over[m], frame["y"][m] == 1, frame["y"][m] == 0)
+        rets = flat_bet_returns(odds_side[m], won)
         roi, lo, hi = bootstrap_roi_ci(rets)
-        from src.ou_backtest import VariantResult, bootstrap_p_roi_nonpos, brier_binary, log_loss_binary
         results.append(VariantResult(
             variant_id="H4b_fade" if fade else "H4a_follow",
             hypothesis="H4_drift",
             split=split_name,
-            n=int(mask.sum()),
+            n=int(m.sum()),
             roi=roi, roi_ci_lo=lo, roi_ci_hi=hi,
             clv_mean=float("nan"), clv_pos_pct=float("nan"),
             p_raw=bootstrap_p_roi_nonpos(rets),
@@ -259,10 +308,15 @@ def run_h4(frame: dict, p: pd.DataFrame, fade: bool = False) -> list:
     return results
 
 
-def run_h5(frame: dict, p: pd.DataFrame, segment_mask: np.ndarray, tag: str) -> list:
+def run_h5(
+    frame: dict, p: pd.DataFrame, segment_mask: np.ndarray, tag: str,
+    holdout_by_comp, inprog_by_comp,
+) -> list:
     edge = 0.05
     out = []
-    for split_name, mask_split in (("train", _split_masks(p)[0]), ("holdout", _split_masks(p)[1])):
+    for split_name, mask_split in zip(
+        ("train", "holdout"), _masks_for(p, holdout_by_comp, inprog_by_comp),
+    ):
         m = frame["ok"] & mask_split & segment_mask
         bet_m, side_over, odds_side = pick_edge_side(
             frame["p_over"], frame["p_open_fair"], frame["open_pin"], edge,
@@ -276,21 +330,29 @@ def run_h5(frame: dict, p: pd.DataFrame, segment_mask: np.ndarray, tag: str) -> 
 
 
 def _early_season_mask(p: pd.DataFrame) -> np.ndarray:
-    p = p.copy()
-    p["season_start"] = p.groupby(["competition", "season"])["date"].transform("min")
-    return (p["date"] - p["season_start"]).dt.days <= 60
+    starts = p.groupby(["competition", "season"])["date"].transform("min")
+    return (p["date"] - starts).dt.days <= 60
 
 
-def _low_scoring_leagues(df: pd.DataFrame) -> set[str]:
-    """Ligas com média de gols abaixo da mediana global (fixo no dataset)."""
-    g = df.groupby("competition").apply(
+def _low_scoring_leagues_train(
+    df: pd.DataFrame,
+    holdout_by_comp: dict[str, str | None],
+    inprog_by_comp: dict[str, str | None],
+) -> set[str]:
+    rows = []
+    for comp in df.competition.unique():
+        ho = holdout_by_comp.get(comp)
+        prog = inprog_by_comp.get(comp)
+        sub = df[df.competition == comp]
+        sub = sub[(sub.season != ho) & (sub.season != prog)]
+        rows.append(sub)
+    train = pd.concat(rows, ignore_index=True) if rows else df.iloc[0:0]
+    g = train.groupby("competition").apply(
         lambda x: (x.home_goals + x.away_goals).mean(), include_groups=False,
     )
+    if g.empty:
+        return set()
     return set(g[g <= g.median()].index)
-
-
-def _low_scoring_mask(p: pd.DataFrame, low_leagues: set[str]) -> np.ndarray:
-    return p.competition.isin(low_leagues).to_numpy()
 
 
 def _calib_table(calib: pd.DataFrame) -> str:
@@ -299,16 +361,19 @@ def _calib_table(calib: pd.DataFrame) -> str:
         f"| {r.bin_lo:.2f}-{r.bin_hi:.2f} | {r.n} | {r.pred:.3f} | {r.actual:.3f} |"
         for r in calib.itertuples()
     ]
-    return hdr + "\n" + "\n".join(rows)
+    return hdr + "\n" + ("\n".join(rows) if rows else "")
 
 
 def format_report(
     results: list,
     global_ll: dict,
     calib: pd.DataFrame,
-    white_p: float,
+    null_p: float,
     n_leagues: int,
     n_matches: int,
+    holdout_info: str,
+    n_variants: int,
+    n_tests: int,
 ) -> str:
     lines = [
         "# Relatório — Backtest Over/Under 2,5 vs Pinnacle",
@@ -316,56 +381,68 @@ def format_report(
         "**Aviso:** simulação histórica apenas; sem apostas reais.",
         "",
         f"- Ligas com Pinnacle O/U: **{n_leagues}**",
-        f"- Partidas com predição + odds abertura Pinnacle: **{n_matches}**",
+        f"- Partidas OOS com odds abertura+fechamento Pinnacle: **{n_matches}**",
+        f"- Holdout: **{holdout_info}**",
+        f"- Variantes distintas: **{n_variants}**; linhas testadas (× treino/holdout): **{n_tests}**",
         f"- Pré-registro: `reports/HIPOTESES_OVER_UNDER.md`",
+        f"- Changelog vs relatório anterior: `reports/OU_BACKTEST_CHANGELOG.md`",
         "",
-        "## Métricas globais (modelo vs Pinnacle fechamento, sem vig)",
+        "## Métricas globais (modelo vs Pinnacle fechamento, devig multiplicativo)",
         "",
-        f"| Métrica | Modelo | Pinnacle close |",
-        f"|---------|--------|----------------|",
+        "| Métrica | Modelo | Pinnacle close |",
+        "|---------|--------|----------------|",
         f"| Log-loss | {global_ll['ll_model']:.4f} | {global_ll['ll_pin']:.4f} |",
         f"| Brier | {global_ll['br_model']:.4f} | {global_ll['br_pin']:.4f} |",
         f"| n jogos | {global_ll['n']} | {global_ll['n']} |",
         "",
-        f"White reality check (melhor ROI vs permutação): **p = {white_p:.4f}**",
+        "Teste nulo bootstrap do melhor ROI (não é White/Hansen SPA): "
+        f"**p = {null_p:.4f}**",
         "",
-        "## Resultados por hipótese (agregado em todas as ligas; treino vs holdout)",
+        "H2 (shrinkage) **não** é estimado à parte: equivale a H1 com limiar "
+        "`edge/w` (ver changelog).",
         "",
-        "| Hipótese | Variante | Split | n | ROI | IC95% | CLV médio | %CLV+ | p raw | p Bonf | q BH | Sobrevive |",
-        "|----------|----------|-------|---|-----|-------|-----------|-------|-------|--------|------|-----------|",
+        "## Resultados agregados (todas as ligas)",
+        "",
+        "| Hipótese | Variante | Split | n | ROI | IC95% | CLV médio | %CLV+ | "
+        "p raw | p Bonf | q BH | Sobrevive |",
+        "|----------|----------|-------|---|-----|-------|-----------|-------|"
+        "-------|--------|------|-----------|",
     ]
-    for r in results:
+    agg = [r for r in results if "@" not in r.variant_id]
+    for r in sorted(agg, key=lambda x: (x.hypothesis, x.variant_id, x.split)):
         pb = r.meta.get("p_bonf", np.nan)
         qb = r.meta.get("q_bh", np.nan)
         ci = f"[{r.roi_ci_lo:+.2%}, {r.roi_ci_hi:+.2%}]" if r.n else "—"
+        clv = f"{r.clv_mean:+.4f}" if np.isfinite(r.clv_mean) else "—"
+        clvp = f"{r.clv_pos_pct:.1f}%" if np.isfinite(r.clv_pos_pct) else "—"
         lines.append(
             f"| {r.hypothesis} | {r.variant_id} | {r.split} | {r.n} | "
-            f"{r.roi:+.2%} | {ci} | {r.clv_mean:+.4f} | {r.clv_pos_pct:.1f}% | "
+            f"{r.roi:+.2%} | {ci} | {clv} | {clvp} | "
             f"{r.p_raw:.3f} | {pb:.3f} | {qb:.3f} | {'sim' if r.survives else 'não'} |"
         )
-    survivors = [r for r in results if r.survives]
-    lines += [
-        "",
-        "## Veredito",
-        "",
-    ]
+    survivors = [r for r in agg if r.survives]
+    lines += ["", "## Veredito", ""]
     if survivors:
-        lines.append("Variantes que passam os critérios pré-registrados (ver nota de amostra):")
         for r in survivors:
-            caveat = " ⚠️ amostra pequena" if r.n < 100 else ""
             lines.append(
                 f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
-                f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}{caveat}"
+                f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}"
             )
-        lines.append(
-            "\n**Nota:** sobrevivência estatística com `n` muito baixo (ex.: holdout) "
-            "não implica edge real — interpretar com extrema cautela."
-        )
     else:
         lines.append(
-            "**Nenhuma variante sobrevive** aos critérios (ROI>0, p bootstrap <0,05 e "
-            "ajuste múltiplo Bonferroni ou BH-FDR) em treino ou holdout."
+            "**Nenhuma variante sobrevive** aos critérios pré-registrados "
+            "(ROI>0, p bootstrap <0,05 e Bonferroni ou BH-FDR) em treino ou holdout agregado."
         )
+    per_liga = [r for r in results if "@" in r.variant_id and r.split == "holdout"]
+    lines += [
+        "",
+        "## Por liga (holdout, H1a edge 5% multiplicativo)",
+        "",
+        "| Liga | n | ROI | p raw |",
+        "|------|---|-----|-------|",
+    ]
+    for r in sorted(per_liga, key=lambda x: x.variant_id):
+        lines.append(f"| {r.variant_id.split('@', 1)[-1]} | {r.n} | {r.roi:+.2%} | {r.p_raw:.3f} |")
     lines += [
         "",
         "## Calibração (modelo, decílicos)",
@@ -374,14 +451,42 @@ def format_report(
         "",
         "## Limitações",
         "",
-        "- Holdout = última temporada por liga; amostra pode ser pequena.",
-        "- Ligas sem `P>2.5` excluídas.",
-        "- xG só em subconjunto (H1c).",
-        "- Múltiplos testes; Bonferroni é conservador.",
-        "- Não modela execução, limites ou comissão.",
+        "- Temporada em andamento excluída do treino e do holdout.",
+        "- H4 ainda usa fechamentos de jogos anteriores (viés de timing fino).",
+        "- `Max`/`Avg` não são totalmente executáveis.",
+        "- Família de testes inclui variantes agregadas e por liga.",
         "",
     ]
     return "\n".join(lines)
+
+
+def write_changelog(global_ll: dict, n_matches: int, survivors: int, null_p: float) -> None:
+    body = f"""# Changelog — correções pós-review PR #5
+
+## Bugs corrigidos
+
+1. **p-value bootstrap**: ROI ≤ 0 agora dá p ≈ 1 (antes invertia e gerava falsos sobreviventes).
+2. **Devig vazado**: H1d/H3–H5 usam multiplicativo; H1b usa power; H1_shin usa Shin; CLV com o mesmo devig na abertura e fechamento.
+3. **H4 NaN**: `nanmean` no drift; jogos sem histórico finito não apostam.
+4. **Holdout**: última temporada **completa** por liga; temporada em andamento fora do treino/holdout.
+5. **H5b**: ligas baixo gols definidas só com dados de treino (sem holdout/em curso).
+6. **H2**: removido como família separada (equivalente a H1 com `edge/w`).
+7. **Variantes**: Shin, power com todos os limiares, H3 `Avg`, testes por liga; família de testes múltiplos ampliada.
+8. **White RC**: renomeado para bootstrap do melhor ROI (não é Hansen SPA).
+
+## Números vs relatório anterior (commit 378b26b)
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| n jogos OOS | {PREV_SNAPSHOT['n_matches']} | {n_matches} |
+| Log-loss modelo | {PREV_SNAPSHOT['ll_model']:.4f} | {global_ll['ll_model']:.4f} |
+| Log-loss Pinnacle | {PREV_SNAPSHOT['ll_pin']:.4f} | {global_ll['ll_pin']:.4f} |
+| Sobreviventes | {PREV_SNAPSHOT['survivors']} (H2_w0.25 holdout, artefato) | {survivors} |
+| Teste nulo melhor ROI | p={PREV_SNAPSHOT['white_p']:.4f} | p={null_p:.4f} |
+
+O sobrevivente anterior (H2_w0.25 holdout, n=9, q_BH=0,082) desaparece com o p-value corrigido (q→1,0).
+"""
+    CHANGELOG.write_text(body, encoding="utf-8")
 
 
 def main() -> int:
@@ -392,30 +497,24 @@ def main() -> int:
 
     data_path = ROOT / "data" / "matches_xg.csv"
     df = pd.read_csv(data_path, parse_dates=["date"], low_memory=False)
-    if "ou_ps_over" not in df.columns or df["ou_ps_over"].notna().sum() < 1000:
-        if not args.skip_download:
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "merge_ou", ROOT / "scripts" / "merge_ou_open_columns.py",
-            )
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            print("Colunas Pinnacle abertura ausentes — merge...")
-            mod.main()
-            df = pd.read_csv(data_path, parse_dates=["date"], low_memory=False)
 
     has_ps_open = "ou_ps_over" in df.columns and df["ou_ps_over"].notna().sum() > 1000
     base_mask = df.psc_h.notna() & df.ou_psc_over.notna()
     if has_ps_open:
         base_mask &= df.ou_ps_over.notna()
     ligas = sorted(df[base_mask].competition.unique())
-    if not has_ps_open:
-        print("AVISO: sem ou_ps_over — rode scripts/merge_ou_open_columns.py")
 
-    all_results: list = []
-    log_entries: list[dict] = []
-    frames_poisson = []
-    frames_blend = []
+    holdout_by_comp: dict[str, str | None] = {}
+    inprog_by_comp: dict[str, str | None] = {}
+    for comp in ligas:
+        ho, prog = _season_layout(df, comp)
+        holdout_by_comp[comp] = ho
+        inprog_by_comp[comp] = prog
+
+    holdout_info = (
+        "última temporada completa por liga; em curso excluída "
+        f"({sum(1 for v in inprog_by_comp.values() if v)} ligas com season em andamento)"
+    )
 
     import pickle
 
@@ -441,7 +540,9 @@ def main() -> int:
         with CACHE.open("wb") as f:
             pickle.dump({"poisson": poisson_parts, "blend": blend_parts}, f)
 
-    # Global skill metrics
+    per_league_raw: list = []
+    all_results: list = []
+
     ys, pm, pc = [], [], []
     for comp, p, rho in poisson_parts:
         fr = _build_frame(p, rho, _over25(
@@ -463,7 +564,7 @@ def main() -> int:
         "br_pin": brier_binary(pc, ys),
     }
     calib = calibration_bins(pm, ys)
-    low_leagues = _low_scoring_leagues(df)
+    low_leagues = _low_scoring_leagues_train(df, holdout_by_comp, inprog_by_comp)
 
     for comp, p, rho in poisson_parts:
         p = p.copy()
@@ -471,30 +572,56 @@ def main() -> int:
         p_over = _over25(
             p.expected_goals_home.to_numpy(), p.expected_goals_away.to_numpy(), rho,
         )
-        for devig in ("multiplicative", "power"):
-            frame = _build_frame(p, rho, p_over, devig)
-            edges = (0.03, 0.05, 0.07, 0.10) if devig == "multiplicative" else (0.05,)
-            for e in edges:
-                all_results.extend(run_h1(
-                    frame, p, e, devig, "H1a" if devig == "multiplicative" else "H1b", "H1_model",
-                ))
+        frame_mult = _build_frame(p, rho, p_over, "multiplicative")
+        frame_power = _build_frame(p, rho, p_over, "power")
+        frame_shin = _build_frame(p, rho, p_over, "shin")
+
+        for e in (0.03, 0.05, 0.07, 0.10):
+            all_results.extend(run_h1(
+                frame_mult, p, e, "multiplicative", "H1a", "H1_model",
+                holdout_by_comp, inprog_by_comp,
+            ))
+        for e in (0.03, 0.05, 0.07, 0.10):
+            all_results.extend(run_h1(
+                frame_power, p, e, "power", "H1b", "H1_model",
+                holdout_by_comp, inprog_by_comp,
+            ))
+        for e in (0.05, 0.10):
+            all_results.extend(run_h1(
+                frame_shin, p, e, "shin", "H1_shin", "H1_model",
+                holdout_by_comp, inprog_by_comp,
+            ))
         all_results.extend(run_h1(
-            frame, p, 0.05, "multiplicative", "H1d", "H1_close_sanity", use_close=True,
+            frame_mult, p, 0.05, "multiplicative", "H1d", "H1_close_sanity",
+            holdout_by_comp, inprog_by_comp, use_close=True,
         ))
-        for w in (0.75, 0.50, 0.25):
-            all_results.extend(run_h2(frame, p, w))
-        if "ou_max_over" in p.columns:
-            all_results.extend(run_h3(frame, p, ("ou_open_over", "ou_open_under"), 0.02, "B365"))
-            all_results.extend(run_h3(frame, p, ("ou_open_over", "ou_open_under"), 0.05, "B365"))
-            all_results.extend(run_h3(frame, p, ("ou_max_over", "ou_max_under"), 0.02, "Max"))
-            all_results.extend(run_h3(frame, p, ("ou_max_over", "ou_max_under"), 0.05, "Max"))
-        all_results.extend(run_h4(frame, p, fade=False))
-        all_results.extend(run_h4(frame, p, fade=True))
+
+        for book_cols, book in (
+            (("ou_open_over", "ou_open_under"), "B365"),
+            (("ou_max_over", "ou_max_under"), "Max"),
+            (("ou_avg_over", "ou_avg_under"), "Avg"),
+        ):
+            if book_cols[0] not in p.columns:
+                continue
+            for edge in (0.02, 0.05):
+                all_results.extend(run_h3(
+                    frame_mult, p, book_cols, edge, book,
+                    holdout_by_comp, inprog_by_comp,
+                ))
+
+        all_results.extend(run_h4(frame_mult, p, False, holdout_by_comp, inprog_by_comp))
+        all_results.extend(run_h4(frame_mult, p, True, holdout_by_comp, inprog_by_comp))
+
         early = _early_season_mask(p)
         low = _low_scoring_mask(p, low_leagues)
-        all_results.extend(run_h5(frame, p, early, "early60d"))
-        all_results.extend(run_h5(frame, p, low, "low_goals"))
-        all_results.extend(run_h5(frame, p, ~early, "not_early"))
+        all_results.extend(run_h5(frame_mult, p, early, "early60d", holdout_by_comp, inprog_by_comp))
+        all_results.extend(run_h5(frame_mult, p, low, "low_goals", holdout_by_comp, inprog_by_comp))
+        all_results.extend(run_h5(frame_mult, p, ~early, "not_early", holdout_by_comp, inprog_by_comp))
+
+        per_league_raw.extend(run_h1(
+            frame_mult, p, 0.05, "multiplicative", "H1a", "H1_per_league",
+            holdout_by_comp, inprog_by_comp, league_tag=comp,
+        ))
 
     for comp, p, rho in blend_parts:
         p = p.copy()
@@ -506,45 +633,57 @@ def main() -> int:
         for e in (0.05, 0.10):
             all_results.extend(run_h1(
                 frame, p, e, "multiplicative", "H1c_blend", "H1_blend_xg",
+                holdout_by_comp, inprog_by_comp,
             ))
 
     all_results = aggregate_variant_results(all_results)
+    per_league = aggregate_variant_results(per_league_raw)
+    combined = all_results + per_league
 
-    # Multiple testing (uma linha por variante × split, agregada em todas as ligas)
-    p_raw = np.array([r.p_raw for r in all_results])
+    p_raw = np.array([r.p_raw for r in combined])
     p_bonf = bonferroni_adjust(p_raw)
     q_bh = bh_fdr_adjust(p_raw)
-    for r, pb, qb in zip(all_results, p_bonf, q_bh):
+    for r, pb, qb in zip(combined, p_bonf, q_bh):
         r.meta["p_bonf"] = float(pb)
         r.meta["q_bh"] = float(qb)
-    apply_survival_flags(all_results, p_bonf, q_bh)
+    apply_survival_flags(combined, p_bonf, q_bh)
 
-    train_return_series = [
+    train_returns = [
         np.array(r.meta["returns"])
-        for r in all_results
-        if r.split == "train" and r.meta.get("returns")
+        for r in combined
+        if r.split == "train" and r.meta.get("returns") and "@" not in r.variant_id
     ]
-    white_p = white_reality_check_p(train_return_series) if train_return_series else 1.0
+    null_p = bootstrap_best_strategy_null_p(train_returns) if train_returns else 1.0
 
-    for r in all_results:
-        log_entries.append({
-            "variant_id": r.variant_id,
-            "hypothesis": r.hypothesis,
-            "split": r.split,
-            "n": r.n,
-            "roi": r.roi,
-            "p_raw": r.p_raw,
-            "survives": bool(r.survives),
-        })
+    log_entries = [{
+        "variant_id": r.variant_id,
+        "hypothesis": r.hypothesis,
+        "split": r.split,
+        "n": r.n,
+        "roi": r.roi,
+        "p_raw": r.p_raw,
+        "p_bonf": r.meta.get("p_bonf"),
+        "q_bh": r.meta.get("q_bh"),
+        "survives": bool(r.survives),
+    } for r in combined]
     save_variant_log(VARIANT_LOG, log_entries)
 
-    n_matches = global_ll["n"]
-    report = format_report(all_results, global_ll, calib, white_p, len(poisson_parts), n_matches)
+    n_variants = len({r.variant_id for r in all_results})
+    survivors = sum(1 for r in all_results if r.survives)
+    write_changelog(global_ll, global_ll["n"], survivors, null_p)
+    report = format_report(
+        combined, global_ll, calib, null_p, len(poisson_parts),
+        global_ll["n"], holdout_info, n_variants, len(combined),
+    )
     REPORT.write_text(report, encoding="utf-8")
     print(f"\nRelatório: {REPORT}")
-    print(f"Variantes testadas: {len(all_results)}")
-    print(f"Sobreviventes: {sum(r.survives for r in all_results)}")
+    print(f"Linhas na família de testes: {len(combined)}")
+    print(f"Sobreviventes (agregado): {survivors}")
     return 0
+
+
+def _low_scoring_mask(p: pd.DataFrame, low_leagues: set[str]) -> np.ndarray:
+    return p.competition.isin(low_leagues).to_numpy()
 
 
 if __name__ == "__main__":

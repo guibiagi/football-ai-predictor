@@ -3,10 +3,13 @@
 **Aviso:** simulação histórica apenas; sem apostas reais.
 
 - Ligas com Pinnacle O/U: **16**
-- Partidas com predição + odds abertura Pinnacle: **12717**
+- Partidas OOS com odds abertura+fechamento Pinnacle: **12717**
+- Holdout: **última temporada completa por liga; em curso excluída (16 ligas com season em andamento)**
+- Variantes distintas: **24**; linhas testadas (× treino/holdout): **80**
 - Pré-registro: `reports/HIPOTESES_OVER_UNDER.md`
+- Changelog vs relatório anterior: `reports/OU_BACKTEST_CHANGELOG.md`
 
-## Métricas globais (modelo vs Pinnacle fechamento, sem vig)
+## Métricas globais (modelo vs Pinnacle fechamento, devig multiplicativo)
 
 | Métrica | Modelo | Pinnacle close |
 |---------|--------|----------------|
@@ -14,59 +17,87 @@
 | Brier | 0.2468 | 0.2396 |
 | n jogos | 12717 | 12717 |
 
-White reality check (melhor ROI vs permutação): **p = 0.5067**
+Teste nulo bootstrap do melhor ROI (não é White/Hansen SPA): **p = 0.9220**
 
-## Resultados por hipótese (agregado em todas as ligas; treino vs holdout)
+H2 (shrinkage) **não** é estimado à parte: equivale a H1 com limiar `edge/w` (ver changelog).
+
+## Resultados agregados (todas as ligas)
 
 | Hipótese | Variante | Split | n | ROI | IC95% | CLV médio | %CLV+ | p raw | p Bonf | q BH | Sobrevive |
 |----------|----------|-------|---|-----|-------|-----------|-------|-------|--------|------|-----------|
-| H1_model | H1a_edge10_multiplicative | holdout | 238 | -8.40% | [-22.16%, +5.82%] | +0.0000 | 49.6% | 0.124 | 1.000 | 0.206 | não |
-| H1_model | H1a_edge10_multiplicative | train | 1651 | -7.62% | [-13.21%, -2.05%] | -0.0023 | 46.1% | 0.004 | 0.144 | 0.012 | não |
-| H1_model | H1a_edge3_multiplicative | holdout | 1324 | -4.91% | [-10.53%, +0.69%] | +0.0009 | 48.2% | 0.046 | 1.000 | 0.097 | não |
-| H1_model | H1a_edge3_multiplicative | train | 6980 | -5.90% | [-8.40%, -3.37%] | -0.0008 | 48.1% | 0.000 | 0.000 | 0.000 | não |
-| H1_model | H1a_edge5_multiplicative | holdout | 860 | -2.89% | [-9.94%, +4.28%] | +0.0016 | 48.5% | 0.213 | 1.000 | 0.275 | não |
-| H1_model | H1a_edge5_multiplicative | train | 4912 | -7.04% | [-10.09%, -4.01%] | -0.0013 | 47.2% | 0.000 | 0.000 | 0.000 | não |
-| H1_model | H1a_edge7_multiplicative | holdout | 527 | +0.32% | [-8.91%, +9.60%] | +0.0016 | 47.6% | 0.474 | 1.000 | 0.482 | não |
-| H1_model | H1a_edge7_multiplicative | train | 3242 | -6.67% | [-10.49%, -2.89%] | -0.0015 | 46.9% | 0.000 | 0.012 | 0.001 | não |
-| H1_model | H1b_edge5_power | holdout | 897 | -2.92% | [-10.01%, +4.04%] | +0.0043 | 57.7% | 0.217 | 1.000 | 0.275 | não |
-| H1_model | H1b_edge5_power | train | 5050 | -6.76% | [-9.74%, -3.71%] | +0.0024 | 53.0% | 0.000 | 0.000 | 0.000 | não |
-| H1_blend_xg | H1c_blend_edge10_multiplicative | holdout | 87 | +3.32% | [-21.45%, +28.55%] | -0.0013 | 50.6% | 0.405 | 1.000 | 0.450 | não |
-| H1_blend_xg | H1c_blend_edge10_multiplicative | train | 410 | +0.93% | [-11.47%, +13.14%] | -0.0005 | 44.9% | 0.441 | 1.000 | 0.476 | não |
-| H1_blend_xg | H1c_blend_edge5_multiplicative | holdout | 341 | +4.92% | [-7.24%, +16.92%] | -0.0033 | 43.1% | 0.214 | 1.000 | 0.275 | não |
-| H1_blend_xg | H1c_blend_edge5_multiplicative | train | 1390 | -6.50% | [-12.60%, -0.36%] | -0.0018 | 45.0% | 0.018 | 0.732 | 0.046 | não |
-| H1_close_sanity | H1d_edge5_multiplicative_close | holdout | 930 | -2.69% | [-9.76%, +4.51%] | -0.0107 | 35.9% | 0.220 | 1.000 | 0.275 | não |
-| H1_close_sanity | H1d_edge5_multiplicative_close | train | 5298 | -6.01% | [-9.01%, -3.05%] | -0.0120 | 34.1% | 0.000 | 0.000 | 0.000 | não |
-| H2_shrink | H2_w0.25 | holdout | 9 | +92.78% | [-4.89%, +177.22%] | +0.0215 | 88.9% | 0.035 | 1.000 | 0.082 | sim |
-| H2_shrink | H2_w0.25 | train | 181 | -14.45% | [-32.59%, +4.37%] | +0.0068 | 59.1% | 0.066 | 1.000 | 0.133 | não |
-| H2_shrink | H2_w0.50 | holdout | 258 | -7.42% | [-21.06%, +6.65%] | +0.0061 | 62.0% | 0.150 | 1.000 | 0.222 | não |
-| H2_shrink | H2_w0.50 | train | 1780 | -7.73% | [-13.09%, -2.22%] | +0.0030 | 54.1% | 0.003 | 0.104 | 0.009 | não |
-| H2_shrink | H2_w0.75 | holdout | 604 | -2.59% | [-11.27%, +6.30%] | +0.0056 | 59.3% | 0.285 | 1.000 | 0.336 | não |
-| H2_shrink | H2_w0.75 | train | 3676 | -6.08% | [-9.62%, -2.43%] | +0.0025 | 53.2% | 0.001 | 0.020 | 0.002 | não |
-| H3_soft | H3_B365_e2 | holdout | 14 | -9.57% | [-57.64%, +38.64%] | -0.0122 | 42.9% | 0.352 | 1.000 | 0.402 | não |
-| H3_soft | H3_B365_e2 | train | 14 | -42.50% | [-100.00%, +28.93%] | -0.0232 | 57.1% | 0.132 | 1.000 | 0.210 | não |
-| H3_soft | H3_B365_e5 | holdout | 6 | -44.50% | [-100.00%, +15.50%] | -0.0014 | 50.0% | 0.104 | 1.000 | 0.184 | não |
-| H3_soft | H3_B365_e5 | train | 7 | -100.00% | [-100.00%, -100.00%] | -0.0064 | 85.7% | 0.000 | 0.000 | 0.000 | não |
-| H3_soft | H3_Max_e2 | holdout | 41 | -25.17% | [-52.10%, +2.88%] | -0.0119 | 36.6% | 0.040 | 1.000 | 0.089 | não |
-| H3_soft | H3_Max_e2 | train | 279 | +6.07% | [-7.02%, +19.11%] | -0.0068 | 45.2% | 0.180 | 1.000 | 0.258 | não |
-| H3_soft | H3_Max_e5 | holdout | 11 | -53.55% | [-100.00%, -6.91%] | -0.0009 | 54.5% | 0.012 | 0.488 | 0.033 | não |
-| H3_soft | H3_Max_e5 | train | 42 | +22.95% | [-11.19%, +57.67%] | -0.0048 | 52.4% | 0.093 | 1.000 | 0.177 | não |
-| H4_drift | H4a_follow | holdout | 2131 | -5.45% | [-9.74%, -1.17%] | +nan | nan% | 0.005 | 0.212 | 0.016 | não |
-| H4_drift | H4a_follow | train | 10570 | -7.05% | [-8.92%, -5.09%] | +nan | nan% | 0.000 | 0.000 | 0.000 | não |
-| H4_drift | H4b_fade | holdout | 2131 | -2.37% | [-6.58%, +1.73%] | +nan | nan% | 0.137 | 1.000 | 0.210 | não |
-| H4_drift | H4b_fade | train | 10570 | -2.13% | [-4.03%, -0.24%] | +nan | nan% | 0.011 | 0.420 | 0.030 | não |
-| H5_segment | H5_early60d | holdout | 402 | -6.82% | [-17.37%, +3.82%] | +0.0080 | 61.9% | 0.106 | 1.000 | 0.184 | não |
-| H5_segment | H5_early60d | train | 987 | -2.39% | [-9.04%, +4.40%] | +0.0046 | 55.3% | 0.247 | 1.000 | 0.299 | não |
-| H5_segment | H5_low_goals | holdout | 462 | -0.45% | [-10.25%, +9.74%] | +0.0058 | 60.4% | 0.469 | 1.000 | 0.482 | não |
-| H5_segment | H5_low_goals | train | 2923 | -6.69% | [-10.59%, -2.78%] | +0.0004 | 50.0% | 0.000 | 0.012 | 0.001 | não |
-| H5_segment | H5_not_early | holdout | 495 | +0.25% | [-9.32%, +9.93%] | +0.0014 | 54.3% | 0.482 | 1.000 | 0.482 | não |
-| H5_segment | H5_not_early | train | 4063 | -7.82% | [-11.22%, -4.49%] | +0.0019 | 52.5% | 0.000 | 0.000 | 0.000 | não |
+| H1_blend_xg | H1c_blend_edge10_multiplicative | holdout | 87 | +3.32% | [-21.17%, +28.70%] | -0.0013 | 50.6% | 0.405 | 1.000 | 1.000 | não |
+| H1_blend_xg | H1c_blend_edge10_multiplicative | train | 410 | +0.93% | [-11.19%, +13.22%] | -0.0005 | 44.9% | 0.445 | 1.000 | 1.000 | não |
+| H1_blend_xg | H1c_blend_edge5_multiplicative | holdout | 341 | +4.92% | [-7.27%, +17.09%] | -0.0033 | 43.1% | 0.214 | 1.000 | 1.000 | não |
+| H1_blend_xg | H1c_blend_edge5_multiplicative | train | 1390 | -6.50% | [-12.62%, -0.29%] | -0.0018 | 45.0% | 0.983 | 1.000 | 1.000 | não |
+| H1_close_sanity | H1d_edge5_multiplicative_close | holdout | 930 | -2.69% | [-9.73%, +4.34%] | -0.0128 | 28.1% | 0.774 | 1.000 | 1.000 | não |
+| H1_close_sanity | H1d_edge5_multiplicative_close | train | 5298 | -6.01% | [-9.05%, -3.01%] | -0.0150 | 28.8% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1_shin_edge10_shin | holdout | 264 | -9.18% | [-22.99%, +5.01%] | +0.0031 | 51.9% | 0.897 | 1.000 | 1.000 | não |
+| H1_model | H1_shin_edge10_shin | train | 2058 | -8.74% | [-13.73%, -3.78%] | -0.0009 | 46.3% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1_shin_edge5_shin | holdout | 880 | -4.03% | [-11.04%, +3.21%] | +0.0023 | 49.1% | 0.865 | 1.000 | 1.000 | não |
+| H1_model | H1_shin_edge5_shin | train | 5275 | -7.00% | [-9.93%, -4.03%] | -0.0000 | 48.5% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge10_multiplicative | holdout | 238 | -8.40% | [-22.49%, +5.70%] | +0.0000 | 49.6% | 0.876 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge10_multiplicative | train | 1651 | -7.62% | [-13.15%, -2.08%] | -0.0023 | 46.1% | 0.997 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge3_multiplicative | holdout | 1324 | -4.91% | [-10.36%, +0.61%] | +0.0009 | 48.2% | 0.957 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge3_multiplicative | train | 6980 | -5.90% | [-8.37%, -3.40%] | -0.0008 | 48.1% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge5_multiplicative | holdout | 860 | -2.89% | [-10.05%, +4.22%] | +0.0016 | 48.5% | 0.779 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge5_multiplicative | train | 4912 | -7.04% | [-10.11%, -4.02%] | -0.0013 | 47.2% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge7_multiplicative | holdout | 527 | +0.32% | [-8.82%, +9.44%] | +0.0016 | 47.6% | 0.480 | 1.000 | 1.000 | não |
+| H1_model | H1a_edge7_multiplicative | train | 3242 | -6.67% | [-10.46%, -2.90%] | -0.0015 | 46.9% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge10_power | holdout | 258 | -7.42% | [-21.18%, +6.47%] | +0.0020 | 50.8% | 0.850 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge10_power | train | 1780 | -7.73% | [-13.16%, -2.32%] | -0.0022 | 45.9% | 0.998 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge3_power | holdout | 1330 | -4.68% | [-10.33%, +1.21%] | +0.0011 | 48.3% | 0.943 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge3_power | train | 7088 | -6.12% | [-8.68%, -3.59%] | -0.0006 | 48.3% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge5_power | holdout | 897 | -2.92% | [-9.92%, +4.38%] | +0.0017 | 48.9% | 0.789 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge5_power | train | 5050 | -6.76% | [-9.90%, -3.74%] | -0.0009 | 47.7% | 1.000 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge7_power | holdout | 548 | +0.37% | [-9.20%, +9.71%] | +0.0021 | 47.6% | 0.471 | 1.000 | 1.000 | não |
+| H1_model | H1b_edge7_power | train | 3409 | -6.65% | [-10.40%, -2.90%] | -0.0012 | 47.2% | 1.000 | 1.000 | 1.000 | não |
+| H3_soft | H3_Avg_e2 | holdout | 6 | +25.50% | [-100.00%, +158.00%] | +0.0031 | 33.3% | 0.351 | 1.000 | 1.000 | não |
+| H3_soft | H3_Avg_e2 | train | 16 | +16.75% | [-55.19%, +109.56%] | -0.0078 | 6.2% | 0.402 | 1.000 | 1.000 | não |
+| H3_soft | H3_Avg_e5 | holdout | 3 | +29.00% | [-100.00%, +287.00%] | +0.0006 | 33.3% | 0.300 | 1.000 | 1.000 | não |
+| H3_soft | H3_Avg_e5 | train | 11 | +4.36% | [-100.00%, +109.64%] | +0.0030 | 9.1% | 0.382 | 1.000 | 1.000 | não |
+| H3_soft | H3_B365_e2 | holdout | 18 | -4.28% | [-60.39%, +62.22%] | -0.0044 | 16.7% | 0.564 | 1.000 | 1.000 | não |
+| H3_soft | H3_B365_e2 | train | 31 | +7.42% | [-45.81%, +65.32%] | -0.0100 | 19.4% | 0.414 | 1.000 | 1.000 | não |
+| H3_soft | H3_B365_e5 | holdout | 9 | +29.78% | [-73.33%, +140.56%] | -0.0030 | 33.3% | 0.298 | 1.000 | 1.000 | não |
+| H3_soft | H3_B365_e5 | train | 15 | +1.67% | [-75.00%, +98.33%] | -0.0078 | 13.3% | 0.488 | 1.000 | 1.000 | não |
+| H3_soft | H3_Max_e2 | holdout | 50 | -8.00% | [-42.06%, +28.12%] | -0.0027 | 34.0% | 0.680 | 1.000 | 1.000 | não |
+| H3_soft | H3_Max_e2 | train | 414 | +0.11% | [-11.88%, +12.44%] | -0.0057 | 40.8% | 0.489 | 1.000 | 1.000 | não |
+| H3_soft | H3_Max_e5 | holdout | 16 | -15.25% | [-75.94%, +58.81%] | -0.0020 | 31.2% | 0.687 | 1.000 | 1.000 | não |
+| H3_soft | H3_Max_e5 | train | 80 | +19.88% | [-11.19%, +51.71%] | -0.0093 | 35.0% | 0.105 | 1.000 | 1.000 | não |
+| H4_drift | H4a_follow | holdout | 2131 | -5.45% | [-9.70%, -1.25%] | — | — | 0.994 | 1.000 | 1.000 | não |
+| H4_drift | H4a_follow | train | 10570 | -6.91% | [-8.85%, -4.99%] | — | — | 1.000 | 1.000 | 1.000 | não |
+| H4_drift | H4b_fade | holdout | 2131 | -1.73% | [-5.84%, +2.50%] | — | — | 0.788 | 1.000 | 1.000 | não |
+| H4_drift | H4b_fade | train | 10570 | -1.33% | [-3.19%, +0.52%] | — | — | 0.914 | 1.000 | 1.000 | não |
+| H5_segment | H5_early60d | holdout | 391 | -5.60% | [-15.93%, +4.82%] | +0.0056 | 55.5% | 0.854 | 1.000 | 1.000 | não |
+| H5_segment | H5_early60d | train | 977 | -2.52% | [-9.32%, +4.31%] | +0.0015 | 50.3% | 0.765 | 1.000 | 1.000 | não |
+| H5_segment | H5_low_goals | holdout | 444 | -0.59% | [-10.70%, +9.46%] | +0.0032 | 51.1% | 0.546 | 1.000 | 1.000 | não |
+| H5_segment | H5_low_goals | train | 2869 | -7.63% | [-11.44%, -3.76%] | -0.0023 | 45.4% | 1.000 | 1.000 | 1.000 | não |
+| H5_segment | H5_not_early | holdout | 469 | -0.62% | [-10.59%, +9.17%] | -0.0017 | 42.6% | 0.542 | 1.000 | 1.000 | não |
+| H5_segment | H5_not_early | train | 3935 | -8.17% | [-11.56%, -4.77%] | -0.0019 | 46.5% | 1.000 | 1.000 | 1.000 | não |
 
 ## Veredito
 
-Variantes que passam os critérios pré-registrados (ver nota de amostra):
-- **H2_w0.25** (holdout): n=9, ROI +92.78%, p=0.035, q_BH=0.082 ⚠️ amostra pequena
+**Nenhuma variante sobrevive** aos critérios pré-registrados (ROI>0, p bootstrap <0,05 e Bonferroni ou BH-FDR) em treino ou holdout agregado.
 
-**Nota:** sobrevivência estatística com `n` muito baixo (ex.: holdout) não implica edge real — interpretar com extrema cautela.
+## Por liga (holdout, H1a edge 5% multiplicativo)
+
+| Liga | n | ROI | p raw |
+|------|---|-----|-------|
+| 2. Bundesliga | 38 | -27.82% | 0.966 |
+| Belgium Pro League | 35 | -4.91% | 0.614 |
+| Bundesliga | 38 | +11.95% | 0.212 |
+| Championship | 92 | +0.18% | 0.502 |
+| Eredivisie | 55 | -24.65% | 0.942 |
+| La Liga | 73 | -1.82% | 0.559 |
+| LaLiga2 | 79 | -6.05% | 0.702 |
+| Ligue 1 | 62 | -2.16% | 0.557 |
+| Ligue 2 | 40 | -11.33% | 0.770 |
+| Premier League | 89 | +18.89% | 0.036 |
+| Primeira Liga | 46 | -4.35% | 0.615 |
+| Scottish Premiership | 12 | +25.92% | 0.212 |
+| Serie A | 90 | -13.50% | 0.885 |
+| Serie B | 32 | +17.09% | 0.212 |
+| Super League Greece | 20 | +28.65% | 0.123 |
+| Super Lig | 59 | -14.71% | 0.855 |
 
 ## Calibração (modelo, decílicos)
 
@@ -82,8 +113,7 @@ Variantes que passam os critérios pré-registrados (ver nota de amostra):
 
 ## Limitações
 
-- Holdout = última temporada por liga; amostra pode ser pequena.
-- Ligas sem `P>2.5` excluídas.
-- xG só em subconjunto (H1c).
-- Múltiplos testes; Bonferroni é conservador.
-- Não modela execução, limites ou comissão.
+- Temporada em andamento excluída do treino e do holdout.
+- H4 ainda usa fechamentos de jogos anteriores (viés de timing fino).
+- `Max`/`Avg` não são totalmente executáveis.
+- Família de testes inclui variantes agregadas e por liga.

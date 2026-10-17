@@ -98,14 +98,14 @@ def bootstrap_roi_ci(
 
 def bootstrap_p_roi_nonpos(returns: np.ndarray, n_boot: int = 10_000,
                            rng: np.random.Generator | None = None) -> float:
-    """p-value unilateral H0: ROI <= 0."""
+    """p-value unilateral H0: ROI <= 0 vs Ha: ROI > 0 (bootstrap das médias)."""
     if len(returns) == 0:
         return 1.0
     rng = rng or RNG
-    roi_obs = returns.mean()
     idx = rng.integers(0, len(returns), size=(n_boot, len(returns)))
     boots = returns[idx].mean(axis=1)
-    return float((boots <= 0).mean()) if roi_obs > 0 else float((boots >= 0).mean())
+    # P(ROI_boot <= 0): alto quando ROI observado <= 0; baixo quando ROI > 0
+    return float((boots <= 0).mean())
 
 
 def bonferroni_adjust(p_values: np.ndarray) -> np.ndarray:
@@ -126,12 +126,16 @@ def bh_fdr_adjust(p_values: np.ndarray) -> np.ndarray:
     return np.minimum(ranked, 1.0)
 
 
-def white_reality_check_p(
+def bootstrap_best_strategy_null_p(
     strategy_returns: list[np.ndarray],
     n_boot: int = 2000,
     rng: np.random.Generator | None = None,
 ) -> float:
-    """P-value: melhor ROI observado vs máximo sob permutação de sinais de retorno."""
+    """Heurística: melhor ROI observado vs máximo sob reamostragem independente por estratégia.
+
+    Não é o Reality Check de White (1999) nem o SPA de Hansen (2005); não preserva
+    correlação entre estratégias. Nome honesto para não overclaim.
+    """
     rng = rng or RNG
     rois = [r.mean() if len(r) else -np.inf for r in strategy_returns]
     best_obs = max(rois)
@@ -143,8 +147,8 @@ def white_reality_check_p(
         for rets in strategy_returns:
             if len(rets) == 0:
                 continue
-            signs = rng.choice([-1.0, 1.0], size=len(rets))
-            sim = (rets * signs).mean()
+            idx = rng.integers(0, len(rets), size=len(rets))
+            sim = rets[idx].mean()
             sim_best = max(sim_best, sim)
         if sim_best >= best_obs:
             count += 1

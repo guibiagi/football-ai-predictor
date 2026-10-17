@@ -1,11 +1,57 @@
 [
   {
+    "variant_id": "H1_shin_edge10_shin",
+    "hypothesis": "H1_model",
+    "split": "holdout",
+    "n": 264,
+    "roi": -0.0918181818181818,
+    "p_raw": 0.8973,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1_shin_edge10_shin",
+    "hypothesis": "H1_model",
+    "split": "train",
+    "n": 2058,
+    "roi": -0.08738581146744412,
+    "p_raw": 0.9998,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1_shin_edge5_shin",
+    "hypothesis": "H1_model",
+    "split": "holdout",
+    "n": 880,
+    "roi": -0.040340909090909094,
+    "p_raw": 0.8654,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1_shin_edge5_shin",
+    "hypothesis": "H1_model",
+    "split": "train",
+    "n": 5275,
+    "roi": -0.07002085308056873,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
     "variant_id": "H1a_edge10_multiplicative",
     "hypothesis": "H1_model",
     "split": "holdout",
     "n": 238,
     "roi": -0.08403361344537816,
-    "p_raw": 0.1238,
+    "p_raw": 0.8756,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -14,7 +60,9 @@
     "split": "train",
     "n": 1651,
     "roi": -0.0762023016353725,
-    "p_raw": 0.0036,
+    "p_raw": 0.9973,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -23,7 +71,9 @@
     "split": "holdout",
     "n": 1324,
     "roi": -0.049108761329305146,
-    "p_raw": 0.0462,
+    "p_raw": 0.9565,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -32,7 +82,9 @@
     "split": "train",
     "n": 6980,
     "roi": -0.058975644699140406,
-    "p_raw": 0.0,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -41,7 +93,9 @@
     "split": "holdout",
     "n": 860,
     "roi": -0.028872093023255826,
-    "p_raw": 0.2126,
+    "p_raw": 0.7788,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -50,7 +104,9 @@
     "split": "train",
     "n": 4912,
     "roi": -0.07042752442996744,
-    "p_raw": 0.0,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -59,7 +115,9 @@
     "split": "holdout",
     "n": 527,
     "roi": 0.0031688804554079577,
-    "p_raw": 0.4745,
+    "p_raw": 0.4802,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -68,7 +126,53 @@
     "split": "train",
     "n": 3242,
     "roi": -0.06672732880937693,
-    "p_raw": 0.0003,
+    "p_raw": 0.9997,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge10_power",
+    "hypothesis": "H1_model",
+    "split": "holdout",
+    "n": 258,
+    "roi": -0.0742248062015504,
+    "p_raw": 0.8498,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge10_power",
+    "hypothesis": "H1_model",
+    "split": "train",
+    "n": 1780,
+    "roi": -0.07728651685393258,
+    "p_raw": 0.998,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge3_power",
+    "hypothesis": "H1_model",
+    "split": "holdout",
+    "n": 1330,
+    "roi": -0.046819548872180455,
+    "p_raw": 0.9433,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge3_power",
+    "hypothesis": "H1_model",
+    "split": "train",
+    "n": 7088,
+    "roi": -0.06117663656884876,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -77,7 +181,9 @@
     "split": "holdout",
     "n": 897,
     "roi": -0.02917502787068005,
-    "p_raw": 0.2172,
+    "p_raw": 0.7891,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -86,7 +192,31 @@
     "split": "train",
     "n": 5050,
     "roi": -0.06761782178217822,
-    "p_raw": 0.0,
+    "p_raw": 0.9999,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge7_power",
+    "hypothesis": "H1_model",
+    "split": "holdout",
+    "n": 548,
+    "roi": 0.003740875912408767,
+    "p_raw": 0.4706,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1b_edge7_power",
+    "hypothesis": "H1_model",
+    "split": "train",
+    "n": 3409,
+    "roi": -0.0665180404810795,
+    "p_raw": 0.9996,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -95,7 +225,9 @@
     "split": "holdout",
     "n": 87,
     "roi": 0.03321839080459771,
-    "p_raw": 0.4053,
+    "p_raw": 0.4051,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -104,7 +236,9 @@
     "split": "train",
     "n": 410,
     "roi": 0.009317073170731703,
-    "p_raw": 0.4407,
+    "p_raw": 0.4454,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -114,6 +248,8 @@
     "n": 341,
     "roi": 0.049237536656891505,
     "p_raw": 0.2142,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -122,7 +258,9 @@
     "split": "train",
     "n": 1390,
     "roi": -0.06502158273381295,
-    "p_raw": 0.0183,
+    "p_raw": 0.9828,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -131,7 +269,9 @@
     "split": "holdout",
     "n": 930,
     "roi": -0.026913978494623656,
-    "p_raw": 0.2201,
+    "p_raw": 0.7736,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -140,133 +280,141 @@
     "split": "train",
     "n": 5298,
     "roi": -0.06008871272178181,
-    "p_raw": 0.0,
+    "p_raw": 0.9999,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
-    "variant_id": "H2_w0.25",
-    "hypothesis": "H2_shrink",
-    "split": "holdout",
-    "n": 9,
-    "roi": 0.9277777777777777,
-    "p_raw": 0.035,
-    "survives": true
-  },
-  {
-    "variant_id": "H2_w0.25",
-    "hypothesis": "H2_shrink",
-    "split": "train",
-    "n": 181,
-    "roi": -0.14447513812154697,
-    "p_raw": 0.0663,
-    "survives": false
-  },
-  {
-    "variant_id": "H2_w0.50",
-    "hypothesis": "H2_shrink",
-    "split": "holdout",
-    "n": 258,
-    "roi": -0.0742248062015504,
-    "p_raw": 0.1496,
-    "survives": false
-  },
-  {
-    "variant_id": "H2_w0.50",
-    "hypothesis": "H2_shrink",
-    "split": "train",
-    "n": 1780,
-    "roi": -0.07728651685393258,
-    "p_raw": 0.0026,
-    "survives": false
-  },
-  {
-    "variant_id": "H2_w0.75",
-    "hypothesis": "H2_shrink",
-    "split": "holdout",
-    "n": 604,
-    "roi": -0.025877483443708615,
-    "p_raw": 0.2853,
-    "survives": false
-  },
-  {
-    "variant_id": "H2_w0.75",
-    "hypothesis": "H2_shrink",
-    "split": "train",
-    "n": 3676,
-    "roi": -0.060797062023939065,
-    "p_raw": 0.0005,
-    "survives": false
-  },
-  {
-    "variant_id": "H3_B365_e2",
-    "hypothesis": "H3_soft",
-    "split": "holdout",
-    "n": 14,
-    "roi": -0.09571428571428568,
-    "p_raw": 0.3521,
-    "survives": false
-  },
-  {
-    "variant_id": "H3_B365_e2",
-    "hypothesis": "H3_soft",
-    "split": "train",
-    "n": 14,
-    "roi": -0.425,
-    "p_raw": 0.1321,
-    "survives": false
-  },
-  {
-    "variant_id": "H3_B365_e5",
+    "variant_id": "H3_Avg_e2",
     "hypothesis": "H3_soft",
     "split": "holdout",
     "n": 6,
-    "roi": -0.445,
-    "p_raw": 0.1041,
+    "roi": 0.25500000000000006,
+    "p_raw": 0.3509,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_Avg_e2",
+    "hypothesis": "H3_soft",
+    "split": "train",
+    "n": 16,
+    "roi": 0.16749999999999998,
+    "p_raw": 0.4018,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_Avg_e5",
+    "hypothesis": "H3_soft",
+    "split": "holdout",
+    "n": 3,
+    "roi": 0.29000000000000004,
+    "p_raw": 0.3004,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_Avg_e5",
+    "hypothesis": "H3_soft",
+    "split": "train",
+    "n": 11,
+    "roi": 0.04363636363636363,
+    "p_raw": 0.3822,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_B365_e2",
+    "hypothesis": "H3_soft",
+    "split": "holdout",
+    "n": 18,
+    "roi": -0.042777777777777776,
+    "p_raw": 0.5641,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_B365_e2",
+    "hypothesis": "H3_soft",
+    "split": "train",
+    "n": 31,
+    "roi": 0.07419354838709677,
+    "p_raw": 0.4145,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H3_B365_e5",
+    "hypothesis": "H3_soft",
+    "split": "holdout",
+    "n": 9,
+    "roi": 0.2977777777777778,
+    "p_raw": 0.2984,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H3_B365_e5",
     "hypothesis": "H3_soft",
     "split": "train",
-    "n": 7,
-    "roi": -1.0,
-    "p_raw": 0.0,
+    "n": 15,
+    "roi": 0.016666666666666666,
+    "p_raw": 0.4882,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H3_Max_e2",
     "hypothesis": "H3_soft",
     "split": "holdout",
-    "n": 41,
-    "roi": -0.2517073170731707,
-    "p_raw": 0.0401,
+    "n": 50,
+    "roi": -0.08,
+    "p_raw": 0.6804,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H3_Max_e2",
     "hypothesis": "H3_soft",
     "split": "train",
-    "n": 279,
-    "roi": 0.06068100358422939,
-    "p_raw": 0.1803,
+    "n": 414,
+    "roi": 0.0011352657004830933,
+    "p_raw": 0.4891,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H3_Max_e5",
     "hypothesis": "H3_soft",
     "split": "holdout",
-    "n": 11,
-    "roi": -0.5354545454545454,
-    "p_raw": 0.0122,
+    "n": 16,
+    "roi": -0.1525,
+    "p_raw": 0.6866,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H3_Max_e5",
     "hypothesis": "H3_soft",
     "split": "train",
-    "n": 42,
-    "roi": 0.22952380952380955,
-    "p_raw": 0.093,
+    "n": 80,
+    "roi": 0.19874999999999998,
+    "p_raw": 0.1053,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -275,7 +423,9 @@
     "split": "holdout",
     "n": 2131,
     "roi": -0.05445330830595965,
-    "p_raw": 0.0053,
+    "p_raw": 0.9939,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -283,8 +433,10 @@
     "hypothesis": "H4_drift",
     "split": "train",
     "n": 10570,
-    "roi": -0.07048344370860928,
-    "p_raw": 0.0,
+    "roi": -0.06911258278145696,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -292,8 +444,10 @@
     "hypothesis": "H4_drift",
     "split": "holdout",
     "n": 2131,
-    "roi": -0.023740028155795404,
-    "p_raw": 0.1368,
+    "roi": -0.017301736274049746,
+    "p_raw": 0.7884,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
@@ -301,62 +455,428 @@
     "hypothesis": "H4_drift",
     "split": "train",
     "n": 10570,
-    "roi": -0.021321665089877016,
-    "p_raw": 0.0105,
+    "roi": -0.013297067171239364,
+    "p_raw": 0.9136,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_early60d",
     "hypothesis": "H5_segment",
     "split": "holdout",
-    "n": 402,
-    "roi": -0.0682089552238806,
-    "p_raw": 0.1057,
+    "n": 391,
+    "roi": -0.05601023017902814,
+    "p_raw": 0.8542,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_early60d",
     "hypothesis": "H5_segment",
     "split": "train",
-    "n": 987,
-    "roi": -0.02389057750759879,
-    "p_raw": 0.2469,
+    "n": 977,
+    "roi": -0.02519959058341863,
+    "p_raw": 0.7655,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_low_goals",
     "hypothesis": "H5_segment",
     "split": "holdout",
-    "n": 462,
-    "roi": -0.004480519480519502,
-    "p_raw": 0.4687,
+    "n": 444,
+    "roi": -0.005878378378378383,
+    "p_raw": 0.546,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_low_goals",
     "hypothesis": "H5_segment",
     "split": "train",
-    "n": 2923,
-    "roi": -0.06686623332192954,
-    "p_raw": 0.0003,
+    "n": 2869,
+    "roi": -0.07627047751829906,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_not_early",
     "hypothesis": "H5_segment",
     "split": "holdout",
-    "n": 495,
-    "roi": 0.0025252525252525164,
-    "p_raw": 0.4818,
+    "n": 469,
+    "roi": -0.006247334754797453,
+    "p_raw": 0.5419,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   },
   {
     "variant_id": "H5_not_early",
     "hypothesis": "H5_segment",
     "split": "train",
-    "n": 4063,
-    "roi": -0.07824021658872754,
-    "p_raw": 0.0,
+    "n": 3935,
+    "roi": -0.08165692503176622,
+    "p_raw": 1.0,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@2. Bundesliga",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 38,
+    "roi": -0.2781578947368421,
+    "p_raw": 0.9662,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@2. Bundesliga",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 224,
+    "roi": -0.07084821428571429,
+    "p_raw": 0.8454,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Belgium Pro League",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 35,
+    "roi": -0.04914285714285715,
+    "p_raw": 0.6136,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Belgium Pro League",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 264,
+    "roi": -0.10034090909090909,
+    "p_raw": 0.9385,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Bundesliga",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 38,
+    "roi": 0.11947368421052634,
+    "p_raw": 0.2123,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Bundesliga",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 189,
+    "roi": -0.08920634920634922,
+    "p_raw": 0.877,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Championship",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 92,
+    "roi": 0.0018478260869565259,
+    "p_raw": 0.5019,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Championship",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 489,
+    "roi": -0.04376278118609407,
+    "p_raw": 0.8171,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Eredivisie",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 55,
+    "roi": -0.24654545454545457,
+    "p_raw": 0.9418,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Eredivisie",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 296,
+    "roi": -0.05108108108108109,
+    "p_raw": 0.7653,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@La Liga",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 73,
+    "roi": -0.01821917808219177,
+    "p_raw": 0.5586,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@La Liga",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 337,
+    "roi": -0.047655786350148374,
+    "p_raw": 0.7866,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@LaLiga2",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 79,
+    "roi": -0.060506329113924055,
+    "p_raw": 0.7016,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@LaLiga2",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 505,
+    "roi": -0.07758415841584157,
+    "p_raw": 0.9585,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Ligue 1",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 62,
+    "roi": -0.02161290322580645,
+    "p_raw": 0.5575,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Ligue 1",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 295,
+    "roi": -0.07111864406779662,
+    "p_raw": 0.8656,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Ligue 2",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 40,
+    "roi": -0.11325000000000003,
+    "p_raw": 0.7699,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Ligue 2",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 361,
+    "roi": -0.1056509695290859,
+    "p_raw": 0.9776,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Premier League",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 89,
+    "roi": 0.188876404494382,
+    "p_raw": 0.0363,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Premier League",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 414,
+    "roi": -0.06282608695652177,
+    "p_raw": 0.8491,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Primeira Liga",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 46,
+    "roi": -0.043478260869565216,
+    "p_raw": 0.6151,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Primeira Liga",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 311,
+    "roi": -0.18807073954983922,
+    "p_raw": 0.9987,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Scottish Premiership",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 12,
+    "roi": 0.2591666666666666,
+    "p_raw": 0.2116,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Scottish Premiership",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 132,
+    "roi": 0.038939393939393954,
+    "p_raw": 0.341,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Serie A",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 90,
+    "roi": -0.13500000000000004,
+    "p_raw": 0.8849,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Serie A",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 250,
+    "roi": -0.011120000000000026,
+    "p_raw": 0.5659,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Serie B",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 32,
+    "roi": 0.17093750000000002,
+    "p_raw": 0.2123,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Serie B",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 288,
+    "roi": 0.03663194444444444,
+    "p_raw": 0.2917,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Super League Greece",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 20,
+    "roi": 0.28650000000000003,
+    "p_raw": 0.1232,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Super League Greece",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 283,
+    "roi": -0.12409893992932863,
+    "p_raw": 0.9788,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Super Lig",
+    "hypothesis": "H1_per_league",
+    "split": "holdout",
+    "n": 59,
+    "roi": -0.1471186440677966,
+    "p_raw": 0.8547,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
+    "survives": false
+  },
+  {
+    "variant_id": "H1a_edge5_multiplicative@Super Lig",
+    "hypothesis": "H1_per_league",
+    "split": "train",
+    "n": 274,
+    "roi": -0.1063138686131387,
+    "p_raw": 0.9464,
+    "p_bonf": 1.0,
+    "q_bh": 1.0,
     "survives": false
   }
 ]

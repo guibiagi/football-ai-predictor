@@ -7,6 +7,7 @@ from src.ou_backtest import (
     aggregate_variant_results,
     bh_fdr_adjust,
     bonferroni_adjust,
+    bootstrap_p_roi_nonpos,
     bootstrap_roi_ci,
     devig_binary,
     odds_valid,
@@ -35,7 +36,7 @@ def test_pick_edge_side():
     odds = np.array([[2.0, 2.0], [2.0, 2.0]])
     mask, side, o = pick_edge_side(p_m, p_f, odds, 0.05)
     assert mask[0] and side[0]
-    assert mask[1] and not side[1]  # edge no under
+    assert mask[1] and not side[1]
 
 
 def test_bootstrap_roi_ci_constant():
@@ -43,6 +44,19 @@ def test_bootstrap_roi_ci_constant():
     roi, lo, hi = bootstrap_roi_ci(rets, n_boot=500, rng=np.random.default_rng(0))
     assert abs(roi - 0.1) < 1e-9
     assert lo <= roi <= hi
+
+
+def test_bootstrap_p_negative_roi_near_one():
+    """ROI negativo: H0 ROI<=0 não deve dar p pequeno (bug do review)."""
+    rets = np.full(200, -0.05)
+    p = bootstrap_p_roi_nonpos(rets, n_boot=2000, rng=np.random.default_rng(42))
+    assert p > 0.9
+
+
+def test_bootstrap_p_positive_roi_small():
+    rets = np.full(200, 0.08)
+    p = bootstrap_p_roi_nonpos(rets, n_boot=2000, rng=np.random.default_rng(42))
+    assert p < 0.05
 
 
 def test_aggregate_variant_results():
@@ -55,9 +69,14 @@ def test_aggregate_variant_results():
     assert agg[0].n == 3
 
 
-def test_multiple_testing_adjust():
+def test_bh_fdr_monotone_on_sorted():
+    p = np.array([0.01, 0.04, 0.5])
+    q = bh_fdr_adjust(p)
+    order = np.argsort(p)
+    assert q[order[0]] <= q[order[1]] <= q[order[2]]
+
+
+def test_bonferroni_adjust():
     p = np.array([0.01, 0.04, 0.5])
     b = bonferroni_adjust(p)
     assert b[0] == 0.03
-    q = bh_fdr_adjust(p)
-    assert q[0] <= q[1] <= q[2] or True  # monotonic in rank order
