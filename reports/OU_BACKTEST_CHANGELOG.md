@@ -1,6 +1,15 @@
 # Changelog — execução vs `reports/ou_backtest_last_run.json` anterior
 
-_Sem execução anterior registrada; métricas atuais abaixo._
+| Métrica | Anterior | Atual |
+|---------|----------|-------|
+| n jogos OOS | 12717 | 12717 |
+| Log-loss modelo | 0.6869 | 0.6869 |
+| Log-loss Pinnacle | 0.6718 | 0.6718 |
+| Sobreviventes agregado | 0 | 0 |
+| Sobreviventes por liga | 0 | 0 |
+| Teste nulo melhor ROI | 0.8276 | 0.8276 |
+| Jogos holdout (com P abertura) | 2131 | 2131 |
+
 ## Snapshot atual
 
 ```json

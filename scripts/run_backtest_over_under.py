@@ -397,7 +397,7 @@ def format_report(
         "",
         f"- Ligas com Pinnacle O/U: **{n_leagues}**",
         f"- Partidas OOS com odds abertura+fechamento Pinnacle: **{n_matches}**",
-        f"- Holdout: **{holdout_info}**",
+        f"- Holdout: {holdout_info}",
         f"- Variantes distintas: **{n_variants}**; linhas testadas (× treino/holdout): **{n_tests}**",
         f"- Pré-registro: `reports/HIPOTESES_OVER_UNDER.md`",
         f"- Changelog vs relatório anterior: `reports/OU_BACKTEST_CHANGELOG.md`",
@@ -411,7 +411,9 @@ def format_report(
         f"| n jogos | {global_ll['n']} | {global_ll['n']} |",
         "",
         "Teste nulo bootstrap do melhor ROI (não é White/Hansen SPA): "
-        f"**p = {null_p:.4f}**",
+        f"**p = {null_p:.4f}**. Com dezenas de estratégias de treino e muitas "
+        "com `n` pequeno (H3), o teste tem **baixo poder** para separar um "
+        "único vencedor de ruído — interpretar junto com ROI, `n` e q-values.",
         "",
         "H2 (shrinkage) **não** é estimado à parte: equivale a H1 com limiar "
         "`edge/w` (ver changelog).",
@@ -448,7 +450,7 @@ def format_report(
                     f"p={r.p_raw:.3f}, q_BH={r.meta.get('q_bh', float('nan')):.3f}"
                 )
         if survivors_pl:
-            lines.append("", "**Por liga (família de testes):**")
+            lines += ["", "**Por liga (família de testes):**"]
             for r in survivors_pl:
                 lines.append(
                     f"- **{r.variant_id}** ({r.split}): n={r.n}, ROI {r.roi:+.2%}, "
@@ -721,8 +723,8 @@ def main() -> int:
         holdout_info = (
             f"código season holdout = última temporada completa por liga "
             f"({n_inprog} ligas com season em curso excluída do treino/holdout); "
-            f"**jogos com Pinnacle abertura no holdout:** {ho_n} partidas, "
-            f"**{ho_min.date().isoformat()}** a **{ho_max.date().isoformat()}** "
+            f"jogos com Pinnacle abertura no holdout: {ho_n} partidas, "
+            f"{ho_min.date().isoformat()} a {ho_max.date().isoformat()} "
             f"(cobertura parcial do calendário 2025/26 — odds abertura só em parte da temporada)"
         )
     else:

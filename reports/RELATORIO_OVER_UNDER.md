@@ -4,7 +4,7 @@
 
 - Ligas com Pinnacle O/U: **16**
 - Partidas OOS com odds abertura+fechamento Pinnacle: **12717**
-- Holdout: **código season holdout = última temporada completa por liga (16 ligas com season em curso excluída do treino/holdout); **jogos com Pinnacle abertura no holdout:** 2131 partidas, **2025-07-25** a **2026-01-14** (cobertura parcial do calendário 2025/26 — odds abertura só em parte da temporada)**
+- Holdout: código season holdout = última temporada completa por liga (16 ligas com season em curso excluída do treino/holdout); jogos com Pinnacle abertura no holdout: 2131 partidas, 2025-07-25 a 2026-01-14 (cobertura parcial do calendário 2025/26 — odds abertura só em parte da temporada)
 - Variantes distintas: **24**; linhas testadas (× treino/holdout): **80**
 - Pré-registro: `reports/HIPOTESES_OVER_UNDER.md`
 - Changelog vs relatório anterior: `reports/OU_BACKTEST_CHANGELOG.md`
@@ -17,7 +17,7 @@
 | Brier | 0.2468 | 0.2396 |
 | n jogos | 12717 | 12717 |
 
-Teste nulo bootstrap do melhor ROI (não é White/Hansen SPA): **p = 0.8276**
+Teste nulo bootstrap do melhor ROI (não é White/Hansen SPA): **p = 0.8276**. Com dezenas de estratégias de treino e muitas com `n` pequeno (H3), o teste tem **baixo poder** para separar um único vencedor de ruído — interpretar junto com ROI, `n` e q-values.
 
 H2 (shrinkage) **não** é estimado à parte: equivale a H1 com limiar `edge/w` (ver changelog).
 

@@ -29,7 +29,11 @@ def test_shin_devig_removes_margin_extreme():
     odds = np.array([[1.05, 9.0]])
     p_over = devig_binary(odds, method="shin")[0]
     p_under = 1.0 - p_over
-    np.testing.assert_allclose(p_over + p_under, 1.0, rtol=0, atol=1e-8)
+    np.testing.assert_allclose(p_over, 0.9473419, rtol=1e-5)
+    np.testing.assert_allclose(p_under, 0.0526581, rtol=1e-5)
+    naive = 1.0 / odds[0]
+    naive /= naive.sum()
+    assert abs(p_over - naive[0]) > 0.04
 
 
 def test_odds_valid_filters_bad():
