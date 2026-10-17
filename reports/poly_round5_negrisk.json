@@ -1,0 +1,434 @@
+{
+  "n_events_scanned": 80,
+  "n_events_with_executable_snap": 0,
+  "n_executable_snapshots": 0,
+  "proxy_mispricing_events": 0,
+  "event_reports": [
+    {
+      "slug": "atp-finals-winner",
+      "n_markets": 8,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "2025-swiss-indoors-basel-singles-winner",
+      "n_markets": 5,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "2025-swiss-indoors-basel-doubles-winner",
+      "n_markets": 5,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "who-will-win-a-calendar-grand-slam-in-2026",
+      "n_markets": 10,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "2026-mens-bnp-paribas-open-winner",
+      "n_markets": 9,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "how-many-chipotle-bogos-will-be-given-out-during-the-2026-us-open",
+      "n_markets": 8,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-wsg-2026-05-16",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-wsg-2026-05-16-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-bwl-gak-2026-05-16",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-bwl-gak-2026-05-16-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alt-svr-2026-05-16",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alt-svr-2026-05-16-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-05-17",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-05-17-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-fak-ask-2026-05-17",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-fak-ask-2026-05-17-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-stu-scr-2026-05-17",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-stu-scr-2026-05-17-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-ask-gak-2026-07-31",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wsg-stu-2026-08-01",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-ask-gak-2026-07-31-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-ask-gak-2026-07-31-second-half-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-ask-gak-2026-07-31-first-to-score",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wsg-stu-2026-08-01-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wsg-stu-2026-08-01-second-half-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wsg-stu-2026-08-01-first-to-score",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-08-01",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-fak-2026-08-02",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alu-svr-2026-08-02",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-scr-alt-2026-08-02",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-08-01-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-08-01-second-half-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-rbs-htb-2026-08-01-first-to-score",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-fak-2026-08-02-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-fak-2026-08-02-second-half-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-wac-fak-2026-08-02-first-to-score",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alu-svr-2026-08-02-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alu-svr-2026-08-02-second-half-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-alu-svr-2026-08-02-first-to-score",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    },
+    {
+      "slug": "aut-scr-alt-2026-08-02-halftime-result",
+      "n_markets": 3,
+      "neg_risk": true,
+      "uma_flag": "resolved",
+      "n_executable": 0,
+      "max_net_profit_usdc": 0.0,
+      "max_size_usdc": 0.0,
+      "best": []
+    }
+  ],
+  "aggregate": {
+    "n_trades_realistic": 0,
+    "roi_mean": null,
+    "roi_ci95": null,
+    "total_net_profit_usdc": 0,
+    "proxy_events": 0,
+    "false_positive_rate_proxy": 0,
+    "executable_for_paper": false,
+    "notes": "Nenhum snapshot com asks/bids sincronizados em todas as pernas."
+  },
+  "executable_for_paper": false,
+  "live_scan_now": [],
+  "live_opportunities_now": 0,
+  "opportunities_per_week_estimate": 0.0,
+  "generated_at": "2026-10-15T14:04:52.373697+00:00",
+  "methodology": {
+    "ask": "Menor pre\u00e7o de trade BUY Yes na janela (proxy de ASK)",
+    "bid": "Maior pre\u00e7o de trade SELL Yes (proxy de BID)",
+    "sync_window_sec": 120,
+    "sum_lo": 0.98,
+    "sum_hi": 1.02,
+    "min_profit_usdc": 0.5,
+    "min_size_usdc": 5.0,
+    "neg_risk_note": "Eventos negRisk: convers\u00e3o NO\u2194YES via adapter reduz capital vs comprar YES em cada perna; n\u00e3o modelado atomicamente \u2014 conservador no capital travado.",
+    "uma_risk": "Eventos com umaResolutionStatus n\u00e3o nulo marcados no relat\u00f3rio por evento."
+  }
+}

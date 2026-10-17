@@ -1,0 +1,1619 @@
+{
+  "n_hypotheses": 75,
+  "n_min": 300,
+  "alpha": 0.05,
+  "hypotheses": [
+    {
+      "id": "H4-PIN-T24h-gap01-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T24h (favorite)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.01,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 63,
+      "roi_mean": 0.0202,
+      "roi_ci95": [
+        -0.2804,
+        0.3304
+      ],
+      "p_raw": 0.448411,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap02-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T24h (favorite)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.02,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 40,
+      "roi_mean": -0.0042,
+      "roi_ci95": [
+        -0.413,
+        0.4173
+      ],
+      "p_raw": 0.50799,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap03-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T24h (favorite)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.03,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 22,
+      "roi_mean": 0.2178,
+      "roi_ci95": [
+        -0.3225,
+        0.8329
+      ],
+      "p_raw": 0.244492,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap04-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T24h (favorite)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.04,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 12,
+      "roi_mean": 0.5186,
+      "roi_ci95": [
+        -0.2949,
+        1.4354
+      ],
+      "p_raw": 0.148784,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap05-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T24h (favorite)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.05,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 9,
+      "roi_mean": 0.3048,
+      "roi_ci95": [
+        -0.7864,
+        1.4842
+      ],
+      "p_raw": 0.316063,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap01-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T6h (favorite)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.01,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 33,
+      "roi_mean": 0.1911,
+      "roi_ci95": [
+        -0.2507,
+        0.6705
+      ],
+      "p_raw": 0.208912,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap02-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T6h (favorite)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.02,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 16,
+      "roi_mean": 0.6679,
+      "roi_ci95": [
+        -0.0204,
+        1.3671
+      ],
+      "p_raw": 0.041191,
+      "p_bonferroni": 1.0,
+      "p_bh": 0.789235,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap03-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T6h (favorite)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.03,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 8,
+      "roi_mean": 1.1804,
+      "roi_ci95": [
+        0.1745,
+        2.2154
+      ],
+      "p_raw": 0.042093,
+      "p_bonferroni": 1.0,
+      "p_bh": 0.789235,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap04-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T6h (favorite)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.04,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 6,
+      "roi_mean": 1.0329,
+      "roi_ci95": [
+        -0.2994,
+        2.4585
+      ],
+      "p_raw": 0.123555,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap05-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T6h (favorite)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.05,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 3,
+      "roi_mean": 0.6669,
+      "roi_ci95": [
+        -1.0468,
+        4.088
+      ],
+      "p_raw": 0.367114,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap01-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T1h (favorite)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.01,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 25,
+      "roi_mean": 0.2364,
+      "roi_ci95": [
+        -0.286,
+        0.7715
+      ],
+      "p_raw": 0.197342,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap02-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T1h (favorite)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.02,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 13,
+      "roi_mean": -0.0421,
+      "roi_ci95": [
+        -0.814,
+        0.8349
+      ],
+      "p_raw": 0.536366,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap03-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T1h (favorite)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.03,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 10,
+      "roi_mean": 0.2534,
+      "roi_ci95": [
+        -0.7308,
+        1.3637
+      ],
+      "p_raw": 0.330091,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap04-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T1h (favorite)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.04,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 9,
+      "roi_mean": 0.3961,
+      "roi_ci95": [
+        -0.7169,
+        1.5115
+      ],
+      "p_raw": 0.264646,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap05-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T1h (favorite)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.05,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 5,
+      "roi_mean": 0.5043,
+      "roi_ci95": [
+        -1.0454,
+        2.3665
+      ],
+      "p_raw": 0.317056,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap01-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T10m (favorite)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.01,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 8,
+      "roi_mean": 0.0409,
+      "roi_ci95": [
+        -0.6827,
+        0.8177
+      ],
+      "p_raw": 0.462814,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap02-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T10m (favorite)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.02,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 4,
+      "roi_mean": -0.1352,
+      "roi_ci95": [
+        -1.0387,
+        0.7683
+      ],
+      "p_raw": 0.592902,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap03-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T10m (favorite)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.03,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 3,
+      "roi_mean": -0.374,
+      "roi_ci95": [
+        -1.0462,
+        0.9554
+      ],
+      "p_raw": 0.684834,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap04-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T10m (favorite)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.04,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 2,
+      "roi_mean": -0.0454,
+      "roi_ci95": [
+        -1.0462,
+        0.9554
+      ],
+      "p_raw": 0.514429,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap05-fav",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T10m (favorite)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.05,
+        "leg_mode": "favorite"
+      },
+      "n_holdout": 1,
+      "roi_mean": -1.0462,
+      "roi_ci95": [
+        -1.0462,
+        -1.0462
+      ],
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap01-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T24h (all_outcomes)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.01,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 141,
+      "roi_mean": -0.0776,
+      "roi_ci95": [
+        -0.3276,
+        0.1813
+      ],
+      "p_raw": 0.719969,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap02-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T24h (all_outcomes)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.02,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 77,
+      "roi_mean": -0.1202,
+      "roi_ci95": [
+        -0.4346,
+        0.2281
+      ],
+      "p_raw": 0.754173,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap03-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T24h (all_outcomes)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.03,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 44,
+      "roi_mean": 0.0942,
+      "roi_ci95": [
+        -0.3829,
+        0.6304
+      ],
+      "p_raw": 0.359695,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap04-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T24h (all_outcomes)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.04,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 24,
+      "roi_mean": 0.1731,
+      "roi_ci95": [
+        -0.5529,
+        0.9764
+      ],
+      "p_raw": 0.328988,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T24h-gap05-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T24h (all_outcomes)",
+      "params": {
+        "timing": "T24h",
+        "gap": 0.05,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 17,
+      "roi_mean": 0.0621,
+      "roi_ci95": [
+        -0.7705,
+        1.0855
+      ],
+      "p_raw": 0.450975,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap01-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T6h (all_outcomes)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.01,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 90,
+      "roi_mean": -0.3096,
+      "roi_ci95": [
+        -0.5757,
+        -0.0193
+      ],
+      "p_raw": 0.982009,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap02-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T6h (all_outcomes)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.02,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 48,
+      "roi_mean": -0.026,
+      "roi_ci95": [
+        -0.4535,
+        0.473
+      ],
+      "p_raw": 0.543969,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap03-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T6h (all_outcomes)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.03,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 24,
+      "roi_mean": -0.0065,
+      "roi_ci95": [
+        -0.6048,
+        0.625
+      ],
+      "p_raw": 0.507847,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap04-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T6h (all_outcomes)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.04,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 16,
+      "roi_mean": -0.2641,
+      "roi_ci95": [
+        -0.8993,
+        0.5328
+      ],
+      "p_raw": 0.750752,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T6h-gap05-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T6h (all_outcomes)",
+      "params": {
+        "timing": "T6h",
+        "gap": 0.05,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 9,
+      "roi_mean": -0.4744,
+      "roi_ci95": [
+        -1.0465,
+        0.6668
+      ],
+      "p_raw": 0.785207,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap01-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T1h (all_outcomes)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.01,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 73,
+      "roi_mean": -0.1711,
+      "roi_ci95": [
+        -0.5548,
+        0.2559
+      ],
+      "p_raw": 0.800768,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap02-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T1h (all_outcomes)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.02,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 30,
+      "roi_mean": -0.1302,
+      "roi_ci95": [
+        -0.7237,
+        0.5591
+      ],
+      "p_raw": 0.649007,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap03-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T1h (all_outcomes)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.03,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 20,
+      "roi_mean": 0.1409,
+      "roi_ci95": [
+        -0.653,
+        1.1204
+      ],
+      "p_raw": 0.382747,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap04-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T1h (all_outcomes)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.04,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 14,
+      "roi_mean": 0.4112,
+      "roi_ci95": [
+        -0.653,
+        1.6887
+      ],
+      "p_raw": 0.259501,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T1h-gap05-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T1h (all_outcomes)",
+      "params": {
+        "timing": "T1h",
+        "gap": 0.05,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 10,
+      "roi_mean": 0.4713,
+      "roi_ci95": [
+        -1.0421,
+        2.1098
+      ],
+      "p_raw": 0.293688,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap01-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22121% em T10m (all_outcomes)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.01,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 20,
+      "roi_mean": -0.4301,
+      "roi_ci95": [
+        -0.8508,
+        0.0795
+      ],
+      "p_raw": 0.945963,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap02-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22122% em T10m (all_outcomes)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.02,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 9,
+      "roi_mean": -0.2408,
+      "roi_ci95": [
+        -1.0385,
+        0.6416
+      ],
+      "p_raw": 0.702331,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap03-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22123% em T10m (all_outcomes)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.03,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 4,
+      "roi_mean": -0.5412,
+      "roi_ci95": [
+        -1.0445,
+        0.4559
+      ],
+      "p_raw": 0.821299,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap04-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22124% em T10m (all_outcomes)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.04,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 3,
+      "roi_mean": -0.3779,
+      "roi_ci95": [
+        -1.0462,
+        0.9554
+      ],
+      "p_raw": 0.686008,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-PIN-T10m-gap05-all",
+      "family": "pin_poly_taker",
+      "description": "Taker YES se Poly+spread < Pin\u22125% em T10m (all_outcomes)",
+      "params": {
+        "timing": "T10m",
+        "gap": 0.05,
+        "leg_mode": "all_outcomes"
+      },
+      "n_holdout": 2,
+      "roi_mean": -1.0445,
+      "roi_ci95": [
+        -1.0462,
+        -1.0428
+      ],
+      "p_raw": 0.999467,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.403298,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-LAG-mom-pin2c",
+      "family": "pin_lag",
+      "description": "Pin +2pp no fav; compra Poly T-1h se ainda < Pin_close\u22122\u00a2",
+      "params": {},
+      "n_holdout": 10,
+      "roi_mean": 0.173,
+      "roi_ci95": [
+        -0.4213,
+        0.7904
+      ],
+      "p_raw": 0.30725,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.307346,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-LAG-mom-pin3c",
+      "family": "pin_lag",
+      "description": "Pin +3pp; Poly defasado vs close",
+      "params": {},
+      "n_holdout": 4,
+      "roi_mean": -0.4505,
+      "roi_ci95": [
+        -1.0261,
+        0.6966
+      ],
+      "p_raw": 0.755186,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.307346,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-LAG-rev-poly8c",
+      "family": "pin_lag",
+      "description": "Revers\u00e3o: salto Poly \u22658\u00a2 entre T-6h e T-1h contra movimento Pin",
+      "params": {},
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 0.307346,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-other-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=other faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "other",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-climate-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=climate faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "climate",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-politics-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=politics faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "politics",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-other-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=other faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "other",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-culture-buy_no_long-0.00-0.12",
+      "family": "favorite_bias",
+      "description": "Taker buy_no_long cat=culture faixa YES~(0.0, 0.12)",
+      "params": {
+        "category": "culture",
+        "side": "buy_no_long",
+        "bucket": [
+          0.0,
+          0.12
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-climate-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=climate faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "climate",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-culture-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=culture faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "culture",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-sports-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=sports faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "sports",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-sports-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=sports faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "sports",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-crypto-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=crypto faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "crypto",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-other-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=other faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "other",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-crypto-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=crypto faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "crypto",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-climate-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=climate faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "climate",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-sports-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=sports faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "sports",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-culture-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=culture faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "culture",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-politics-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=politics faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "politics",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-other-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=other faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "other",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-crypto-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=crypto faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "crypto",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-climate-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=climate faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "climate",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-politics-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=politics faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "politics",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-sports-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=sports faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "sports",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-crypto-buy_yes-0.75-0.85",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=crypto faixa YES~(0.75, 0.85)",
+      "params": {
+        "category": "crypto",
+        "side": "buy_yes",
+        "bucket": [
+          0.75,
+          0.85
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-politics-buy_yes-0.55-0.65",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=politics faixa YES~(0.55, 0.65)",
+      "params": {
+        "category": "politics",
+        "side": "buy_yes",
+        "bucket": [
+          0.55,
+          0.65
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-culture-buy_yes-0.85-0.95",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=culture faixa YES~(0.85, 0.95)",
+      "params": {
+        "category": "culture",
+        "side": "buy_yes",
+        "bucket": [
+          0.85,
+          0.95
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-FAV-culture-buy_yes-0.65-0.75",
+      "family": "favorite_bias",
+      "description": "Taker buy_yes cat=culture faixa YES~(0.65, 0.75)",
+      "params": {
+        "category": "culture",
+        "side": "buy_yes",
+        "bucket": [
+          0.65,
+          0.75
+        ]
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-NEG-sum-low-buy-yes",
+      "family": "negrisk",
+      "description": "Comprar todos YES quando soma < 0.96",
+      "params": {
+        "sum_lo": 0.96,
+        "implementation_validated": false
+      },
+      "n_holdout": 312,
+      "roi_mean": 18.2578,
+      "roi_ci95": [
+        17.9844,
+        18.4879
+      ],
+      "p_raw": 0.0,
+      "p_bonferroni": 0.0,
+      "p_bh": 0.0,
+      "p_reality_check_family": 0.0005,
+      "viable_raw": true,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-NEG-sum-high",
+      "family": "negrisk",
+      "description": "Arb quando soma > 1.04 (proxy basket; n\u00e3o execut\u00e1vel sem neg-risk CLOB)",
+      "params": {
+        "sum_hi": 1.04,
+        "implementation_validated": false
+      },
+      "n_holdout": 863,
+      "roi_mean": 0.5168,
+      "roi_ci95": [
+        0.4986,
+        0.5342
+      ],
+      "p_raw": 0.0,
+      "p_bonferroni": 0.0,
+      "p_bh": 0.0,
+      "p_reality_check_family": 0.0005,
+      "viable_raw": true,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-BTC-ln-buy-yes-cheap",
+      "family": "btc_lognormal",
+      "description": "Compra YES quando p_poly < p_lognormal(Deribit IV)\u22125%",
+      "params": {},
+      "n_holdout": 19,
+      "roi_mean": -1.0692,
+      "roi_ci95": [
+        -1.0692,
+        -1.0692
+      ],
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-BTC-ln-buy-yes-rich",
+      "family": "btc_lognormal",
+      "description": "Compra YES quando p_poly > p_lognormal+5% (fade modelo)",
+      "params": {},
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-RN1-trades-off020",
+      "family": "rn1_trades",
+      "description": "RN1 maker fill via trades SELL\u2264bid (offset 0.020)",
+      "params": {
+        "offset": 0.02
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-RN1-trades-off025",
+      "family": "rn1_trades",
+      "description": "RN1 maker fill via trades SELL\u2264bid (offset 0.025)",
+      "params": {
+        "offset": 0.025
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    },
+    {
+      "id": "H4-RN1-trades-off030",
+      "family": "rn1_trades",
+      "description": "RN1 maker fill via trades SELL\u2264bid (offset 0.030)",
+      "params": {
+        "offset": 0.03
+      },
+      "n_holdout": 0,
+      "roi_mean": null,
+      "roi_ci95": null,
+      "p_raw": 1.0,
+      "p_bonferroni": 1.0,
+      "p_bh": 1.0,
+      "p_reality_check_family": 1.0,
+      "viable_raw": false,
+      "viable_corrected": false
+    }
+  ],
+  "viable_after_correction": [],
+  "generated_at": "2026-10-15T13:58:44.001459+00:00",
+  "holdout_days": 365,
+  "n_events_cache": 17074,
+  "conclusion": "Ap\u00f3s Bonferroni e BH sobre **75** hip\u00f3teses, nenhuma passou n\u2265300 + ROI>0 + IC95>0 + p corrigido<0,05 com implementa\u00e7\u00e3o validada. Pin-Poly (T-24h gap1\u00a2 all legs) n=141 holdout, ROI<0. Neg-risk: ROI proxy alto mas exclu\u00eddo (n\u00e3o validado). HF vgregoire/polymarket-users reservado para ampliar trades."
+}

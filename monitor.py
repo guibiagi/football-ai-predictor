@@ -28,7 +28,15 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.clv import clv_probability  # noqa: E402
 from src.data_loader import load_matches  # noqa: E402
+from src.football_data_fixtures import (  # noqa: E402
+    fetch_season_rows_since,
+    load_upcoming_pinnacle_cached,
+    lookup_pin_open_row,
+    merge_hist_with_fixtures,
+)
 from src.monitor_gates import load_gates, market_allowed  # noqa: E402
+from src.monitor_strategies import load_strategy_config, strategy_enabled  # noqa: E402
+from src.odds_utils import market_probs  # noqa: E402
 from src.pinnacle_lookup import lookup_1x2_close  # noqa: E402
 from src.poisson_model import PoissonModel  # noqa: E402
 from src.polymarket_prices import (  # noqa: E402
@@ -36,6 +44,13 @@ from src.polymarket_prices import (  # noqa: E402
     execution_price_yes,
     parse_token_ids,
 )
+from src.paper_rn1 import PAPER_LOG, ensure_log, scan_fixture, settle_paper  # noqa: E402
+from src.paper_taker_pin import (  # noqa: E402
+    PAPER_LOG as PAPER_PIN_LOG,
+    ensure_log as ensure_pin_log,
+    scan_pin_gap_fixture,
+)
+from src.paper_negrisk import PAPER_LOG as PAPER_NEG_LOG, ensure_log as ensure_neg_log, scan_live_signals  # noqa: E402
 from src.team_matching import _clean, build_map, lookup, normalize  # noqa: E402
 
 GAMMA = "https://gamma-api.polymarket.com"
@@ -245,7 +260,7 @@ def outcome_roles(ms: list[dict], casa: str, fora: str) -> list[str] | None:
     idx = build_map([casa, fora])
     roles = []
     for m in ms:
-        title = m.get("groupItemTitle") or m.get("question") or ""
+        title = m.get("groupItemTitle") or m.get("question") or m.get("title") or ""
         if "draw" in title.lower():
             roles.append("empate")
             continue
@@ -270,6 +285,44 @@ def _ensure_forward_schema(log: pd.DataFrame) -> pd.DataFrame:
     return log
 
 
+def _pin_dataset_row(
+    df: pd.DataFrame,
+    comp: str,
+    home: str,
+    away: str,
+    today: date,
+) -> pd.Series | None:
+    """Odds Pinnacle (ps_*) para jogo de hoje: fixtures live ou histórico."""
+    row = lookup_pin_open_row(df, comp, home, away, pd.Timestamp(today, tz="UTC"))
+    if row is not None:
+        return row
+    pin_row = df[
+        (df.competition == comp)
+        & (df.home_team == home)
+        & (df.away_team == away)
+        & (df.date.dt.date >= today - timedelta(days=3))
+        & (df.date.dt.date <= today + timedelta(days=1))
+    ].sort_values("date")
+    pin_row = pin_row[pin_row[["ps_h", "ps_d", "ps_a"]].notna().all(axis=1)]
+    return pin_row.iloc[-1] if not pin_row.empty else None
+
+
+def load_monitor_dataset() -> pd.DataFrame:
+    """Histórico + fixtures futuros com Pinnacle (football-data.co.uk)."""
+    path = DATA_XG if DATA_XG.exists() else DATA
+    hist = load_matches(path)
+    try:
+        hist_max = hist["date"].max()
+        if hist_max.tzinfo is None:
+            hist_max = hist_max.tz_localize("UTC")
+        extra = fetch_season_rows_since(hist_max)
+        fx = load_upcoming_pinnacle_cached()
+        hist = merge_hist_with_fixtures(hist, fx, extra_played=extra)
+    except Exception as exc:
+        print(f"Aviso: fixtures Pinnacle não carregados ({exc}). Só histórico até {hist['date'].max()}.")
+    return hist
+
+
 def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFrame:
     """Marca o resultado dos jogos já encerrados na Polymarket.
 
@@ -283,52 +336,52 @@ def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFra
     for i, r in log[log["resultado"].isna()].iterrows():
         try:
             ev = _get(f"{GAMMA}/events?slug={r['slug']}")
+            if not ev:
+                continue
+            ms = ev[0].get("markets", [])
+            if len(ms) != 3 or not all(m.get("closed") for m in ms):
+                continue
+            roles = outcome_roles(ms, r["casa"], r["fora"])
+            if roles is None:
+                continue
+            prices = []
+            for m in ms:
+                try:
+                    prices.append(float(json.loads(m["outcomePrices"])[0]))
+                except Exception:
+                    prices.append(0.0)
+            if max(prices) < 0.9:
+                continue
+            winner = roles[prices.index(max(prices))]
+            acertou = winner == r["pick"]
+            preco = float(r["preco_exec"] if pd.notna(r.get("preco_exec")) else r["preco"])
+            log.at[i, "resultado"] = "acerto" if acertou else "erro"
+            log.at[i, "vencedor"] = winner
+            log.at[i, "retorno"] = round((1.0 - preco) / preco if acertou else -1.0, 4)
+
+            kickoff = _parse_iso(str(r.get("inicio") or ""))
+            pi = pick_idx.get(r["pick"], 0)
+            token = None
+            if len(ms) > pi:
+                token, _ = parse_token_ids(ms[pi])
+            if token and kickoff and pd.isna(r.get("preco_poly_fechamento")):
+                close_p = closing_price_before_kickoff(token, kickoff)
+                if close_p is not None:
+                    log.at[i, "preco_poly_fechamento"] = round(close_p, 4)
+                    log.at[i, "clv_poly"] = round(clv_probability(preco, close_p), 4)
+            if hist_df is not None and pd.isna(r.get("preco_pinnacle_fech")):
+                pin = lookup_1x2_close(
+                    hist_df, str(r.get("liga", "")), r["casa"], r["fora"], kickoff or r["inicio"],
+                )
+                if pin:
+                    import numpy as np
+                    from src.odds_utils import market_probs
+
+                    p_devig = market_probs(np.array([pin], dtype=float))[0, pi]
+                    log.at[i, "preco_pinnacle_fech"] = round(float(p_devig), 4)
+                    log.at[i, "clv_pinnacle"] = round(clv_probability(preco, float(p_devig)), 4)
         except Exception:
             continue
-        if not ev:
-            continue
-        ms = ev[0].get("markets", [])
-        if len(ms) != 3 or not all(m.get("closed") for m in ms):
-            continue
-        roles = outcome_roles(ms, r["casa"], r["fora"])
-        if roles is None:
-            continue
-        prices = []
-        for m in ms:
-            try:
-                prices.append(float(json.loads(m["outcomePrices"])[0]))
-            except Exception:
-                prices.append(0.0)
-        if max(prices) < 0.9:
-            continue
-        winner = roles[prices.index(max(prices))]
-        acertou = winner == r["pick"]
-        preco = float(r["preco_exec"] if pd.notna(r.get("preco_exec")) else r["preco"])
-        log.at[i, "resultado"] = "acerto" if acertou else "erro"
-        log.at[i, "vencedor"] = winner
-        log.at[i, "retorno"] = round((1.0 - preco) / preco if acertou else -1.0, 4)
-
-        kickoff = _parse_iso(str(r.get("inicio") or ""))
-        pi = pick_idx.get(r["pick"], 0)
-        token = None
-        if len(ms) > pi:
-            token, _ = parse_token_ids(ms[pi])
-        if token and kickoff and pd.isna(r.get("preco_poly_fechamento")):
-            close_p = closing_price_before_kickoff(token, kickoff)
-            if close_p is not None:
-                log.at[i, "preco_poly_fechamento"] = round(close_p, 4)
-                log.at[i, "clv_poly"] = round(clv_probability(preco, close_p), 4)
-        if hist_df is not None and pd.isna(r.get("preco_pinnacle_fech")):
-            pin = lookup_1x2_close(
-                hist_df, str(r.get("liga", "")), r["casa"], r["fora"], kickoff or r["inicio"],
-            )
-            if pin:
-                import numpy as np
-                from src.odds_utils import market_probs
-
-                p_devig = market_probs(np.array([pin], dtype=float))[0, pi]
-                log.at[i, "preco_pinnacle_fech"] = round(float(p_devig), 4)
-                log.at[i, "clv_pinnacle"] = round(clv_probability(preco, float(p_devig)), 4)
     return log
 
 
@@ -362,9 +415,34 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true", help="histórico acumulado")
     ap.add_argument("--ligas", action="store_true", help="cobertura de ligas")
+    ap.add_argument(
+        "--maker",
+        action="store_true",
+        help="cotação passiva (fair Pinnacle ps do dataset) — não aposta",
+    )
+    ap.add_argument(
+        "--paper-rn1",
+        action="store_true",
+        help="forward test em papel RN1 (favorito 0.60–0.80, bid Pin−2.5¢)",
+    )
+    ap.add_argument(
+        "--paper-rn1-report",
+        action="store_true",
+        help="relatório do log paper_rn1_forward.csv",
+    )
+    ap.add_argument(
+        "--paper-taker-pin",
+        action="store_true",
+        help="forward test papel taker Pin−Poly (gap 2¢, só se estratégia habilitada)",
+    )
+    ap.add_argument(
+        "--paper-negrisk",
+        action="store_true",
+        help="varredura leitura neg-risk (soma YES); grava paper_negrisk_forward.csv",
+    )
     a = ap.parse_args()
 
-    df = load_matches(DATA_XG if DATA_XG.exists() else DATA)
+    df = load_monitor_dataset()
 
     if a.ligas:
         print("ligas no dataset:")
@@ -372,10 +450,49 @@ def main() -> int:
             print(f"   {n:6d} jogos  {comp}")
         return 0
 
+    if a.paper_negrisk:
+        if not strategy_enabled("paper_negrisk", load_strategy_config()):
+            print("paper_negrisk não habilitado em data/monitor_strategy.json (Rodada 5).")
+            return 0
+        sigs = scan_live_signals()
+        log = ensure_neg_log()
+        if sigs:
+            log = pd.concat([log, pd.DataFrame(sigs)]).drop_duplicates(
+                subset=["slug", "direction", "data"], keep="first",
+            )
+        log.to_csv(PAPER_NEG_LOG, index=False)
+        print(f"PAPER NEG-RISK: {len(sigs)} sinais → {PAPER_NEG_LOG.name}")
+        for s in sigs[:10]:
+            print(f"  {s['slug']}: {s['direction']} sum={s['sum_prices']} "
+                  f"lucro≈${s['net_profit_usdc']} size≈${s['size_usdc']}")
+        return 0
+
+    if a.paper_rn1_report:
+        plog = settle_paper(ensure_log(), df)
+        plog.to_csv(PAPER_LOG, index=False)
+        filled = plog[plog["fill_simulado"] == True]
+        done = plog[plog["resultado"].notna() & (plog["resultado"] != "sem_fill")]
+        print(f"paper RN1: {len(plog)} registros | fills simulados: {len(filled)} | resolvidos: {len(done)}")
+        if len(done):
+            print(f"  retorno simulado: {done['retorno_sim'].astype(float).sum():+.2f}u | "
+                  f"hit {(done['resultado']=='acerto').mean():.0%}")
+        return 0
+
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
     gates = load_gates()
+    strat_cfg = load_strategy_config()
+    maker_mode = a.maker or strategy_enabled("maker_pin_fair", strat_cfg)
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
+    if a.paper_rn1 or a.paper_rn1_report:
+        plog = settle_paper(ensure_log(), df)
+        plog.to_csv(PAPER_LOG, index=False)
+
+    paper_pin_enabled = a.paper_taker_pin or any(
+        s.get("enabled") and s.get("paper_only")
+        and str(s.get("hypothesis_id", "")).startswith("H4-PIN")
+        for s in strat_cfg.get("strategies", {}).values()
+    )
 
     if a.report:
         if not LOG.exists():
@@ -402,11 +519,61 @@ def main() -> int:
 
     fixtures, suspeitas, abertos = collect_fixtures(df, today, now)
     rows, alerts, illiquid, sem_time = [], [], [], []
+    maker_quotes: list[str] = []
+    paper_rows: list[dict] = []
+    paper_pin_rows: list[dict] = []
+    rn1_with_pin = 0
+    rn1_in_band = 0
+    rn1_no_pin = 0
     for f in fixtures:
         comp = f["liga"]
         model, idx = get_model(comp)
         home = lookup(idx, f["markets"][0]["title"])
         away = lookup(idx, f["markets"][2]["title"])
+        if maker_mode:
+            r0 = _pin_dataset_row(df, comp, home, away, today)
+            if r0 is not None and r0[["ps_h", "ps_d", "ps_a"]].notna().all():
+                fair = market_probs(r0[["ps_h", "ps_d", "ps_a"]].to_numpy(dtype=float).reshape(1, -1))[0]
+                hs = float(strat_cfg.get("strategies", {}).get("maker_pin_fair", {}).get("half_spread", 0.02))
+                labels = ["casa", "empate", "fora"]
+                parts = []
+                for i, lab in enumerate(labels):
+                    bid = max(0.01, fair[i] - hs)
+                    ask = min(0.99, fair[i] + hs)
+                    parts.append(f"{lab} bid={bid:.3f} ask={ask:.3f} (fair={fair[i]:.3f})")
+                maker_quotes.append(f"[{comp}] {home} x {away}: " + " | ".join(parts))
+
+        if a.paper_rn1 and home and away and home != away:
+            roles = outcome_roles(f["markets"], home, away)
+            if roles:
+                ds = _pin_dataset_row(df, comp, home, away, today)
+                if ds is not None and ds[["ps_h", "ps_d", "ps_a"]].notna().all():
+                    from src.paper_rn1 import pin_fair_for_fixture
+
+                    rn1_with_pin += 1
+                    fav = max(
+                        pin_fair_for_fixture(ds, i) or 0.0 for i in range(3)
+                    )
+                    if 0.60 <= fav <= 0.80:
+                        rn1_in_band += 1
+                elif a.paper_rn1:
+                    rn1_no_pin += 1
+                pr = scan_fixture(
+                    comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
+                )
+                if pr:
+                    paper_rows.append(pr)
+
+        if paper_pin_enabled and home and away and home != away:
+            roles = outcome_roles(f["markets"], home, away)
+            if roles:
+                ds = _pin_dataset_row(df, comp, home, away, today)
+                ppr = scan_pin_gap_fixture(
+                    comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
+                )
+                if ppr:
+                    paper_pin_rows.append(ppr)
+
         if not home or not away or home == away:
             # Dizer QUAL lado falhou: listar o par esconde o time problemático.
             faltando = [n for n, t in ((f["markets"][0]["title"], home),
@@ -452,6 +619,41 @@ def main() -> int:
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
+
+    if a.paper_rn1:
+        print(
+            f"\nPAPER RN1 diagnóstico: {len(fixtures)} jogos Poly hoje | "
+            f"{rn1_with_pin} com fair Pin (ps_*/PPH) | {rn1_in_band} na faixa 0.60–0.80 | "
+            f"{rn1_no_pin} sem linha Pin no dataset"
+        )
+
+    if paper_rows:
+        plog = ensure_log()
+        newp = pd.DataFrame(paper_rows)
+        plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        plog.to_csv(PAPER_LOG, index=False)
+        print(f"PAPER RN1: {len(paper_rows)} sinais hoje → {PAPER_LOG.name}")
+        for pr in paper_rows:
+            print(f"  [{pr['liga']}] {pr['casa']} x {pr['fora']}: fair={pr['fair_pin']:.2f} "
+                  f"bid={pr['bid']:.2f} poly={pr['poly_exec']:.2f} pick={pr['pick']}")
+
+    if a.paper_rn1 and not paper_rows:
+        print("PAPER RN1: nenhum sinal executável na faixa 0.60–0.80 hoje "
+              "(volume mínimo / preço Poly).")
+
+    if paper_pin_rows:
+        plogp = ensure_pin_log()
+        newpp = pd.DataFrame(paper_pin_rows)
+        plogp = pd.concat([plogp, newpp]).drop_duplicates(subset=["slug", "pick"], keep="first")
+        plogp.to_csv(PAPER_PIN_LOG, index=False)
+        print(f"\nPAPER TAKER PIN: {len(paper_pin_rows)} sinais → {PAPER_PIN_LOG.name}")
+    elif a.paper_taker_pin:
+        print("\nPAPER TAKER PIN: nenhum gap Pin−Poly ≥ 2¢ hoje.")
+
+    if maker_quotes:
+        print("\nMAKER (fair Pinnacle ps no dataset, spread ± configurado):")
+        for x in maker_quotes:
+            print("  " + x)
 
     if alerts:
         print("\nALERTA — vantagem acima de %.0f%% (não é recomendação de aposta):" % (EDGE_MIN * 100))
