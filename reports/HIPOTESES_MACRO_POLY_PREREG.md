@@ -31,7 +31,11 @@
 **Total de testes de ROI (variantes com regra de trade):**  
 H1: 3 event types × 4 Δ = 12; H2a: 2 limiares × 2 janelas = 4; H2b: 2 = 2; H3: 3 = 3; H4: 4 = 4 → **25 testes base** (+ H5 apenas calibração).
 
-### Adendo (2026-10-17): segmentação por liquidez
+### Adendo (2026-10-17) — **PÓS-HOC** (não estava no commit inicial de pré-registro)
+
+> Este bloco foi adicionado após o primeiro pré-registro e antes da reexecução corrigida do pipeline. Conta como exploração; correção múltipla inclui estes segmentos nas versões que os aplicam.
+
+### Segmentação por liquidez (adendo)
 
 - **Dimensão extra:** cada uma das 25 variantes de ROI é avaliada em **3 tercis** de liquidez (T1 baixa, T2 média, T3 alta), usando volume USD reportado na Gamma no momento da decisão (proxy: volume acumulado do mercado; limitação documentada).
 - **Tercis:** cortes em `log1p(volume)` sobre o universo de mercados do backtest (fixos antes do holdout).

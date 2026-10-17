@@ -1,13 +1,36 @@
 from __future__ import annotations
 
+from src.macro_poly.backtest import deterministic_holdout_events
+from src.macro_poly.discovery import MacroMarket, is_fomc_rate_event
+from src.macro_poly.fomc_calendar import fomc_statement_ts
+from src.macro_poly.liquidity import compute_terciles, taker_ask_with_slippage
+from src.macro_poly.prices import price_at_or_after, price_at_or_before, spread_adjusted_ask
 from src.macro_poly.stats import (
     benjamini_hochberg,
     bonferroni,
     bootstrap_mean_ci,
     trade_roi_binary,
 )
-from src.macro_poly.prices import price_at_or_after, price_at_or_before, spread_adjusted_ask
-from src.macro_poly.liquidity import compute_terciles, taker_ask_with_slippage
+
+
+def _m(eid: str, rts: int) -> MacroMarket:
+    return MacroMarket(
+        event_id=eid,
+        event_title="t",
+        event_slug="s",
+        market_id="1",
+        question="q",
+        market_slug="ms",
+        token_yes="tok",
+        end_date="2025-01-01T00:00:00Z",
+        start_ts=rts - 86400,
+        volume=1000.0,
+        category="cpi",
+        release_ts=rts,
+        threshold_op=None,
+        threshold_pct=None,
+        outcome_yes=1,
+    )
 
 
 def test_trade_roi_win():
@@ -28,6 +51,11 @@ def test_multiple_testing():
     assert benjamini_hochberg(p)[0] <= 0.05
 
 
+def test_no_099_entry_cap():
+    p = taker_ask_with_slippage(0.995, volume_gamma_usd=1_000_000, stake_usd=25)
+    assert p > 0.995
+
+
 def test_liquidity_slippage_increases_with_low_volume():
     hi = taker_ask_with_slippage(0.5, volume_gamma_usd=5_000_000, stake_usd=25)
     lo = taker_ask_with_slippage(0.5, volume_gamma_usd=2_000, stake_usd=25)
@@ -40,8 +68,50 @@ def test_tercile_labels():
     assert t.label(50000) == "T3_high"
 
 
+def test_price_at_or_after_no_stale_fallback():
+    hist = [{"t": 100, "p": 0.4}, {"t": 200, "p": 0.6}]
+    assert price_at_or_after(hist, 250, max_lag_sec=60) is None
+    assert price_at_or_after(hist, 200, max_lag_sec=60) == 0.6
+
+
+def test_holdout_tiebreak_deterministic():
+    markets = [_m("b", 100), _m("a", 100), _m("c", 200)]
+    h1 = deterministic_holdout_events(markets, frac=0.34)
+    h2 = deterministic_holdout_events(markets, frac=0.34)
+    assert h1 == h2
+
+
+def test_fomc_march_2024_statement_day():
+    ts = fomc_statement_ts(2024, 3)
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    dt = datetime.fromtimestamp(ts, tz=ZoneInfo("America/New_York"))
+    assert dt.day == 20
+    assert dt.hour == 14
+
+
+def test_fomc_excludes_mention_markets():
+    assert not is_fomc_rate_event(
+        "Will anyone say Bank during the FED board meeting?",
+        "Will anyone say Bank 50+ times?",
+    )
+    assert is_fomc_rate_event(
+        "Fed decision in March?",
+        "Fed decreases interest rates by 25 bps after March 2024 meeting?",
+    )
+
+
+def test_h4_fade_direction():
+    p0, p1 = 0.6, 0.5
+    moved_up = p1 > p0
+    bet_yes_h4a = not moved_up
+    bet_yes_h4b = moved_up
+    assert bet_yes_h4a is True
+    assert bet_yes_h4b is False
+
+
 def test_price_lookup():
     hist = [{"t": 100, "p": 0.4}, {"t": 200, "p": 0.6}]
     assert price_at_or_before(hist, 150) == 0.4
-    assert price_at_or_after(hist, 150) == 0.6
     assert spread_adjusted_ask(0.5) == 0.505

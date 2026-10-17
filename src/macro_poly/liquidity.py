@@ -53,7 +53,8 @@ def taker_ask_with_slippage(
         return float("nan")
     touch_depth = max(250.0, volume_gamma_usd * 0.02)
     impact = 0.5 * (stake_usd / touch_depth)
-    return min(0.99, mid + BASE_HALF_SPREAD + impact)
+    p = mid + BASE_HALF_SPREAD + impact
+    return min(0.9999, max(p, mid))  # nunca abaixo do mid; sem teto artificial em 0,99
 
 
 def stake_sensitivity_rois(
