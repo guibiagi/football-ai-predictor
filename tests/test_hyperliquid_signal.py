@@ -1,6 +1,7 @@
 """Signal checks for the read-only Hyperliquid script. No network."""
 
 import json
+import os
 import socket
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -266,7 +267,11 @@ def test_new_high_ratchets_stop_and_rerun_is_idempotent():
 def test_hype_thresholds_and_flat_account():
     assert sig.decide_hype(85.90, {"size": 0.25, "upnl": -0.2}, False, datetime(2026, 10, 18).date())["action"] == "close"
     assert sig.decide_hype(85.89, {"size": 0.25, "upnl": -0.2}, False, datetime(2026, 10, 18).date())["action"] == "none"
-    assert sig.decide_hype(71.80, {"size": -1.5, "upnl": 3.0}, False, datetime(2026, 10, 18).date())["action"] == "close"
+    assert sig.decide_hype(71.80, {"size": 0.25, "upnl": 3.0}, False, datetime(2026, 10, 18).date())["action"] == "close"
+    short = sig.decide_hype(71.80, {"size": -1.5, "upnl": 3.0}, False, datetime(2026, 10, 18).date())
+    assert short["action"] == "error"
+    assert short["reason"] == "hype_short"
+    assert short["size"] == pytest.approx(-1.5)
     mid = sig.decide_hype(71.81, {"size": 0.25, "upnl": 1.25}, False, datetime(2026, 10, 18).date())
     assert mid["action"] == "none"
     assert mid["price"] == pytest.approx(71.81)
@@ -371,9 +376,12 @@ def test_state_mismatch_trusts_the_account_and_keeps_file_format():
     }
     payload, state = sig.decide_btc(candles, _account(), stale, now)
     assert payload["state_mismatch"] is True
-    assert payload["action"] == "enter"  # account is flat, so the breakout stands
+    # The long disappeared on this candle, so a breakout cannot re-enter yet.
+    assert payload["action"] == "none"
+    assert payload["reason"] == "exited_this_candle"
     assert state["position"] is None
     assert state["stop"] is None
+    assert state["last_exit_candle"] == payload["candle_time"]
     assert state["note"] == stale["note"]
     assert state["custom_flag"] == "keep-me"
     for key in (
@@ -509,6 +517,303 @@ def test_module_does_not_trade_or_read_a_key():
     assert "api_key" not in source.lower()
     assert "secret" not in source.lower()
     assert text.endswith("signal_check.py")
+
+
+def _open_state(candles, stop, highest=100.0, size=0.01, entry=100.0):
+    return {
+        "position": {
+            "entry_price": entry,
+            "size": size,
+            "entry_time": sig.ms_to_iso(candles[0]["t"]),
+        },
+        "highest_close": highest,
+        "stop": stop,
+        "last_processed_candle": sig.ms_to_iso(candles[-1]["t"]),
+    }
+
+
+def _drop_candles(close=80.0):
+    candles = _flat(25, price=100, high=101, low=99, close=100)
+    candles[-1] = _bar(24, close, high=close + 1, low=close - 1, close=close)
+    return candles
+
+
+def test_low_balance_still_exits_an_open_long():
+    candles = _drop_candles(80)
+    now = _now_after(candles)
+    state = _open_state(candles, stop=90)
+    paused_flat, _ = sig.decide_btc(candles, _account(value=11.5, withdrawable=1), None, now)
+    assert paused_flat["action"] == "pause_low_balance"
+    assert paused_flat["low_balance"] is True
+
+    hit, hit_state = sig.decide_btc(candles, _account(value=11.5, withdrawable=1, btc=_long()), state, now)
+    assert hit["action"] == "exit"
+    assert hit["reason"] == "stop_hit"
+    assert hit["low_balance"] is True
+    assert hit_state["last_exit_candle"] == hit["candle_time"]
+
+    held_candles = _drop_candles(100)
+    held, _ = sig.decide_btc(
+        held_candles,
+        _account(value=11.5, withdrawable=1, btc=_long()),
+        _open_state(held_candles, stop=90),
+        _now_after(held_candles),
+    )
+    assert held["action"] == "none"
+    assert held["reason"] == "hold"
+    assert held["low_balance"] is True
+
+
+def test_expiry_still_exits_an_open_long_and_blocks_entries():
+    candles = _drop_candles(80)
+    after = datetime(2026, 11, 19, 0, 5, tzinfo=SP)
+    flat, _ = sig.decide_btc(_breakout(), _account(), None, after)
+    assert flat["action"] == "expired"
+    assert flat.get("expired") is not True
+
+    hit, _ = sig.decide_btc(candles, _account(btc=_long()), _open_state(candles, stop=90), after)
+    assert hit["action"] == "exit"
+    assert hit["reason"] == "stop_hit"
+    assert hit["expired"] is True
+
+    held_candles = _drop_candles(100)
+    held, _ = sig.decide_btc(
+        held_candles, _account(btc=_long()), _open_state(held_candles, stop=90), after
+    )
+    assert held["action"] == "none"
+    assert held["reason"] == "hold"
+    assert held["expired"] is True
+
+    on_deadline, _ = sig.decide_btc(
+        candles,
+        _account(btc=_long()),
+        _open_state(candles, stop=90),
+        datetime(2026, 11, 18, 23, 0, tzinfo=SP),
+    )
+    assert on_deadline["action"] == "exit"
+    assert on_deadline.get("expired") is not True
+
+
+def _breakout():
+    candles = _flat(20, price=100, high=100, low=99, close=99)
+    candles.append(_bar(20, 110, high=111, low=109, close=110))
+    return candles
+
+
+def test_no_reentry_on_the_exit_candle():
+    candles = _breakout()
+    now = _now_after(candles)
+    candle = sig.ms_to_iso(candles[-1]["t"])
+    blocked, blocked_state = sig.decide_btc(
+        candles, _account(), {"position": None, "last_exit_candle": candle}, now
+    )
+    assert blocked["action"] == "none"
+    assert blocked["reason"] == "exited_this_candle"
+    assert blocked["size_usd"] is None
+
+    later = candles + [_bar(21, 120, high=121, low=119, close=120)]
+    allowed, _ = sig.decide_btc(
+        later, _account(), {"position": None, "last_exit_candle": candle}, _now_after(later)
+    )
+    assert allowed["action"] == "enter"
+
+    dropping = _drop_candles(80)
+    _hit, hit_state = sig.decide_btc(
+        dropping, _account(btc=_long()), _open_state(dropping, stop=90), _now_after(dropping)
+    )
+    assert hit_state["last_exit_candle"] == sig.ms_to_iso(dropping[-1]["t"])
+
+
+def test_record_entry_refuses_an_open_position_and_exit_is_idempotent(tmp_path, capsys):
+    now = datetime(2026, 10, 18, 12, 10, tzinfo=SP)
+    first = sig.run_record_entry(tmp_path, 130, 0.01, now=now)
+    assert first["action"] == "recorded_entry"
+    state_path = tmp_path / "btc_trend_state.json"
+    log_path = tmp_path / "btc_trend_log.md"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["highest_close"] = 130
+    state["stop"] = 124
+    state["atr14_1h"] = 2
+    state["last_closed_candle_open"] = "2026-10-18T11:00-03:00"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    before = state_path.read_bytes()
+    log_before = log_path.read_bytes()
+
+    with pytest.raises(sig.CommandError):
+        sig.run_record_entry(tmp_path, 100, 0.01, now=now + timedelta(minutes=5))
+    assert state_path.read_bytes() == before
+    assert log_path.read_bytes() == log_before
+
+    rc = sig.main(["btc", "--state-dir", str(tmp_path), "--record-entry", "100", "0.01"])
+    assert rc != 0
+    line = capsys.readouterr().out
+    assert line.count("\n") == 1
+    assert json.loads(line)["action"] == "error"
+    assert "already open" in json.loads(line)["reason"]
+    saved = json.loads(state_path.read_text(encoding="utf-8"))
+    assert saved["stop"] == 124
+    assert saved["highest_close"] == 130
+    assert log_path.read_bytes() == log_before
+
+    sig.run_record_exit(tmp_path, 120, now=now + timedelta(hours=1))
+    log_once = log_path.read_text(encoding="utf-8")
+    assert log_once.count("## ") == 2
+    assert log_once.count("exit") == 1
+    frozen = state_path.read_bytes()
+    log_frozen = log_path.read_bytes()
+    again = sig.run_record_exit(tmp_path, 120, now=now + timedelta(hours=2))
+    assert again["already_flat"] is True
+    assert state_path.read_bytes() == frozen
+    assert log_path.read_bytes() == log_frozen
+    kept = json.loads(state_path.read_text(encoding="utf-8"))
+    assert kept["last_exit_candle"]
+
+
+def test_corrupt_state_still_exits_from_the_account(tmp_path, monkeypatch):
+    candles = _drop_candles(50)
+    now = _now_after(candles)
+    (tmp_path / "btc_trend_state.json").write_text("{not-json", encoding="utf-8")
+
+    def fake(payload, timeout=20.0):
+        if payload["type"] == "candleSnapshot":
+            return [
+                {
+                    "t": c["t"],
+                    "T": c["T"],
+                    "o": str(c["o"]),
+                    "h": str(c["h"]),
+                    "l": str(c["l"]),
+                    "c": str(c["c"]),
+                }
+                for c in candles
+            ]
+        if payload["type"] == "clearinghouseState":
+            book = _clearinghouse(btc_size="0.01")
+            book["assetPositions"][0]["position"]["entryPx"] = "100"
+            return book
+        raise AssertionError(payload["type"])
+
+    monkeypatch.setattr(sig, "post_info", fake)
+    payload = sig.run_btc(tmp_path, now=now)
+    assert payload["action"] == "exit"
+    assert payload["reason"] == "stop_hit"
+    assert payload["state_mismatch"] is True
+    assert "JSON" in payload["state_error"]
+    assert payload["stop"] is not None
+    assert payload["highest_close"] >= 100
+
+    def refuse_save(*_args, **_kwargs):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(sig, "save_btc_state", refuse_save)
+    (tmp_path / "btc_trend_state.json").write_text(
+        json.dumps(_open_state(candles, stop=90)), encoding="utf-8"
+    )
+    failed = sig.run_btc(tmp_path, now=now)
+    assert failed["action"] == "exit"
+    assert failed["state_write_failed"] is True
+    assert "read-only" in failed["state_error"]
+
+
+def test_unparseable_position_is_an_error_not_flat(tmp_path, monkeypatch, capsys):
+    book = _clearinghouse(btc_size="N/A")
+    with pytest.raises(RuntimeError, match="szi"):
+        sig.parse_account(book)
+    bad_value = _clearinghouse()
+    bad_value["marginSummary"]["accountValue"] = "nope"
+    with pytest.raises(RuntimeError, match="accountValue"):
+        sig.parse_account(bad_value)
+    bad_cash = _clearinghouse()
+    bad_cash["withdrawable"] = "inf"
+    with pytest.raises(RuntimeError, match="withdrawable"):
+        sig.parse_account(bad_cash)
+
+    candles = _breakout()
+    now = _now_after(candles)
+
+    def fake(payload, timeout=20.0):
+        if payload["type"] == "candleSnapshot":
+            return [
+                {"t": c["t"], "T": c["T"], "o": c["o"], "h": c["h"], "l": c["l"], "c": c["c"]}
+                for c in candles
+            ]
+        if payload["type"] == "clearinghouseState":
+            return book
+        raise AssertionError(payload["type"])
+
+    monkeypatch.setattr(sig, "post_info", fake)
+    monkeypatch.setattr(sig, "now_sp", lambda: now)
+    rc = sig.main(["btc", "--state-dir", str(tmp_path)])
+    assert rc == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["action"] == "error"
+    assert "szi" in body["reason"]
+
+
+def test_hype_short_from_the_api_is_an_error(tmp_path):
+    def info(payload):
+        if payload["type"] == "allMids":
+            return {"HYPE": "90"}
+        if payload["type"] == "clearinghouseState":
+            return _clearinghouse(hype_size="-2.5", hype_upnl="4")
+        raise AssertionError(payload["type"])
+
+    result = sig.run_hype(tmp_path, mark_asked=False, now=datetime(2026, 10, 18, tzinfo=SP), fetch=info)
+    assert result["action"] == "error"
+    assert result["reason"] == "hype_short"
+    assert result["size"] == pytest.approx(-2.5)
+    assert result["price"] == pytest.approx(90)
+
+
+def test_state_is_not_rewritten_when_nothing_material_changed(tmp_path, monkeypatch):
+    candles = _flat(21, price=100, high=100, low=99, close=99)
+    now = _now_after(candles)
+    later = now + timedelta(minutes=20)
+
+    def fake(payload, timeout=20.0):
+        if payload["type"] == "candleSnapshot":
+            return [
+                {"t": c["t"], "T": c["T"], "o": c["o"], "h": c["h"], "l": c["l"], "c": c["c"]}
+                for c in candles
+            ]
+        if payload["type"] == "clearinghouseState":
+            return _clearinghouse()
+        raise AssertionError(payload["type"])
+
+    monkeypatch.setattr(sig, "post_info", fake)
+    first = sig.run_btc(tmp_path, now=now)
+    assert first["action"] == "none"
+    path = tmp_path / "btc_trend_state.json"
+    frozen = path.read_bytes()
+    second = sig.run_btc(tmp_path, now=later)
+    assert second["action"] == "none"
+    assert path.read_bytes() == frozen
+
+
+def test_atomic_write_fsyncs_and_replaces_a_unique_temp(tmp_path, monkeypatch):
+    seen = {}
+    real_replace = os.replace
+    real_fsync = os.fsync
+
+    def replace(src, dst):
+        seen["src"] = src
+        seen["dst"] = dst
+        assert os.path.basename(src) != os.path.basename(dst)
+        assert str(src).endswith(".tmp")
+        return real_replace(src, dst)
+
+    def fsync(fd):
+        seen["fsync"] = fd
+        return real_fsync(fd)
+
+    monkeypatch.setattr(sig.os, "replace", replace)
+    monkeypatch.setattr(sig.os, "fsync", fsync)
+    target = tmp_path / "btc_trend_state.json"
+    sig._atomic_write(target, {"position": None, "stop": 1})
+    assert seen["dst"] == target
+    assert "fsync" in seen
+    assert json.loads(target.read_text(encoding="utf-8"))["stop"] == 1
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def _clearinghouse(hype_size="0", hype_upnl="0", btc_size=None):

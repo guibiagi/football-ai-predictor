@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import argparse
 import copy
+import fcntl
 import json
 import math
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -200,6 +203,7 @@ def default_btc_state() -> dict:
         "highest_close": None,
         "stop": None,
         "last_processed_candle": None,
+        "last_exit_candle": None,
         "note": "Criado na primeira execução; sem posição BTC na conta real.",
     }
 
@@ -208,26 +212,88 @@ def default_hype_state() -> dict:
     return {"asked": False, "asked_at": None}
 
 
+class StateLoadError(Exception):
+    """The state file exists but cannot be used. The account is still authoritative."""
+
+
+class CommandError(Exception):
+    """A caller command was refused. main() prints one JSON line and exits non-zero."""
+
+    def __init__(self, reason: str, code: int = 1):
+        super().__init__(reason)
+        self.reason = reason
+        self.code = code
+
+
 def _load_json(path: Path, default: dict) -> dict:
     if not path.exists():
         return copy.deepcopy(default)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise StateLoadError(f"unreadable {path.name}: {exc}") from exc
+    try:
+        data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"invalid JSON in {path.name}: {exc}") from exc
+        raise StateLoadError(f"invalid JSON in {path.name}: {exc}") from exc
     if not isinstance(data, dict):
-        raise RuntimeError(f"{path.name} must be a JSON object")
+        raise StateLoadError(f"{path.name} must be a JSON object")
     merged = copy.deepcopy(default)
     merged.update(data)
     return merged
 
 
 def _atomic_write(path: Path, payload: dict) -> None:
+    """Unique temp file in the destination directory, fsync, then os.replace."""
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        raise
+
+
+class _StateLock:
+    """Exclusive lock so two signal runs cannot clobber the same state file."""
+
+    def __init__(self, state_dir: Path):
+        self.state_dir = Path(state_dir)
+        self.handle = None
+
+    def __enter__(self):
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.handle = open(self.state_dir / ".state.lock", "a+", encoding="utf-8")
+        fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.handle is not None:
+            try:
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            finally:
+                self.handle.close()
+                self.handle = None
+        return False
+
+
+def _material(state: dict | None):
+    """Comparable snapshot. last_check moves every run and does not count as a change."""
+    if state is None:
+        return None
+    data = copy.deepcopy(state)
+    data.pop("last_check", None)
+    return json.loads(json.dumps(data, ensure_ascii=False, sort_keys=True))
 
 
 def load_btc_state(state_dir: Path) -> dict:
@@ -261,12 +327,38 @@ def append_btc_log(state_dir: Path, block: str) -> None:
 
 
 def decide_hype(mid: float, position: dict | None, asked: bool, today) -> dict:
-    """HYPE actions. `position` is None when the account has no HYPE size."""
+    """HYPE actions. `position` is None when the account has no HYPE size.
+
+    `close` is only for a long. A short is reported as an error so the caller
+    does not send a reduce-only close in the wrong direction.
+    """
     price = clean_float(mid, 8)
     if position is None:
         return {"action": "gone", "price": price, "size": 0.0, "upnl": 0.0}
-    size = clean_float(position.get("size"), 8)
+    try:
+        size_raw = float(position.get("size"))
+    except (TypeError, ValueError):
+        return {
+            "action": "error",
+            "reason": "unparseable hype size",
+            "price": price,
+            "size": None,
+            "upnl": None,
+        }
+    if not math.isfinite(size_raw):
+        return {
+            "action": "error",
+            "reason": "non-finite hype size",
+            "price": price,
+            "size": None,
+            "upnl": None,
+        }
+    size = clean_float(size_raw, 8)
     upnl = clean_float(position.get("upnl"), 8)
+    if size_raw < 0:
+        return {"action": "error", "reason": "hype_short", "price": price, "size": size, "upnl": upnl}
+    if size_raw == 0:
+        return {"action": "gone", "price": price, "size": 0.0, "upnl": 0.0}
     if price is not None and (price >= HYPE_HIGH or price <= HYPE_LOW):
         action = "close"
     elif today >= HYPE_DEADLINE and not asked:
@@ -337,7 +429,39 @@ def advance_trail(
     return highest, stop, cursor
 
 
-def decide_btc(candles: list[dict], account: dict, state: dict | None, now: datetime) -> tuple[dict, dict]:
+def rebuild_long_trail(closed: list[dict], atrs: list[float | None], entry_px, size):
+    """Rebuild a lost trail from the account fill and every closed candle.
+
+    The entry time is the oldest closed candle in the window. That is the
+    conservative assumption: the position may have been open for the whole
+    lookback, so highs in that window still ratchet the stop.
+    """
+    entry_time_ms = int(closed[0]["t"])
+    entry_price = None if entry_px is None else float(entry_px)
+    highest, stop, cursor = advance_trail(
+        closed, atrs, None, None, None, entry_time_ms, entry_price
+    )
+    last_close = float(closed[-1]["c"])
+    if highest is None:
+        highest = entry_price if entry_price is not None else last_close
+    if stop is None:
+        atr = atrs[-1]
+        stop = float(highest) - ATR_MULT * float(atr)
+    position = {
+        "entry_price": clean_float(entry_price, 8),
+        "size": clean_float(size, 8),
+        "entry_time": ms_to_iso(entry_time_ms),
+    }
+    return position, highest, stop, cursor
+
+
+def decide_btc(
+    candles: list[dict],
+    account: dict,
+    state: dict | None,
+    now: datetime,
+    state_error: str | None = None,
+) -> tuple[dict, dict]:
     """BTC signal plus the state to persist. `candles` may include the forming bar."""
     now = as_sp(now)
     now_ms = int(now.timestamp() * 1000)
@@ -368,7 +492,7 @@ def decide_btc(candles: list[dict], account: dict, state: dict | None, now: date
     state_open = _position_is_open(state_pos)
 
     mismatch = False
-    if acct_short or state_open != acct_long:
+    if state_error or acct_short or state_open != acct_long:
         mismatch = True
     elif state_open and acct_long and isinstance(state_pos, dict):
         if _sizes_disagree(state_pos.get("size"), acct_size):
@@ -378,7 +502,14 @@ def decide_btc(candles: list[dict], account: dict, state: dict | None, now: date
     stop = new_state.get("stop")
     last_processed_ms = parse_time_ms(new_state.get("last_processed_candle"))
 
-    if acct_long:
+    if acct_long and state_error:
+        # The file cannot be trusted. Replay the lookback from the fill price.
+        entry_px = acct.get("entry_px")
+        position, highest, stop, last_processed_ms = rebuild_long_trail(
+            closed, atrs, entry_px, acct_size
+        )
+        new_state["position"] = position
+    elif acct_long:
         entry_px = acct.get("entry_px")
         if not state_open:
             # Account is long and the file does not know it. Start the trail
@@ -423,6 +554,9 @@ def decide_btc(candles: list[dict], account: dict, state: dict | None, now: date
             state_pos["size"] = clean_float(acct_size, 8)
             new_state["position"] = state_pos
     else:
+        # Just observed the long disappear: do not re-enter on this same candle.
+        if state_open:
+            new_state["last_exit_candle"] = candle_iso
         new_state["position"] = None
         highest = None
         stop = None
@@ -441,38 +575,46 @@ def decide_btc(candles: list[dict], account: dict, state: dict | None, now: date
         ms_to_iso(last_processed_ms) if acct_long and last_processed_ms is not None else None
     )
 
+    # Expiry and a low balance block new entries only. An open long still
+    # trails, and a stop hit is still an exit.
     size_usd = None
-    if today > BTC_EXPIRY:
-        action = "expired"
-        reason = "after_2026-11-18"
-    elif account_value < MIN_ACCOUNT_VALUE:
-        action = "pause_low_balance"
-        reason = "account_value_below_12"
-    elif acct_short:
+    low_balance = account_value < MIN_ACCOUNT_VALUE
+    expired_date = today > BTC_EXPIRY
+    if acct_short:
         action = "none"
         reason = "unexpected_short"
-    elif not acct_long:
-        if last_close > level:
-            size_usd = clean_float(withdrawable * 2.0 * 0.9, 6)
-            if size_usd is None or size_usd < MIN_SIZE_USD:
-                action = "none"
-                reason = f"size_usd {size_usd} < {MIN_SIZE_USD:.0f}"
-            else:
-                action = "enter"
-                reason = "breakout"
+    elif acct_long:
+        if (
+            _stop_is_active(new_state.get("position"), int(last["T"]))
+            and stop is not None
+            and last_close < float(stop)
+        ):
+            action = "exit"
+            reason = "stop_hit"
+            new_state["last_exit_candle"] = candle_iso
         else:
             action = "none"
-            reason = "no_breakout"
-    elif (
-        _stop_is_active(new_state.get("position"), int(last["T"]))
-        and stop is not None
-        and last_close < float(stop)
-    ):
-        action = "exit"
-        reason = "stop_hit"
+            reason = "hold"
+    elif expired_date:
+        action = "expired"
+        reason = "after_2026-11-18"
+    elif low_balance:
+        action = "pause_low_balance"
+        reason = "account_value_below_12"
+    elif last_close > level and new_state.get("last_exit_candle") == candle_iso:
+        action = "none"
+        reason = "exited_this_candle"
+    elif last_close > level:
+        size_usd = clean_float(withdrawable * 2.0 * 0.9, 6)
+        if size_usd is None or size_usd < MIN_SIZE_USD:
+            action = "none"
+            reason = f"size_usd {size_usd} < {MIN_SIZE_USD:.0f}"
+        else:
+            action = "enter"
+            reason = "breakout"
     else:
         action = "none"
-        reason = "hold"
+        reason = "no_breakout"
 
     payload = {
         "action": action,
@@ -487,7 +629,14 @@ def decide_btc(candles: list[dict], account: dict, state: dict | None, now: date
         "reason": reason,
         "candle_time": candle_iso,
     }
+    if low_balance:
+        payload["low_balance"] = True
+    if acct_long and expired_date:
+        payload["expired"] = True
     if mismatch:
+        payload["state_mismatch"] = True
+    if state_error:
+        payload["state_error"] = state_error
         payload["state_mismatch"] = True
     return payload, new_state
 
@@ -505,9 +654,22 @@ def _stop_is_active(position, last_close_ms: int) -> bool:
 # --- account parsing --------------------------------------------------------
 
 
+def _require_float(value, field: str) -> float:
+    """Parse a finite number. A bad value is an error, never a flat position."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"unparseable {field}") from exc
+    if not math.isfinite(number):
+        raise RuntimeError(f"non-finite {field}")
+    return number
+
+
 def parse_account(data: dict) -> dict:
     if not isinstance(data, dict):
         raise RuntimeError(f"clearinghouseState returned {type(data).__name__}")
+    if "error" in data and "marginSummary" not in data:
+        raise RuntimeError(f"clearinghouseState: {data.get('error')}")
     margin = data.get("marginSummary")
     if not isinstance(margin, dict) or "accountValue" not in margin:
         raise RuntimeError("clearinghouseState missing marginSummary.accountValue")
@@ -516,30 +678,30 @@ def parse_account(data: dict) -> dict:
     positions = data.get("assetPositions")
     if not isinstance(positions, list):
         raise RuntimeError("clearinghouseState missing assetPositions")
+    account_value = _require_float(margin["accountValue"], "accountValue")
+    withdrawable = _require_float(data["withdrawable"], "withdrawable")
     found = {"BTC": None, "HYPE": None}
     for item in positions:
         if not isinstance(item, dict):
             continue
         pos = item.get("position") or {}
+        if not isinstance(pos, dict):
+            raise RuntimeError("asset position is not an object")
         coin = pos.get("coin")
         if coin not in found:
             continue
-        try:
-            size = float(pos.get("szi") or 0)
-        except (TypeError, ValueError):
-            size = 0.0
+        if "szi" not in pos:
+            raise RuntimeError(f"missing {coin}.szi")
+        size = _require_float(pos.get("szi"), f"{coin}.szi")
         if abs(size) < 1e-12:
             continue
-        entry = pos.get("entryPx")
-        upnl = pos.get("unrealizedPnl")
-        found[coin] = {
-            "size": size,
-            "entry_px": None if entry in (None, "") else float(entry),
-            "upnl": 0.0 if upnl in (None, "") else float(upnl),
-        }
+        entry_px = _require_float(pos.get("entryPx"), f"{coin}.entryPx")
+        upnl_raw = pos.get("unrealizedPnl")
+        upnl = 0.0 if upnl_raw in (None, "") else _require_float(upnl_raw, f"{coin}.unrealizedPnl")
+        found[coin] = {"size": size, "entry_px": entry_px, "upnl": upnl}
     return {
-        "account_value": float(margin["accountValue"]),
-        "withdrawable": float(data["withdrawable"]),
+        "account_value": account_value,
+        "withdrawable": withdrawable,
         "btc": found["BTC"],
         "hype": found["HYPE"],
     }
@@ -605,15 +767,46 @@ def run_hype(state_dir: Path, mark_asked: bool, now: datetime | None = None, fet
     fetch = post_info if fetch is None else fetch
     now = as_sp(now or now_sp())
     if mark_asked:
-        state = load_hype_state(state_dir)
-        state["asked"] = True
-        state["asked_at"] = iso_sp(now)
-        save_hype_state(state_dir, state)
+        with _StateLock(state_dir):
+            try:
+                state = load_hype_state(state_dir)
+            except StateLoadError:
+                state = default_hype_state()
+            state["asked"] = True
+            state["asked_at"] = iso_sp(now)
+            save_hype_state(state_dir, state)
         return {"action": "marked_asked", "asked_at": state["asked_at"]}
     account = fetch_account(fetch)
     mid = parse_mid(fetch_mids(fetch), "HYPE")
-    asked = bool(load_hype_state(state_dir).get("asked"))
+    try:
+        asked = bool(load_hype_state(state_dir).get("asked"))
+    except StateLoadError:
+        asked = False
     return decide_hype(mid, account.get("hype"), asked, now.date())
+
+
+def _btc_locked(state_dir: Path, candles, account, now: datetime) -> dict:
+    state_error = None
+    state = None
+    try:
+        state = load_btc_state(state_dir)
+    except StateLoadError as exc:
+        state_error = one_line(exc)
+        state = None
+    payload, new_state = decide_btc(candles, account, state, now, state_error=state_error)
+    if state_error:
+        payload["state_error"] = state_error
+        payload["state_mismatch"] = True
+    try:
+        if _material(state) != _material(new_state):
+            new_state["last_check"] = iso_sp(now)
+            save_btc_state(state_dir, new_state)
+    except Exception as exc:
+        # A full disk or a permissions error must not hide an exit.
+        payload["state_write_failed"] = True
+        payload.setdefault("state_error", one_line(exc))
+        payload["state_mismatch"] = True
+    return payload
 
 
 def run_btc(state_dir: Path, now: datetime | None = None, fetch=None) -> dict:
@@ -621,10 +814,17 @@ def run_btc(state_dir: Path, now: datetime | None = None, fetch=None) -> dict:
     now = as_sp(now or now_sp())
     candles = fetch_btc_candles(now, fetch)
     account = fetch_account(fetch)
-    state = load_btc_state(state_dir)
-    payload, new_state = decide_btc(candles, account, state, now)
-    save_btc_state(state_dir, new_state)
-    return payload
+    try:
+        with _StateLock(state_dir):
+            return _btc_locked(state_dir, candles, account, now)
+    except OSError as exc:
+        payload, _new_state = decide_btc(
+            candles, account, None, now, state_error=one_line(exc)
+        )
+        payload["state_write_failed"] = True
+        payload["state_error"] = one_line(exc)
+        payload["state_mismatch"] = True
+        return payload
 
 
 def run_record_entry(state_dir: Path, price: float, size: float, now: datetime | None = None) -> dict:
@@ -633,27 +833,34 @@ def run_record_entry(state_dir: Path, price: float, size: float, now: datetime |
     if not math.isfinite(size) or size <= 0:
         raise ValueError("entry size must be positive")
     now = as_sp(now or now_sp())
-    state = load_btc_state(state_dir)
-    atr = state.get("atr14_1h")
     stamp = iso_sp(now)
-    state["position"] = {
-        "entry_price": clean_float(price, 8),
-        "size": clean_float(size, 8),
-        "entry_time": stamp,
-    }
-    state["highest_close"] = clean_float(price, 8)
-    if atr is None:
-        state["stop"] = None
-    else:
-        state["stop"] = clean_float(float(price) - ATR_MULT * float(atr), 6)
-    # The signal candle already closed before the fill. Do not treat its close
-    # as a post-entry high; the next closed bar is the first one that counts.
-    state["last_processed_candle"] = state.get("last_closed_candle_open")
-    save_btc_state(state_dir, state)
-    append_btc_log(
-        state_dir,
-        f"## {stamp} entry\n- price: {clean_float(price, 8)}\n- size: {clean_float(size, 8)}\n\n",
-    )
+    with _StateLock(state_dir):
+        try:
+            state = load_btc_state(state_dir)
+        except StateLoadError as exc:
+            raise CommandError(f"cannot record entry: {exc}") from exc
+        if _position_is_open(state.get("position")):
+            raise CommandError("position already open")
+        atr = state.get("atr14_1h")
+        state["position"] = {
+            "entry_price": clean_float(price, 8),
+            "size": clean_float(size, 8),
+            "entry_time": stamp,
+        }
+        state["highest_close"] = clean_float(price, 8)
+        if atr is None:
+            state["stop"] = None
+        else:
+            state["stop"] = clean_float(float(price) - ATR_MULT * float(atr), 6)
+        # The signal candle already closed before the fill. Do not treat its close
+        # as a post-entry high; the next closed bar is the first one that counts.
+        state["last_processed_candle"] = state.get("last_closed_candle_open")
+        state["last_check"] = stamp
+        save_btc_state(state_dir, state)
+        append_btc_log(
+            state_dir,
+            f"## {stamp} entry\n- price: {clean_float(price, 8)}\n- size: {clean_float(size, 8)}\n\n",
+        )
     return {
         "action": "recorded_entry",
         "price": clean_float(price, 8),
@@ -666,14 +873,30 @@ def run_record_exit(state_dir: Path, price: float, now: datetime | None = None) 
     if not math.isfinite(price) or price <= 0:
         raise ValueError("exit price must be positive")
     now = as_sp(now or now_sp())
-    state = load_btc_state(state_dir)
     stamp = iso_sp(now)
-    state["position"] = None
-    state["highest_close"] = None
-    state["stop"] = None
-    state["last_processed_candle"] = None
-    save_btc_state(state_dir, state)
-    append_btc_log(state_dir, f"## {stamp} exit\n- price: {clean_float(price, 8)}\n\n")
+    with _StateLock(state_dir):
+        corrupt = False
+        try:
+            state = load_btc_state(state_dir)
+        except StateLoadError:
+            state = default_btc_state()
+            corrupt = True
+        if not corrupt and not _position_is_open(state.get("position")):
+            return {
+                "action": "recorded_exit",
+                "price": clean_float(price, 8),
+                "time": stamp,
+                "already_flat": True,
+            }
+        if not state.get("last_exit_candle"):
+            state["last_exit_candle"] = state.get("last_closed_candle_open")
+        state["position"] = None
+        state["highest_close"] = None
+        state["stop"] = None
+        state["last_processed_candle"] = None
+        state["last_check"] = stamp
+        save_btc_state(state_dir, state)
+        append_btc_log(state_dir, f"## {stamp} exit\n- price: {clean_float(price, 8)}\n\n")
     return {"action": "recorded_exit", "price": clean_float(price, 8), "time": stamp}
 
 
@@ -732,6 +955,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except SystemExit:
         raise
+    except CommandError as exc:
+        emit({"action": "error", "reason": exc.reason})
+        return exc.code
     except Exception as exc:
         emit({"action": "error", "reason": one_line(exc)})
         return 0
