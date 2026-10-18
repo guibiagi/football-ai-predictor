@@ -980,6 +980,7 @@ def test_lock_timeout_reads_the_state_file(tmp_path, monkeypatch):
 
 def test_lookup_uses_user_fills_when_the_window_query_has_no_open():
     calls = []
+    when = int(datetime(2026, 10, 17, 12, tzinfo=SP).timestamp() * 1000)
 
     def fetch(payload):
         calls.append(payload["type"])
@@ -992,31 +993,180 @@ def test_lookup_uses_user_fills_when_the_window_query_has_no_open():
                     "coin": "BTC",
                     "dir": "Open Long",
                     "side": "B",
-                    "time": 1234,
+                    "time": when,
                     "startPosition": "0",
+                    "sz": "0.01",
                 }
             ]
         raise AssertionError(payload["type"])
 
     found = sig.lookup_open_long_ms(fetch, datetime(2026, 10, 18, tzinfo=SP))
-    assert found == 1234
+    assert found == when
     assert calls == ["userFillsByTime", "userFills"]
 
 
-def test_opening_buy_is_the_latest_btc_open_not_an_add():
-    fills = [
-        {"coin": "BTC", "side": "B", "dir": "Open Long", "time": 1_000, "startPosition": "0"},
-        {"coin": "BTC", "side": "B", "dir": "Open Long", "time": 5_000, "startPosition": "0"},
-        {"coin": "BTC", "side": "B", "dir": "Buy", "time": 9_000, "startPosition": "0.01"},
-        {"coin": "HYPE", "side": "B", "dir": "Open Long", "time": 9_999, "startPosition": "0"},
-        {"coin": "BTC", "side": "A", "dir": "Close Long", "time": 8_000, "startPosition": "0.02"},
+def test_opening_buy_is_the_start_of_the_current_long():
+    now = datetime(2026, 10, 18, 12, tzinfo=SP)
+    now_ms = int(now.timestamp() * 1000)
+    t1 = now_ms - 10 * sig.HOUR_MS
+    t2 = now_ms - 6 * sig.HOUR_MS
+    t3 = now_ms - 3 * sig.HOUR_MS
+    # An add is also labeled Open Long. The entry stays at the flat-to-long fill.
+    still_open = [
+        {"coin": "BTC", "side": "B", "dir": "Open Long", "time": t1, "startPosition": "0", "sz": "0.02"},
+        {
+            "coin": "BTC",
+            "side": "B",
+            "dir": "Open Long",
+            "time": t2,
+            "startPosition": "0.02",
+            "sz": "0.01",
+        },
+        {"coin": "HYPE", "side": "B", "dir": "Open Long", "time": t3, "startPosition": "0", "sz": "1"},
     ]
-    assert sig.opening_buy_time_ms(fills) == 5_000
+    assert sig.opening_buy_time_ms(still_open, now_ms) == t1
+    # A reduce that stays long, then another Open Long add, is still the first open.
+    reduced = still_open + [
+        {"coin": "BTC", "side": "A", "dir": "Close Long", "time": t2 + 1000, "startPosition": "0.03", "sz": "0.01"},
+        {
+            "coin": "BTC",
+            "side": "B",
+            "dir": "Open Long",
+            "time": t3,
+            "startPosition": "0.02",
+            "sz": "0.01",
+        },
+    ]
+    assert sig.opening_buy_time_ms(reduced, now_ms) == t1
+    # Flat, then a new long: the current position starts at the new open.
+    reopened = [
+        {"coin": "BTC", "side": "B", "dir": "Open Long", "time": t1, "startPosition": "0", "sz": "0.02"},
+        {"coin": "BTC", "side": "A", "dir": "Close Long", "time": t2, "startPosition": "0.02", "sz": "0.02"},
+        {"coin": "BTC", "side": "B", "dir": "Short > Long", "time": t3, "startPosition": "-0.01", "sz": "0.02"},
+    ]
+    assert sig.opening_buy_time_ms(reopened, now_ms) == t3
+    # Seconds are scaled. A millisecond stamp in the far future is ignored.
     assert sig.opening_buy_time_ms(
-        [{"coin": "BTC", "side": "B", "time": 42, "startPosition": "0"}]
-    ) == 42
-    assert sig.opening_buy_time_ms([]) is None
-    assert sig.opening_buy_time_ms({"error": "down"}) is None
+        [{"coin": "BTC", "side": "B", "dir": "Open Long", "time": t1 / 1000, "startPosition": "0", "sz": "0.01"}],
+        now_ms,
+    ) == t1
+    assert sig.opening_buy_time_ms(
+        [{"coin": "BTC", "side": "B", "dir": "Open Long", "time": 1e18, "startPosition": "0", "sz": "0.01"}],
+        now_ms,
+    ) is None
+    assert sig.opening_buy_time_ms(
+        [{"coin": "BTC", "side": "B", "time": -1e15, "startPosition": "0"}],
+        now_ms,
+    ) is None
+    assert sig.opening_buy_time_ms([], now_ms) is None
+    assert sig.opening_buy_time_ms({"error": "down"}, now_ms) is None
+
+
+def test_future_entry_time_still_exits_below_the_stop():
+    candles = _drop_candles(96)
+    now = _now_after(candles)
+    account = _account(btc=_long(entry=100))
+    state = _open_state(candles, stop=97, highest=100)
+    state["position"]["entry_time"] = "2027-10-18T10:00:00-03:00"
+    payload, _new = sig.decide_btc(candles, account, state, now)
+    assert payload["action"] == "exit"
+    assert payload["reason"] == "stop_hit"
+    assert payload["last_close"] == pytest.approx(96)
+    assert payload["stop"] >= 97
+    assert "entry_time" in payload["state_error"]
+    assert "future" in payload["state_error"]
+
+    later = dict(state)
+    later["position"] = dict(state["position"])
+    later["position"]["entry_time"] = sig.iso_sp(now + timedelta(hours=2))
+    also, _new = sig.decide_btc(candles, account, later, now)
+    assert also["action"] == "exit"
+    assert also["stop"] >= 97
+
+
+def test_naive_entry_time_does_not_silence_the_stop():
+    candles = _drop_candles(96)
+    now = _now_after(candles)
+    state = _open_state(candles, stop=97, highest=100)
+    # Written as UTC with no zone. Reading it as São Paulo would put it ahead of the clock.
+    state["position"]["entry_time"] = "2026-10-18T15:00:00"
+    payload, _new = sig.decide_btc(candles, _account(btc=_long(entry=100)), state, now)
+    assert payload["action"] == "exit"
+    assert payload["reason"] == "stop_hit"
+    assert payload["stop"] >= 97
+    assert "naive" in payload["state_error"]
+
+
+def test_last_processed_year_9999_does_not_error(tmp_path, monkeypatch, capsys):
+    candles = _drop_candles(80)
+    now = _now_after(candles)
+    state = _open_state(candles, stop=90, highest=100)
+    state["last_processed_candle"] = "9999-12-31T23:59-03:00"
+    payload, _new = sig.decide_btc(candles, _account(btc=_long(entry=100)), state, now)
+    assert payload["action"] == "exit"
+    assert payload["reason"] == "stop_hit"
+    assert payload["stop"] >= 90
+    assert "state_error" in payload
+    assert "ValueError" not in payload["reason"]
+
+    (tmp_path / "btc_trend_state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    def fake(payload, timeout=20.0):
+        if payload["type"] == "candleSnapshot":
+            return _candle_rows(candles)
+        if payload["type"] == "clearinghouseState":
+            return _btc_book(entry="100")
+        if payload["type"] in ("userFills", "userFillsByTime"):
+            return [{"coin": "BTC", "side": "B", "dir": "Open Long", "time": 1e18, "startPosition": "0"}]
+        raise AssertionError(payload["type"])
+
+    monkeypatch.setattr(sig, "post_info", fake)
+    monkeypatch.setattr(sig, "now_sp", lambda: now)
+    rc = sig.main(["btc", "--state-dir", str(tmp_path)])
+    assert rc == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["action"] == "exit"
+    assert body["reason"] == "stop_hit"
+    assert "year" not in body["reason"]
+    assert "ValueError" not in json.dumps(body)
+    saved = json.loads((tmp_path / "btc_trend_state.json").read_text(encoding="utf-8"))
+    assert "9999" not in json.dumps(saved)
+    assert sig.validate_state_fields(saved, now_ms=int(now.timestamp() * 1000)) is None
+
+
+def test_nonpositive_stop_is_rebuilt():
+    candles = _drop_candles(80)
+    now = _now_after(candles)
+    state = _open_state(candles, stop=0, highest=100)
+    payload, _new = sig.decide_btc(candles, _account(btc=_long(entry=100)), state, now)
+    assert payload["action"] == "exit"
+    assert payload["reason"] == "stop_hit"
+    assert payload["stop"] > 0
+    assert "stop" in payload["state_error"]
+
+    negative = _open_state(candles, stop=-5, highest=100)
+    again, _new = sig.decide_btc(candles, _account(btc=_long(entry=100)), negative, now)
+    assert again["action"] == "exit"
+    assert again["stop"] > 80
+
+
+def test_unrelated_bad_field_keeps_the_stop():
+    candles = _flat(25, price=100, high=101, low=99, close=100)
+    candles[-1] = _bar(24, 126, high=127, low=125, close=126)
+    now = _now_after(candles)
+    state = _open_state(candles, stop=124.5, highest=130)
+    state["account_value_usd"] = "oops"
+    state["atr14_1h"] = "nope"
+    state["last_exit_candle"] = "zz"
+    payload, new_state = sig.decide_btc(candles, _account(btc=_long()), state, now)
+    assert payload["action"] == "none"
+    assert payload["reason"] == "hold"
+    assert payload["stop"] == pytest.approx(124.5)
+    assert payload["last_close"] == pytest.approx(126)
+    assert "state_error" not in payload
+    assert new_state["stop"] == pytest.approx(124.5)
+    assert new_state["highest_close"] == pytest.approx(130)
+    assert new_state["last_exit_candle"] is None
 
 
 def test_unparseable_position_is_an_error_not_flat(tmp_path, monkeypatch, capsys):

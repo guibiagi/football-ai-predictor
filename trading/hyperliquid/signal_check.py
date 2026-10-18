@@ -47,6 +47,11 @@ CANDLE_LOOKBACK_HOURS = 400
 HOUR_MS = 3_600_000
 SIZE_TOLERANCE_FRAC = 0.01
 PRICE_TOLERANCE_FRAC = 1e-4
+# Timestamps outside this window are not a real entry or candle. 1e11 ms is
+# March 1973, so a smaller positive epoch is seconds and has to be scaled.
+EARLIEST_MS = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+TIME_SKEW_MS = 5 * 60 * 1000
+SECONDS_EPOCH_LIMIT = 100_000_000_000
 # A stuck holder must not block an exit. The wait is polled so a free lock
 # is taken immediately.
 LOCK_TIMEOUT_S = 10.0
@@ -78,6 +83,20 @@ def ms_to_sp(ms: int) -> datetime:
 
 def ms_to_iso(ms: int) -> str:
     return ms_to_sp(ms).isoformat(timespec="minutes")
+
+
+def safe_ms_to_iso(ms) -> str | None:
+    """Format a state-derived timestamp. Out-of-range values return None."""
+    try:
+        ms = int(ms)
+    except (TypeError, ValueError):
+        return None
+    if ms < EARLIEST_MS:
+        return None
+    try:
+        return ms_to_iso(ms)
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _finite_number(value):
@@ -495,17 +514,107 @@ def advance_trail(
     return highest, stop, cursor
 
 
-def validate_state_fields(state) -> str | None:
-    """Name the first unusable field. Never raises.
+def _is_naive_timestamp(value) -> bool:
+    """True for an ISO timestamp that carries no zone. Numbers are absolute."""
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    if not text:
+        return False
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return False
+    return parsed.tzinfo is None
 
-    Nulls are fine. An open position needs a numeric entry price and size and
-    a parseable entry time; a file from the older format (size only) does not.
+
+def _entry_was_a_timestamp(value) -> bool:
+    """The entry field is a timestamp, even if the clock or the zone is wrong."""
+    if value is None or isinstance(value, bool):
+        return False
+    if _is_naive_timestamp(value):
+        return True
+    return parse_time_ms(value) is not None
+
+
+def _timestamp_issue(value, *, latest_ms, label: str) -> str | None:
+    """None when the field is absent or believable. Never raises."""
+    if value is None:
+        return None
+    if _is_naive_timestamp(value):
+        return f"naive {label}"
+    ms = parse_time_ms(value)
+    if ms is None:
+        return f"malformed {label}"
+    if ms < EARLIEST_MS:
+        return f"{label} before 2024"
+    if latest_ms is not None and ms > latest_ms:
+        return f"{label} in the future"
+    return None
+
+
+def normalize_epoch_ms(value, now_ms) -> int | None:
+    """Milliseconds for a plausible fill time. Seconds are scaled. Others are dropped."""
+    number = _finite_number(value)
+    if number is None or now_ms is None:
+        return None
+    if abs(number) < SECONDS_EPOCH_LIMIT:
+        number *= 1000.0
+    ms = int(number)
+    latest = int(now_ms) + TIME_SKEW_MS
+    if ms < EARLIEST_MS or ms > latest:
+        return None
+    return ms
+
+
+def assess_state(state, now_ms=None, last_closed_open_ms=None) -> dict:
+    """Split bad fields. A trail problem rebuilds; a cosmetic one is only cleared.
+
+    A positive stop stays in force when the entry is a real timestamp, including
+    a future or zone-less one. A missing entry or a non-positive stop does not
+    describe a trail worth keeping. Never raises.
     """
+    empty = {"trail_error": None, "cosmetic_error": None, "trust_stop": False}
     if not isinstance(state, dict):
-        return "state is not an object"
+        empty["trail_error"] = "state is not an object"
+        return empty
+    entry_latest = None if now_ms is None else int(now_ms) + TIME_SKEW_MS
+    processed_caps = []
+    if last_closed_open_ms is not None:
+        processed_caps.append(int(last_closed_open_ms))
+    if now_ms is not None:
+        processed_caps.append(int(now_ms) + TIME_SKEW_MS)
+    processed_latest = min(processed_caps) if processed_caps else None
+
+    trail: list[str] = []
+    cosmetic: list[str] = []
+    stop_bad = False
+    if "stop" in state and state.get("stop") is not None:
+        stop_n = _finite_number(state.get("stop"))
+        if stop_n is None:
+            trail.append("non-numeric stop")
+            stop_bad = True
+        elif stop_n <= 0:
+            trail.append("non-positive stop")
+            stop_bad = True
+    if "highest_close" in state and state.get("highest_close") is not None:
+        if _finite_number(state.get("highest_close")) is None:
+            trail.append("non-numeric highest_close")
+    if "last_processed_candle" in state:
+        issue = _timestamp_issue(
+            state.get("last_processed_candle"),
+            latest_ms=processed_latest,
+            label="last_processed_candle",
+        )
+        if issue:
+            trail.append(issue)
+    for key in ("last_exit_candle", "last_closed_candle_open"):
+        if key not in state:
+            continue
+        issue = _timestamp_issue(state.get(key), latest_ms=entry_latest, label=key)
+        if issue:
+            cosmetic.append(issue)
     for key in (
-        "stop",
-        "highest_close",
         "atr14_1h",
         "last_close",
         "prior20_max_high",
@@ -515,39 +624,59 @@ def validate_state_fields(state) -> str | None:
         if key not in state or state.get(key) is None:
             continue
         if _finite_number(state.get(key)) is None:
-            return f"non-numeric {key}"
-    for key in ("last_processed_candle", "last_exit_candle", "last_closed_candle_open"):
-        if key not in state or state.get(key) is None:
-            continue
-        if parse_time_ms(state.get(key)) is None:
-            return f"malformed {key}"
+            cosmetic.append(f"non-numeric {key}")
+
     position = state.get("position")
-    if position is None:
-        return None
-    if not isinstance(position, dict):
-        return "position is not an object"
-    if "size" not in position or position.get("size") is None:
-        if position:
-            return "position missing size"
-        return None
-    size = _finite_number(position.get("size"))
-    if size is None:
-        return "non-numeric position.size"
-    if size <= 0:
-        return None
-    if _finite_number(position.get("entry_price")) is None:
-        return "non-numeric entry_price"
-    if parse_time_ms(position.get("entry_time")) is None:
-        return "malformed entry_time"
-    return None
+    entry_token_ok = False
+    if position is not None and not isinstance(position, dict):
+        trail.append("position is not an object")
+    elif isinstance(position, dict) and position:
+        if position.get("size") is None:
+            trail.append("position missing size")
+        else:
+            size = _finite_number(position.get("size"))
+            if size is None:
+                trail.append("non-numeric position.size")
+            elif size > 0:
+                if _finite_number(position.get("entry_price")) is None:
+                    trail.append("non-numeric entry_price")
+                if "entry_time" not in position or position.get("entry_time") is None:
+                    trail.append("malformed entry_time")
+                else:
+                    issue = _timestamp_issue(
+                        position.get("entry_time"), latest_ms=entry_latest, label="entry_time"
+                    )
+                    if issue:
+                        trail.append(issue)
+                    entry_token_ok = _entry_was_a_timestamp(position.get("entry_time"))
+    stop_n = _finite_number(state.get("stop"))
+    trust_stop = (
+        not stop_bad
+        and stop_n is not None
+        and stop_n > 0
+        and entry_token_ok
+        and isinstance(position, dict)
+    )
+    return {
+        "trail_error": "; ".join(trail) if trail else None,
+        "cosmetic_error": "; ".join(cosmetic) if cosmetic else None,
+        "trust_stop": trust_stop,
+    }
 
 
-def _without_bad_fields(state: dict) -> dict:
-    """Copy state with unusable fields cleared so a rebuild can be saved cleanly."""
+def validate_state_fields(state, now_ms=None, last_closed_open_ms=None) -> str | None:
+    """Trail problem, if any. Cosmetic fields do not fail a file by themselves."""
+    return assess_state(state, now_ms=now_ms, last_closed_open_ms=last_closed_open_ms)["trail_error"]
+
+
+def _blank_cosmetic(state: dict, now_ms=None, last_closed_open_ms=None) -> dict:
+    """Drop unrelated bad fields and leave a valid stop and position alone."""
     cleaned = copy.deepcopy(state) if isinstance(state, dict) else {}
+    entry_latest = None if now_ms is None else int(now_ms) + TIME_SKEW_MS
+    for key in ("last_exit_candle", "last_closed_candle_open"):
+        if _timestamp_issue(cleaned.get(key), latest_ms=entry_latest, label=key):
+            cleaned[key] = None
     for key in (
-        "stop",
-        "highest_close",
         "atr14_1h",
         "last_close",
         "prior20_max_high",
@@ -556,51 +685,50 @@ def _without_bad_fields(state: dict) -> dict:
     ):
         if key in cleaned and cleaned[key] is not None and _finite_number(cleaned[key]) is None:
             cleaned[key] = None
-    for key in ("last_processed_candle", "last_exit_candle", "last_closed_candle_open"):
-        if key in cleaned and cleaned[key] is not None and parse_time_ms(cleaned[key]) is None:
-            cleaned[key] = None
-    position = cleaned.get("position")
-    if position is not None and not isinstance(position, dict):
-        cleaned["position"] = None
-    elif isinstance(position, dict) and position:
-        size = _finite_number(position.get("size")) if position.get("size") is not None else None
-        broken = size is None or (
-            size > 0
-            and (
-                _finite_number(position.get("entry_price")) is None
-                or parse_time_ms(position.get("entry_time")) is None
-            )
-        )
-        if broken:
-            cleaned["position"] = None
     return cleaned
 
 
-def opening_buy_time_ms(fills) -> int | None:
-    """Latest BTC fill that opened the current long.
-
-    A later buy that adds to a long already open is not the entry. `dir` of
-    "Open Long", or a buy whose start position is flat or short, counts.
-    """
-    if not isinstance(fills, list):
+def _fill_end_position(fill: dict, start: float | None):
+    size = _finite_number(fill.get("sz"))
+    if start is None or size is None:
         return None
-    latest = None
+    side = str(fill.get("side") or "")
+    if side == "B":
+        return start + abs(size)
+    if side == "A":
+        return start - abs(size)
+    return None
+
+
+def opening_buy_time_ms(fills, now_ms) -> int | None:
+    """Start of the current BTC long: the open after the last time it was flat.
+
+    Hyperliquid labels an add `Open Long` too. A buy counts as the open only
+    when its start position is flat or short. Later adds keep the earlier time.
+    Implausible times, including seconds read as milliseconds, are ignored.
+    """
+    if not isinstance(fills, list) or now_ms is None:
+        return None
+    ordered = []
     for fill in fills:
         if not isinstance(fill, dict) or fill.get("coin") != "BTC":
             continue
-        when = _finite_number(fill.get("time"))
+        when = normalize_epoch_ms(fill.get("time"), now_ms)
         if when is None:
             continue
-        when = int(when)
-        opened = str(fill.get("dir") or "") == "Open Long"
-        if not opened and str(fill.get("side") or "") == "B":
-            start = _finite_number(fill.get("startPosition"))
-            opened = start is not None and start <= 0
-        if not opened:
-            continue
-        if latest is None or when > latest:
-            latest = when
-    return latest
+        ordered.append((when, fill))
+    ordered.sort(key=lambda item: item[0])
+    opened_at = None
+    for when, fill in ordered:
+        start = _finite_number(fill.get("startPosition"))
+        end = _fill_end_position(fill, start)
+        side = str(fill.get("side") or "")
+        opens = side == "B" and start is not None and start <= 1e-12 and (end is None or end > 1e-12)
+        if opens:
+            opened_at = when
+        elif end is not None and end <= 1e-12:
+            opened_at = None
+    return opened_at
 
 
 def lookup_open_long_ms(fetch, now: datetime) -> int | None:
@@ -621,7 +749,7 @@ def lookup_open_long_ms(fetch, now: datetime) -> int | None:
             data = fetch(payload)
         except Exception:
             continue
-        when = opening_buy_time_ms(data)
+        when = opening_buy_time_ms(data, now_ms)
         if when is not None:
             return when
     return None
@@ -633,6 +761,7 @@ def rebuild_long_trail(
     entry_px,
     size,
     fill_entry_ms: int | None = None,
+    now_ms: int | None = None,
 ):
     """Rebuild a lost trail without treating the candle window as the entry.
 
@@ -646,6 +775,9 @@ def rebuild_long_trail(
     last = closed[-1]
     last_close = float(last["c"])
     atr = atrs[-1]
+    if fill_entry_ms is not None and now_ms is not None:
+        # Seconds, milliseconds, and out-of-range stamps all come through here.
+        fill_entry_ms = normalize_epoch_ms(fill_entry_ms, now_ms)
     if fill_entry_ms is None:
         seeds = [last_close]
         if entry_price is not None:
@@ -668,7 +800,7 @@ def rebuild_long_trail(
     position = {
         "entry_price": clean_float(entry_price, 8),
         "size": clean_float(size, 8),
-        "entry_time": ms_to_iso(entry_time_ms),
+        "entry_time": safe_ms_to_iso(entry_time_ms) or ms_to_iso(int(last["t"])),
     }
     return position, highest, stop, cursor
 
@@ -704,11 +836,19 @@ def decide_btc(
     acct_long = acct is not None and acct_size > 0
     acct_short = acct is not None and acct_size < 0
 
-    if state is not None:
-        field_error = validate_state_fields(state)
-        if field_error:
-            state_error = state_error or field_error
-            state = _without_bad_fields(state)
+    if state is not None and not isinstance(state, dict):
+        state_error = state_error or "state is not an object"
+        state = None
+    last_open_ms = int(last["t"])
+    assessment = assess_state(state, now_ms=now_ms, last_closed_open_ms=last_open_ms) if state else None
+    stored_stop = None
+    if assessment is not None:
+        if assessment["cosmetic_error"]:
+            state = _blank_cosmetic(state, now_ms=now_ms, last_closed_open_ms=last_open_ms)
+        if assessment["trail_error"]:
+            state_error = state_error or assessment["trail_error"]
+        if assessment["trust_stop"]:
+            stored_stop = _finite_number(state.get("stop")) if isinstance(state, dict) else None
 
     new_state = default_btc_state()
     if state:
@@ -733,8 +873,10 @@ def decide_btc(
         # back to the first candle in the lookback.
         entry_px = acct.get("entry_px")
         position, highest, stop, last_processed_ms = rebuild_long_trail(
-            closed, atrs, entry_px, acct_size, fill_entry_ms=fill_entry_ms
+            closed, atrs, entry_px, acct_size, fill_entry_ms=fill_entry_ms, now_ms=now_ms
         )
+        if stored_stop is not None:
+            stop = max(float(stop), float(stored_stop))
         new_state["position"] = position
     elif acct_long:
         entry_px = acct.get("entry_px")
@@ -787,13 +929,15 @@ def decide_btc(
                     stop = float(highest) - ATR_MULT * atr
                 state_pos["size"] = clean_float(acct_size, 8)
                 new_state["position"] = state_pos
-            except (TypeError, ValueError) as exc:
+            except (TypeError, ValueError, OverflowError, OSError) as exc:
                 # A field that slipped past validation must not become `error`
                 # while the account is long. Rebuild from the fill instead.
                 state_error = state_error or f"state field: {exc}"
                 position, highest, stop, last_processed_ms = rebuild_long_trail(
-                    closed, atrs, entry_px, acct_size, fill_entry_ms=fill_entry_ms
+                    closed, atrs, entry_px, acct_size, fill_entry_ms=fill_entry_ms, now_ms=now_ms
                 )
+                if stored_stop is not None:
+                    stop = max(float(stop), float(stored_stop))
                 new_state["position"] = position
     else:
         # Just observed the long disappear: do not re-enter on this same candle.
@@ -813,9 +957,14 @@ def decide_btc(
     new_state["available_usd"] = clean_float(withdrawable, 6)
     new_state["highest_close"] = clean_float(highest, 6) if highest is not None else None
     new_state["stop"] = clean_float(stop, 6) if stop is not None else None
-    new_state["last_processed_candle"] = (
-        ms_to_iso(last_processed_ms) if acct_long and last_processed_ms is not None else None
-    )
+    if acct_long and last_processed_ms is not None:
+        processed_iso = safe_ms_to_iso(last_processed_ms)
+        if processed_iso is None:
+            state_error = state_error or "last_processed_candle out of range"
+            processed_iso = candle_iso
+        new_state["last_processed_candle"] = processed_iso
+    else:
+        new_state["last_processed_candle"] = None
 
     # Expiry and a low balance block new entries only. An open long still
     # trails, and a stop hit is still an exit.
@@ -828,7 +977,7 @@ def decide_btc(
     elif acct_long:
         stop_n = _finite_number(stop)
         if (
-            _stop_is_active(new_state.get("position"), int(last["T"]))
+            _stop_is_active(new_state.get("position"), int(last["T"]), now_ms)
             and stop_n is not None
             and last_close < stop_n
         ):
@@ -884,12 +1033,21 @@ def decide_btc(
     return payload, new_state
 
 
-def _stop_is_active(position, last_close_ms: int) -> bool:
-    """A close can hit the stop only after the entry. The signal bar is earlier."""
+def _stop_is_active(position, last_close_ms: int, now_ms: int | None = None) -> bool:
+    """A close can hit the stop only after a believable entry.
+
+    A future, ancient, or zone-less entry must not silence the stop. A real
+    fill a few minutes after the signal candle still waits for the next close.
+    """
     if not isinstance(position, dict):
         return False
-    entry_ms = parse_time_ms(position.get("entry_time"))
-    if entry_ms is None:
+    raw = position.get("entry_time")
+    if raw is None or _is_naive_timestamp(raw):
+        return True
+    entry_ms = parse_time_ms(raw)
+    if entry_ms is None or entry_ms < EARLIEST_MS:
+        return True
+    if now_ms is not None and entry_ms > int(now_ms) + TIME_SKEW_MS:
         return True
     return last_close_ms >= entry_ms
 
@@ -1078,7 +1236,10 @@ def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: 
         state_error = one_line(exc)
         state = None
     if state_error is None and state is not None:
-        field_error = validate_state_fields(state)
+        now_ms = int(as_sp(now).timestamp() * 1000)
+        closed = closed_candles(candles, now_ms)
+        last_open = int(closed[-1]["t"]) if closed else None
+        field_error = validate_state_fields(state, now_ms=now_ms, last_closed_open_ms=last_open)
         if field_error:
             state_error = field_error
     fill_entry_ms = None
