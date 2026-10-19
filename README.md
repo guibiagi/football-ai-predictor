@@ -33,6 +33,11 @@ python3 backtest_monitor_sim.py
 # Monitor Polymarket (não aposta)
 python3 monitor.py
 python3 monitor.py --report
+python3 monitor.py --maker   # cotação passiva (fair Pinnacle ps no dataset)
+
+# Suíte de hipóteses CLV + holdout
+python3 scripts/run_hypothesis_suite.py
+python3 scripts/backtest_poly_maker.py --refresh-events  # maker CLOB (cache local)
 
 # Testes
 PYTHONPATH=. python3 -m pytest tests/ -v

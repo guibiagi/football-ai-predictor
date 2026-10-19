@@ -1,0 +1,201 @@
+{
+  "generated_at": "2026-10-15T11:34:11.478518+00:00",
+  "meta": {
+    "clob": "prices-history fidelity=60",
+    "holdout_days": 365,
+    "holdout_cut": "2025-10-09",
+    "fill_rule": "primeiro toque: p<=bid compra, p>=ask venda",
+    "rewards": "estimativa conservadora (5% do pool diário se spread elegível)",
+    "events_cache": "data/polymarket_closed_matches.json"
+  },
+  "scenarios": [
+    {
+      "dev": {
+        "n": 541,
+        "clv_mean": 0.01306,
+        "clv_ci95": [
+          0.01092,
+          0.01521
+        ],
+        "roi": -0.0482,
+        "roi_ci95": [
+          -0.13,
+          0.0422
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.0482,
+        "roi_with_rewards_ci95": [
+          -0.13,
+          0.0422
+        ]
+      },
+      "holdout": {
+        "n": 507,
+        "clv_mean": 0.01241,
+        "clv_ci95": [
+          0.01032,
+          0.01452
+        ],
+        "roi": -0.0621,
+        "roi_ci95": [
+          -0.159,
+          0.0382
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.0621,
+        "roi_with_rewards_ci95": [
+          -0.159,
+          0.0382
+        ]
+      },
+      "viable": false,
+      "id": "H13_maker_pin_open_spread2c",
+      "fair": "Pinnacle open",
+      "half_spread": 0.02,
+      "n_fills_total": 1048,
+      "clv_viable": true,
+      "pnl_viable": false
+    },
+    {
+      "dev": {
+        "n": 851,
+        "clv_mean": 0.00857,
+        "clv_ci95": [
+          0.00708,
+          0.01009
+        ],
+        "roi": 0.0013,
+        "roi_ci95": [
+          -0.0774,
+          0.0849
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": 0.0013,
+        "roi_with_rewards_ci95": [
+          -0.0774,
+          0.0849
+        ]
+      },
+      "holdout": {
+        "n": 807,
+        "clv_mean": 0.00791,
+        "clv_ci95": [
+          0.00639,
+          0.00951
+        ],
+        "roi": -0.1049,
+        "roi_ci95": [
+          -0.1814,
+          -0.0332
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.1049,
+        "roi_with_rewards_ci95": [
+          -0.1814,
+          -0.0332
+        ]
+      },
+      "viable": false,
+      "id": "H14_maker_pin_open_spread1c",
+      "fair": "Pinnacle open",
+      "half_spread": 0.01,
+      "n_fills_total": 1658,
+      "clv_viable": true,
+      "pnl_viable": false
+    },
+    {
+      "dev": {
+        "n": 344,
+        "clv_mean": 0.01796,
+        "clv_ci95": [
+          0.01496,
+          0.02084
+        ],
+        "roi": -0.1041,
+        "roi_ci95": [
+          -0.1949,
+          -0.012
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.1041,
+        "roi_with_rewards_ci95": [
+          -0.1949,
+          -0.012
+        ]
+      },
+      "holdout": {
+        "n": 289,
+        "clv_mean": 0.01725,
+        "clv_ci95": [
+          0.01421,
+          0.02026
+        ],
+        "roi": -0.0572,
+        "roi_ci95": [
+          -0.1738,
+          0.0551
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.0572,
+        "roi_with_rewards_ci95": [
+          -0.1738,
+          0.0551
+        ]
+      },
+      "viable": false,
+      "id": "H15_maker_pin_open_spread3c",
+      "fair": "Pinnacle open",
+      "half_spread": 0.03,
+      "n_fills_total": 633,
+      "clv_viable": false,
+      "pnl_viable": false
+    },
+    {
+      "dev": {
+        "n": 606,
+        "clv_mean": 0.02,
+        "clv_ci95": [
+          0.02,
+          0.02
+        ],
+        "roi": 0.0203,
+        "roi_ci95": [
+          -0.0703,
+          0.105
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": 0.0203,
+        "roi_with_rewards_ci95": [
+          -0.0703,
+          0.105
+        ]
+      },
+      "holdout": {
+        "n": 566,
+        "clv_mean": 0.02,
+        "clv_ci95": [
+          0.02,
+          0.02
+        ],
+        "roi": -0.0588,
+        "roi_ci95": [
+          -0.1462,
+          0.0355
+        ],
+        "reward_mean": 0.0,
+        "roi_with_rewards_est": -0.0588,
+        "roi_with_rewards_ci95": [
+          -0.1462,
+          0.0355
+        ]
+      },
+      "viable": false,
+      "id": "H16_maker_pin_close_oracle_spread2c",
+      "fair": "Pinnacle close (oracle — só sensibilidade)",
+      "half_spread": 0.02,
+      "n_fills_total": 1172,
+      "clv_viable": true,
+      "pnl_viable": false
+    }
+  ]
+}

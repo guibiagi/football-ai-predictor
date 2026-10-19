@@ -1,0 +1,756 @@
+{
+  "generated_at": "2026-10-15T13:06:38.007133+00:00",
+  "n_events": 17074,
+  "hypotheses": [
+    {
+      "hypothesis": "H-RN1_expanded_rewards",
+      "offset_below_pin_fair": 0.02,
+      "fair_band": [
+        0.6,
+        0.8
+      ],
+      "note": "Maker: sem taxa taker; inspirado em perfil RN1 (n\u00e3o verificado)",
+      "aggregate": {
+        "dev": {
+          "n_opps": 91,
+          "n_fills": 35,
+          "fill_rate": 0.3846,
+          "roi_mean": -0.0847,
+          "roi_ci95": [
+            -0.3366,
+            0.1602
+          ],
+          "clv_mean": 0.01008,
+          "clv_ci95": [
+            -0.00014,
+            0.01976
+          ],
+          "hit_rate": 0.6,
+          "fair_mean": 0.6717,
+          "adverse_gap": -0.0717
+        },
+        "holdout": {
+          "n_opps": 44,
+          "n_fills": 10,
+          "fill_rate": 0.2273,
+          "roi_mean": 0.1061,
+          "roi_ci95": [
+            -0.3629,
+            0.5561
+          ],
+          "clv_mean": -0.0141,
+          "clv_ci95": [
+            -0.03515,
+            0.00726
+          ],
+          "hit_rate": 0.7,
+          "fair_mean": 0.6476,
+          "adverse_gap": 0.0524
+        }
+      },
+      "by_price_band": {
+        "0.50-0.85": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 45,
+            "fill_rate": 0.3333,
+            "roi_mean": -0.0423,
+            "roi_ci95": [
+              -0.2704,
+              0.1811
+            ],
+            "clv_mean": 0.0047,
+            "clv_ci95": [
+              -0.00461,
+              0.01378
+            ],
+            "hit_rate": 0.6222,
+            "fair_mean": 0.6664,
+            "adverse_gap": -0.0441
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 10,
+            "fill_rate": 0.2273,
+            "roi_mean": 0.1061,
+            "roi_ci95": [
+              -0.3629,
+              0.5561
+            ],
+            "clv_mean": -0.0141,
+            "clv_ci95": [
+              -0.03515,
+              0.00726
+            ],
+            "hit_rate": 0.7,
+            "fair_mean": 0.6476,
+            "adverse_gap": 0.0524
+          }
+        },
+        "0.60-0.80": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 45,
+            "fill_rate": 0.3333,
+            "roi_mean": -0.0423,
+            "roi_ci95": [
+              -0.2704,
+              0.1811
+            ],
+            "clv_mean": 0.0047,
+            "clv_ci95": [
+              -0.00461,
+              0.01378
+            ],
+            "hit_rate": 0.6222,
+            "fair_mean": 0.6664,
+            "adverse_gap": -0.0441
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 10,
+            "fill_rate": 0.2273,
+            "roi_mean": 0.1061,
+            "roi_ci95": [
+              -0.3629,
+              0.5561
+            ],
+            "clv_mean": -0.0141,
+            "clv_ci95": [
+              -0.03515,
+              0.00726
+            ],
+            "hit_rate": 0.7,
+            "fair_mean": 0.6476,
+            "adverse_gap": 0.0524
+          }
+        },
+        "0.60-0.70": {
+          "all": {
+            "n_opps": 85,
+            "n_fills": 35,
+            "fill_rate": 0.4118,
+            "roi_mean": -0.0929,
+            "roi_ci95": [
+              -0.3623,
+              0.1546
+            ],
+            "clv_mean": -8e-05,
+            "clv_ci95": [
+              -0.01056,
+              0.01008
+            ],
+            "hit_rate": 0.5714,
+            "fair_mean": 0.6491,
+            "adverse_gap": -0.0777
+          },
+          "holdout": {
+            "n_opps": 29,
+            "n_fills": 9,
+            "fill_rate": 0.3103,
+            "roi_mean": 0.0774,
+            "roi_ci95": [
+              -0.4623,
+              0.585
+            ],
+            "clv_mean": -0.01301,
+            "clv_ci95": [
+              -0.03592,
+              0.01094
+            ],
+            "hit_rate": 0.6667,
+            "fair_mean": 0.6359,
+            "adverse_gap": 0.0308
+          }
+        },
+        "0.70-0.80": {
+          "all": {
+            "n_opps": 51,
+            "n_fills": 10,
+            "fill_rate": 0.1961,
+            "roi_mean": 0.1349,
+            "roi_ci95": [
+              -0.2896,
+              0.431
+            ],
+            "clv_mean": 0.02146,
+            "clv_ci95": [
+              0.00415,
+              0.04145
+            ],
+            "hit_rate": 0.8,
+            "fair_mean": 0.7267,
+            "adverse_gap": 0.0733
+          },
+          "holdout": {
+            "n_opps": 15,
+            "n_fills": 1,
+            "fill_rate": 0.0667,
+            "roi_mean": 0.3643,
+            "roi_ci95": [
+              0.3643,
+              0.3643
+            ],
+            "clv_mean": -0.02392,
+            "clv_ci95": [
+              -0.02392,
+              -0.02392
+            ],
+            "hit_rate": 1.0,
+            "fair_mean": 0.7533,
+            "adverse_gap": 0.2467
+          }
+        }
+      },
+      "pnl_viable_holdout": false,
+      "include_rewards": true,
+      "n_sports_breakdown": {
+        "soccer_opps": 133,
+        "other_opps": 2
+      },
+      "holdout_fill_count": 10,
+      "offset": 0.02
+    },
+    {
+      "hypothesis": "H-RN1_expanded_rewards",
+      "offset_below_pin_fair": 0.025,
+      "fair_band": [
+        0.6,
+        0.8
+      ],
+      "note": "Maker: sem taxa taker; inspirado em perfil RN1 (n\u00e3o verificado)",
+      "aggregate": {
+        "dev": {
+          "n_opps": 91,
+          "n_fills": 32,
+          "fill_rate": 0.3516,
+          "roi_mean": -0.0925,
+          "roi_ci95": [
+            -0.3489,
+            0.1763
+          ],
+          "clv_mean": 0.01441,
+          "clv_ci95": [
+            0.0034,
+            0.02491
+          ],
+          "hit_rate": 0.5938,
+          "fair_mean": 0.6738,
+          "adverse_gap": -0.0801
+        },
+        "holdout": {
+          "n_opps": 44,
+          "n_fills": 9,
+          "fill_rate": 0.2045,
+          "roi_mean": 0.2388,
+          "roi_ci95": [
+            -0.1777,
+            0.6227
+          ],
+          "clv_mean": -0.01395,
+          "clv_ci95": [
+            -0.03469,
+            0.00785
+          ],
+          "hit_rate": 0.7778,
+          "fair_mean": 0.6487,
+          "adverse_gap": 0.129
+        }
+      },
+      "by_price_band": {
+        "0.50-0.85": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 41,
+            "fill_rate": 0.3037,
+            "roi_mean": -0.0198,
+            "roi_ci95": [
+              -0.2543,
+              0.2127
+            ],
+            "clv_mean": 0.00819,
+            "clv_ci95": [
+              -0.00197,
+              0.01858
+            ],
+            "hit_rate": 0.6341,
+            "fair_mean": 0.6683,
+            "adverse_gap": -0.0342
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 9,
+            "fill_rate": 0.2045,
+            "roi_mean": 0.2388,
+            "roi_ci95": [
+              -0.1777,
+              0.6227
+            ],
+            "clv_mean": -0.01395,
+            "clv_ci95": [
+              -0.03469,
+              0.00785
+            ],
+            "hit_rate": 0.7778,
+            "fair_mean": 0.6487,
+            "adverse_gap": 0.129
+          }
+        },
+        "0.60-0.80": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 41,
+            "fill_rate": 0.3037,
+            "roi_mean": -0.0198,
+            "roi_ci95": [
+              -0.2543,
+              0.2127
+            ],
+            "clv_mean": 0.00819,
+            "clv_ci95": [
+              -0.00197,
+              0.01858
+            ],
+            "hit_rate": 0.6341,
+            "fair_mean": 0.6683,
+            "adverse_gap": -0.0342
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 9,
+            "fill_rate": 0.2045,
+            "roi_mean": 0.2388,
+            "roi_ci95": [
+              -0.1777,
+              0.6227
+            ],
+            "clv_mean": -0.01395,
+            "clv_ci95": [
+              -0.03469,
+              0.00785
+            ],
+            "hit_rate": 0.7778,
+            "fair_mean": 0.6487,
+            "adverse_gap": 0.129
+          }
+        },
+        "0.60-0.70": {
+          "all": {
+            "n_opps": 85,
+            "n_fills": 31,
+            "fill_rate": 0.3647,
+            "roi_mean": -0.0723,
+            "roi_ci95": [
+              -0.3372,
+              0.202
+            ],
+            "clv_mean": 0.00229,
+            "clv_ci95": [
+              -0.00905,
+              0.0137
+            ],
+            "hit_rate": 0.5806,
+            "fair_mean": 0.6495,
+            "adverse_gap": -0.0688
+          },
+          "holdout": {
+            "n_opps": 29,
+            "n_fills": 8,
+            "fill_rate": 0.2759,
+            "roi_mean": 0.2219,
+            "roi_ci95": [
+              -0.21,
+              0.6432
+            ],
+            "clv_mean": -0.01333,
+            "clv_ci95": [
+              -0.03633,
+              0.01252
+            ],
+            "hit_rate": 0.75,
+            "fair_mean": 0.6357,
+            "adverse_gap": 0.1143
+          }
+        },
+        "0.70-0.80": {
+          "all": {
+            "n_opps": 51,
+            "n_fills": 10,
+            "fill_rate": 0.1961,
+            "roi_mean": 0.143,
+            "roi_ci95": [
+              -0.2845,
+              0.4414
+            ],
+            "clv_mean": 0.02646,
+            "clv_ci95": [
+              0.00915,
+              0.04645
+            ],
+            "hit_rate": 0.8,
+            "fair_mean": 0.7267,
+            "adverse_gap": 0.0733
+          },
+          "holdout": {
+            "n_opps": 15,
+            "n_fills": 1,
+            "fill_rate": 0.0667,
+            "roi_mean": 0.3736,
+            "roi_ci95": [
+              0.3736,
+              0.3736
+            ],
+            "clv_mean": -0.01892,
+            "clv_ci95": [
+              -0.01892,
+              -0.01892
+            ],
+            "hit_rate": 1.0,
+            "fair_mean": 0.7533,
+            "adverse_gap": 0.2467
+          }
+        }
+      },
+      "pnl_viable_holdout": false,
+      "include_rewards": true,
+      "n_sports_breakdown": {
+        "soccer_opps": 133,
+        "other_opps": 2
+      },
+      "holdout_fill_count": 9,
+      "offset": 0.025
+    },
+    {
+      "hypothesis": "H-RN1_expanded_rewards",
+      "offset_below_pin_fair": 0.03,
+      "fair_band": [
+        0.6,
+        0.8
+      ],
+      "note": "Maker: sem taxa taker; inspirado em perfil RN1 (n\u00e3o verificado)",
+      "aggregate": {
+        "dev": {
+          "n_opps": 91,
+          "n_fills": 28,
+          "fill_rate": 0.3077,
+          "roi_mean": -0.1233,
+          "roi_ci95": [
+            -0.4058,
+            0.1518
+          ],
+          "clv_mean": 0.02132,
+          "clv_ci95": [
+            0.00972,
+            0.03188
+          ],
+          "hit_rate": 0.5714,
+          "fair_mean": 0.677,
+          "adverse_gap": -0.1056
+        },
+        "holdout": {
+          "n_opps": 44,
+          "n_fills": 5,
+          "fill_rate": 0.1136,
+          "roi_mean": 0.2813,
+          "roi_ci95": [
+            -0.3803,
+            0.6873
+          ],
+          "clv_mean": 0.00247,
+          "clv_ci95": [
+            -0.02709,
+            0.03739
+          ],
+          "hit_rate": 0.8,
+          "fair_mean": 0.6501,
+          "adverse_gap": 0.1499
+        }
+      },
+      "by_price_band": {
+        "0.50-0.85": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 33,
+            "fill_rate": 0.2444,
+            "roi_mean": -0.062,
+            "roi_ci95": [
+              -0.3273,
+              0.1932
+            ],
+            "clv_mean": 0.01846,
+            "clv_ci95": [
+              0.00735,
+              0.0296
+            ],
+            "hit_rate": 0.6061,
+            "fair_mean": 0.6729,
+            "adverse_gap": -0.0669
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 5,
+            "fill_rate": 0.1136,
+            "roi_mean": 0.2813,
+            "roi_ci95": [
+              -0.3803,
+              0.6873
+            ],
+            "clv_mean": 0.00247,
+            "clv_ci95": [
+              -0.02709,
+              0.03739
+            ],
+            "hit_rate": 0.8,
+            "fair_mean": 0.6501,
+            "adverse_gap": 0.1499
+          }
+        },
+        "0.60-0.80": {
+          "all": {
+            "n_opps": 135,
+            "n_fills": 33,
+            "fill_rate": 0.2444,
+            "roi_mean": -0.062,
+            "roi_ci95": [
+              -0.3273,
+              0.1932
+            ],
+            "clv_mean": 0.01846,
+            "clv_ci95": [
+              0.00735,
+              0.0296
+            ],
+            "hit_rate": 0.6061,
+            "fair_mean": 0.6729,
+            "adverse_gap": -0.0669
+          },
+          "holdout": {
+            "n_opps": 44,
+            "n_fills": 5,
+            "fill_rate": 0.1136,
+            "roi_mean": 0.2813,
+            "roi_ci95": [
+              -0.3803,
+              0.6873
+            ],
+            "clv_mean": 0.00247,
+            "clv_ci95": [
+              -0.02709,
+              0.03739
+            ],
+            "hit_rate": 0.8,
+            "fair_mean": 0.6501,
+            "adverse_gap": 0.1499
+          }
+        },
+        "0.60-0.70": {
+          "all": {
+            "n_opps": 85,
+            "n_fills": 24,
+            "fill_rate": 0.2824,
+            "roi_mean": -0.1287,
+            "roi_ci95": [
+              -0.4648,
+              0.2007
+            ],
+            "clv_mean": 0.01339,
+            "clv_ci95": [
+              -4e-05,
+              0.02599
+            ],
+            "hit_rate": 0.5417,
+            "fair_mean": 0.6521,
+            "adverse_gap": -0.1104
+          },
+          "holdout": {
+            "n_opps": 29,
+            "n_fills": 4,
+            "fill_rate": 0.1379,
+            "roi_mean": 0.2558,
+            "roi_ci95": [
+              -0.5756,
+              0.7065
+            ],
+            "clv_mean": 0.00657,
+            "clv_ci95": [
+              -0.03031,
+              0.04346
+            ],
+            "hit_rate": 0.75,
+            "fair_mean": 0.6243,
+            "adverse_gap": 0.1257
+          }
+        },
+        "0.70-0.80": {
+          "all": {
+            "n_opps": 51,
+            "n_fills": 9,
+            "fill_rate": 0.1765,
+            "roi_mean": 0.1158,
+            "roi_ci95": [
+              -0.3596,
+              0.4459
+            ],
+            "clv_mean": 0.03198,
+            "clv_ci95": [
+              0.0127,
+              0.05322
+            ],
+            "hit_rate": 0.7778,
+            "fair_mean": 0.7286,
+            "adverse_gap": 0.0492
+          },
+          "holdout": {
+            "n_opps": 15,
+            "n_fills": 1,
+            "fill_rate": 0.0667,
+            "roi_mean": 0.3831,
+            "roi_ci95": [
+              0.3831,
+              0.3831
+            ],
+            "clv_mean": -0.01392,
+            "clv_ci95": [
+              -0.01392,
+              -0.01392
+            ],
+            "hit_rate": 1.0,
+            "fair_mean": 0.7533,
+            "adverse_gap": 0.2467
+          }
+        }
+      },
+      "pnl_viable_holdout": false,
+      "include_rewards": true,
+      "n_sports_breakdown": {
+        "soccer_opps": 133,
+        "other_opps": 2
+      },
+      "holdout_fill_count": 5,
+      "offset": 0.03
+    },
+    {
+      "hypothesis": "H-COH_paired",
+      "pairs_1x2_ou": 67,
+      "n_trades": 3229,
+      "dev": {
+        "n": 771,
+        "roi_mean": -0.0787,
+        "roi_ci95": [
+          -0.2067,
+          0.0671
+        ]
+      },
+      "holdout": {
+        "n": 2458,
+        "roi_mean": -0.0841,
+        "roi_ci95": [
+          -0.1645,
+          -0.0075
+        ]
+      },
+      "pnl_viable_holdout": false
+    },
+    {
+      "hypothesis": "W2_weather_taker_trades",
+      "spread_cents": 0.04,
+      "min_depth_usd": 60.0,
+      "n_total": 5,
+      "dev": {
+        "n": 4,
+        "roi_mean": -1.0426,
+        "roi_ci95": [
+          -1.0446,
+          -1.0405
+        ]
+      },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.038,
+        "roi_ci95": [
+          -1.038,
+          -1.038
+        ]
+      },
+      "holdout_gross": {
+        "n": 1,
+        "roi_mean": -1.0,
+        "roi_ci95": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "variant": "W2_spread_4c"
+    },
+    {
+      "hypothesis": "W2_weather_taker_trades",
+      "spread_cents": 0.07,
+      "min_depth_usd": 60.0,
+      "n_total": 5,
+      "dev": {
+        "n": 4,
+        "roi_mean": -1.0411,
+        "roi_ci95": [
+          -1.0431,
+          -1.039
+        ]
+      },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.0365,
+        "roi_ci95": [
+          -1.0365,
+          -1.0365
+        ]
+      },
+      "holdout_gross": {
+        "n": 1,
+        "roi_mean": -1.0,
+        "roi_ci95": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "variant": "W2_spread_7c"
+    },
+    {
+      "hypothesis": "W2_weather_taker_trades",
+      "spread_cents": 0.1,
+      "min_depth_usd": 60.0,
+      "n_total": 5,
+      "dev": {
+        "n": 4,
+        "roi_mean": -1.0396,
+        "roi_ci95": [
+          -1.0416,
+          -1.0375
+        ]
+      },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.035,
+        "roi_ci95": [
+          -1.035,
+          -1.035
+        ]
+      },
+      "holdout_gross": {
+        "n": 1,
+        "roi_mean": -1.0,
+        "roi_ci95": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "variant": "W2_spread_10c"
+    }
+  ],
+  "notes": [
+    "RN1: fair Pin (futebol) ou pre\u00e7o CLOB ~24h antes (NBA/NFL/t\u00eanis/MMA). PnL maker inclui clobRewards estimados.",
+    "Meta n\u2265300 fills no holdout; amostra limitada pelo cache de prices-history e matching Pin."
+  ],
+  "rn1_raw_opportunities": 135
+}

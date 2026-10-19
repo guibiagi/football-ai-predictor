@@ -1,0 +1,330 @@
+{
+  "generated_at": "2026-10-15T11:53:30.285016+00:00",
+  "geoblock_brazil": {
+    "status": "close-only (frontend e API)",
+    "code": "BR",
+    "doc": "https://docs.polymarket.com/api-reference/geoblock",
+    "note": "Usuários no Brasil podem fechar posições existentes, mas não abrir novas."
+  },
+  "fee_doc": "https://docs.polymarket.com/polymarket-learn/trading/fees",
+  "hypotheses": [
+    {
+      "error": "sem trades",
+      "n": 0,
+      "variant": "hours_6.0"
+    },
+    {
+      "error": "sem trades",
+      "n": 0,
+      "variant": "hours_3.0"
+    },
+    {
+      "hypothesis": "W1_weather_buy_no_favorite",
+      "hours_before_peak": 9.0,
+      "fav_band": [
+        0.75,
+        0.95
+      ],
+      "n_total": 1,
+      "dev": {
+        "n": 0
+      },
+      "holdout": {
+        "n": 1,
+        "roi_mean": -1.0375,
+        "roi_ci95": [
+          -1.0375,
+          -1.0375
+        ]
+      },
+      "dev_gross": {
+        "n": 0
+      },
+      "holdout_gross": {
+        "n": 1,
+        "roi_mean": -1.0,
+        "roi_ci95": [
+          -1.0,
+          -1.0
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "variant": "hours_9.0"
+    },
+    {
+      "tag": "crypto",
+      "mode": "taker_buy_yes",
+      "price_min": 0.9,
+      "n_total": 54,
+      "dev": {
+        "n": 45,
+        "roi_mean": 0.0445,
+        "roi_ci95": [
+          0.0354,
+          0.0539
+        ]
+      },
+      "holdout": {
+        "n": 9,
+        "roi_mean": 0.0483,
+        "roi_ci95": [
+          0.0269,
+          0.0707
+        ]
+      },
+      "holdout_gross": {
+        "n": 9,
+        "roi_mean": 0.0516,
+        "roi_ci95": [
+          0.0288,
+          0.0756
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "hypothesis": "C1_favorite_taker_yes_90"
+    },
+    {
+      "tag": "crypto",
+      "mode": "maker_bid",
+      "price_min": 0.9,
+      "half_spread": 0.01,
+      "n_total": 465,
+      "dev": {
+        "n": 395,
+        "roi_mean": -0.6843,
+        "roi_ci95": [
+          -0.7298,
+          -0.6359
+        ]
+      },
+      "holdout": {
+        "n": 70,
+        "roi_mean": -0.7592,
+        "roi_ci95": [
+          -0.8555,
+          -0.6469
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "hypothesis": "C1_favorite_maker_bid_90"
+    },
+    {
+      "tag": "politics",
+      "mode": "taker_buy_yes",
+      "price_min": 0.9,
+      "n_total": 76,
+      "dev": {
+        "n": 64,
+        "roi_mean": 0.0283,
+        "roi_ci95": [
+          0.0224,
+          0.0349
+        ]
+      },
+      "holdout": {
+        "n": 12,
+        "roi_mean": 0.0238,
+        "roi_ci95": [
+          0.0156,
+          0.0328
+        ]
+      },
+      "holdout_gross": {
+        "n": 12,
+        "roi_mean": 0.0248,
+        "roi_ci95": [
+          0.0162,
+          0.0341
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "hypothesis": "P1_favorite_taker_yes_90"
+    },
+    {
+      "tag": "politics",
+      "mode": "maker_bid",
+      "price_min": 0.9,
+      "half_spread": 0.01,
+      "n_total": 436,
+      "dev": {
+        "n": 370,
+        "roi_mean": -0.7631,
+        "roi_ci95": [
+          -0.8087,
+          -0.7145
+        ]
+      },
+      "holdout": {
+        "n": 66,
+        "roi_mean": -0.8298,
+        "roi_ci95": [
+          -0.9149,
+          -0.7276
+        ]
+      },
+      "pnl_viable_holdout": false,
+      "hypothesis": "P1_favorite_maker_bid_90"
+    },
+    {
+      "hypothesis": "B1_btc_low_prob_vs_iv",
+      "note": "Amostra limitada; IV Deribit alinhamento aproximado",
+      "n_total": 0,
+      "dev": {
+        "n": 0
+      },
+      "holdout": {
+        "n": 0
+      },
+      "pnl_viable_holdout": false
+    }
+  ],
+  "football_rewards": {
+    "open_scan": {
+      "open_markets_scanned": 19419,
+      "markets_with_rewards": 887,
+      "sample": [
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Arsenal qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "4294.977396000001"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Aston Villa qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "1562.879276"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Bournemouth qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "2230.4817080000003"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Brentford qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "898.1670940000001"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Brighton & Hove Albion qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "975.9226779999999"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Chelsea qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "5913.990779"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Crystal Palace qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": null
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Everton qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "183"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Fulham qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "604.9991279999999"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Leeds United qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "10.869562"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Liverpool qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "2765.262014000001"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Manchester City qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "11997.415278"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Manchester United qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 5,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "7715.173546"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Newcastle United qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "1959.5638470000001"
+        },
+        {
+          "tag": "premier-league",
+          "event": "EPL: Team to qualify for the 2027-28 UEFA Champions League",
+          "question": "Will Nottingham Forest qualify for the 2027-28 UEFA Champions League?",
+          "rewardsDailyRate": 1,
+          "rewardsMinSize": 20,
+          "rewardsMaxSpread": 4.5,
+          "volume": "42"
+        }
+      ]
+    },
+    "closed_sample": {
+      "markets": 600,
+      "with_rewards": 0,
+      "pct": 0.0,
+      "median_daily_rate": null
+    }
+  }
+}

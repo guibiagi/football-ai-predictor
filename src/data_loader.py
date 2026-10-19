@@ -60,13 +60,15 @@ def load_matches(path: str | Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Match data not found: {path}")
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, low_memory=False)
+    if "season" in df.columns:
+        df["season"] = pd.to_numeric(df["season"], errors="coerce").astype("Int64")
 
     # Validate columns exist
     _validate_columns(df, path)
 
     # Parse dates
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
     if df["date"].isna().any():
         bad_rows = df[df["date"].isna()].index.tolist()
         raise ValueError(f"Invalid dates in rows: {bad_rows}")
