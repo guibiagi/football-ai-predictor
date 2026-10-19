@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,9 @@ _FLEX_COLS = (
     "data", "liga", "slug", "casa", "fora", "pick", "kickoff",
     "sinal", "fill_simulado", "resultado", "token",
 )
+_SCI_TOKEN = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+")
+_ROLE_ORDER = ("casa", "empate", "fora")
+
 _TEXT_DTYPES = {
     "data": str,
     "liga": str,
@@ -57,6 +61,23 @@ def _blank(value) -> bool:
     return False
 
 
+def _is_scientific_token(value) -> bool:
+    """Token lido como float vira `5.84e+76` e não serve no CLOB."""
+    if _blank(value):
+        return False
+    return _SCI_TOKEN.fullmatch(str(value).strip()) is not None
+
+
+def _token_ok(value) -> bool:
+    return not _blank(value) and not _is_scientific_token(value)
+
+
+def _clean_token(value) -> str | None:
+    if not _token_ok(value):
+        return None
+    return str(value).strip()
+
+
 def _is_true(value) -> bool:
     if value is True:
         return True
@@ -82,10 +103,12 @@ def coerce_log_dtypes(log: pd.DataFrame) -> pd.DataFrame:
     for c in _FLEX_COLS:
         if c in log.columns and not pd.api.types.is_object_dtype(log[c]):
             log[c] = log[c].astype(object)
-    for c in ("token", "kickoff", "resultado", "pick", "slug"):
+    for c in ("kickoff", "resultado", "pick", "slug"):
         if c not in log.columns:
             continue
         log[c] = log[c].map(lambda v: None if _blank(v) else str(v).strip())
+    if "token" in log.columns:
+        log["token"] = log["token"].map(_clean_token)
     return log
 
 
@@ -124,13 +147,20 @@ def resolve_token(market: dict | None) -> str | None:
     if not market:
         return None
     for key in ("token_yes", "token"):
-        value = market.get(key)
-        if not _blank(value):
-            return str(value).strip()
+        cleaned = _clean_token(market.get(key))
+        if cleaned:
+            return cleaned
     yes, _ = parse_token_ids(market)
-    if not _blank(yes):
-        return str(yes).strip()
-    return None
+    return _clean_token(yes)
+
+
+def _iso_list(raws) -> list[str]:
+    found: list[str] = []
+    for raw in raws:
+        iso = normalize_kickoff(raw)
+        if iso and iso not in found:
+            found.append(iso)
+    return found
 
 
 def resolve_kickoff(
@@ -138,27 +168,32 @@ def resolve_kickoff(
     event: dict | None = None,
     kickoff: str | None = None,
 ) -> str:
-    """Horário de início da partida. `endDate` só entra se não houver start."""
-    raws: list = []
-    if not _blank(kickoff):
-        raws.append(kickoff)
+    """Horário de início. `endDate` só entra quando não há gameStartTime/startTime."""
     market = market or {}
     event = event or {}
-    for key in ("kickoff", "gameStartTime", "startTime"):
-        raws.append(market.get(key))
-    for key in ("gameStartTime", "startTime"):
-        raws.append(event.get(key))
-    markets = event.get("markets") or []
-    if markets:
-        raws.append(markets[0].get("gameStartTime"))
-        raws.append(markets[0].get("startTime"))
-    raws.append(market.get("endDate"))
-    raws.append(event.get("endDate"))
-    for raw in raws:
-        iso = normalize_kickoff(raw)
-        if iso:
-            return iso
-    return ""
+    sources: list[dict] = []
+    if market:
+        sources.append(market)
+    for extra in event.get("markets") or []:
+        if isinstance(extra, dict) and extra not in sources:
+            sources.append(extra)
+    sources.append(event)
+    starts: list = []
+    ends: list = []
+    for src in sources:
+        for key in ("gameStartTime", "startTime", "kickoff"):
+            starts.append(src.get(key))
+        ends.append(src.get("endDate"))
+    start_isos = _iso_list(starts)
+    if start_isos:
+        return start_isos[0]
+    explicit = normalize_kickoff(kickoff)
+    end_isos = _iso_list(ends)
+    if explicit and explicit not in end_isos:
+        return explicit
+    if end_isos:
+        return end_isos[0]
+    return explicit
 
 
 def pin_fair_for_fixture(row: pd.Series, pick_idx: int) -> float | None:
@@ -187,13 +222,19 @@ def scan_fixture(
     if not (FAIR_LO <= fair <= FAIR_HI):
         return None
     bid = round(fair - OFFSET, 4)
-    mi = fav_i
-    m = markets[mi]
+    # fair_i é casa/empate/fora. A lista da Gamma não segue essa ordem.
+    # `roles` do chamador é ignorado de propósito: pode ter sido montado por posição.
+    mapped = _outcome_roles(markets, home, away)
+    if not mapped:
+        return None
+    label = _ROLE_ORDER[fav_i]
+    if label not in mapped:
+        return None
+    m = markets[mapped.index(label)]
     exec_p = execution_price_yes(m) or m.get("price")
     vol = float(m.get("volume") or 0)
     if exec_p is None or vol < MIN_VOLUME:
         return None
-    label = roles[mi]
     # sinal = preço já encostou no bid. Faixa 0.60–0.80 sozinha deixa sinal False.
     sinal = float(exec_p) <= bid + 0.01
     return {
@@ -217,12 +258,21 @@ def scan_fixture(
     }
 
 
+def _outcome_roles(markets: list[dict], home: str, away: str) -> list[str] | None:
+    """Mesmo mapa do monitor: nome do mercado, não a posição na lista."""
+    from monitor import outcome_roles
+
+    return outcome_roles(markets, home, away)
+
+
 def _needs_settle(row: pd.Series) -> bool:
     resultado = row.get("resultado")
     if _blank(resultado):
         return True
     # sem_fill gravado sem kickoff/token não foi medido: o preço de fechamento nem foi consultado.
-    if str(resultado).strip() == "sem_fill" and (_blank(row.get("kickoff")) or _blank(row.get("token"))):
+    if str(resultado).strip() == "sem_fill" and (
+        _blank(row.get("kickoff")) or not _token_ok(row.get("token"))
+    ):
         return True
     return False
 
@@ -268,6 +318,8 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
     Fill simulado: último preço CLOB do token até o kickoff ≤ bid.
     Sem kickoff, sem token ou sem histórico de preço, a linha fica pendente
     (não vira `sem_fill` — isso seria 'não deu para medir').
+    Resultado final só com os três mercados `closed`, como `monitor.settle`.
+    Preço ≥ 0.9 no meio do jogo não liquida.
     """
     log = coerce_log_dtypes(log)
     pick_idx = {"casa": 0, "empate": 1, "fora": 2}
@@ -283,20 +335,28 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
         if invalid_sem_fill:
             _clear_false_sem_fill(log, i)
         ms = ev.get("markets") or []
-        pi = pick_idx.get(str(r.get("pick") or "").strip(), 0)
-        picked = ms[pi] if 0 <= pi < len(ms) else {}
-        if _blank(log.at[i, "token"]):
+        home = str(r.get("casa") or "")
+        away = str(r.get("fora") or "")
+        pick = str(r.get("pick") or "").strip()
+        mapped = _outcome_roles(ms, home, away) if len(ms) == 3 else None
+        picked = ms[mapped.index(pick)] if mapped and pick in mapped else {}
+        if not _token_ok(log.at[i, "token"]) and picked:
             tok = resolve_token(picked)
             if tok:
                 log.at[i, "token"] = tok
         if _blank(log.at[i, "kickoff"]):
-            ko_s = resolve_kickoff(picked, event=ev)
+            ko_s = resolve_kickoff(picked or None, event=ev)
             if ko_s:
                 log.at[i, "kickoff"] = ko_s
-        token = None if _blank(log.at[i, "token"]) else str(log.at[i, "token"])
+        token = _clean_token(log.at[i, "token"])
         kickoff = "" if _blank(log.at[i, "kickoff"]) else str(log.at[i, "kickoff"])
 
-        if len(ms) != 3:
+        if (
+            len(ms) != 3
+            or mapped is None
+            or pick not in mapped
+            or not all(m.get("closed") for m in ms)
+        ):
             continue
         prices = _yes_prices(ms)
         if max(prices) < 0.9:
@@ -319,7 +379,8 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
         if close_p is None:
             # CLOB sem histórico: não inventar sem_fill.
             continue
-        acertou = prices.index(max(prices)) == pi
+        winner = mapped[prices.index(max(prices))]
+        acertou = winner == pick
         if close_p > bid:
             log.at[i, "fill_simulado"] = False
             log.at[i, "resultado"] = "sem_fill"
@@ -327,16 +388,18 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
         log.at[i, "fill_simulado"] = True
         log.at[i, "resultado"] = "acerto" if acertou else "erro"
         log.at[i, "retorno_sim"] = round((1.0 - bid) / bid if acertou else -1.0, 4)
+        pi = pick_idx.get(pick)
         pin = None
-        try:
-            from src.pinnacle_lookup import lookup_1x2_close
+        if pi is not None:
+            try:
+                from src.pinnacle_lookup import lookup_1x2_close
 
-            pin = lookup_1x2_close(
-                hist_df, r["liga"], r["casa"], r["fora"], kickoff,
-            )
-        except Exception:
-            pin = None
-        if pin:
+                pin = lookup_1x2_close(
+                    hist_df, r["liga"], r["casa"], r["fora"], kickoff,
+                )
+            except Exception:
+                pin = None
+        if pin and pi is not None:
             p_devig = market_probs(np.array([[pin[0], pin[1], pin[2]]], dtype=float))[0][pi]
             log.at[i, "clv_pin"] = round(clv_probability(bid, float(p_devig)), 4)
     return log

@@ -212,19 +212,28 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
         })
     if any(r["price"] is None for r in rows):
         return None
-    kickoff_iso = ""
-    for raw in (
-        (e.get("markets") or [{}])[0].get("gameStartTime"),
-        e.get("startTime"),
-        e.get("endDate"),
-    ):
+    def _iso_z(raw) -> str:
         parsed = _parse_iso(raw if isinstance(raw, str) else None)
         if parsed is None:
-            continue
+            return ""
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
-        kickoff_iso = parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        break
+        return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Início de verdade em qualquer mercado, antes de cair no endDate.
+    kickoff_iso = ""
+    start_raws = []
+    for raw_m in e.get("markets") or []:
+        start_raws.append(raw_m.get("gameStartTime"))
+        start_raws.append(raw_m.get("startTime"))
+    start_raws.append(e.get("startTime"))
+    start_raws.append(e.get("gameStartTime"))
+    for raw in start_raws:
+        kickoff_iso = _iso_z(raw)
+        if kickoff_iso:
+            break
+    if not kickoff_iso:
+        kickoff_iso = _iso_z(e.get("endDate"))
     return {
         "slug": e["slug"], "liga": comp, "end": end, "kickoff": kickoff_iso, "markets": rows,
     }

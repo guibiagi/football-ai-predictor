@@ -70,9 +70,13 @@ def _float_nan_log(**overrides) -> pd.DataFrame:
     return df
 
 
-def _event(prices, *, token="tok-home", kickoff=KICKOFF, with_token=True, with_time=True):
+def _event(prices, *, token="tok-home", kickoff=KICKOFF, with_token=True, with_time=True, closed=True):
     def market(title, price, token_id):
-        raw = {"groupItemTitle": title, "outcomePrices": json.dumps([price, "0"])}
+        raw = {
+            "groupItemTitle": title,
+            "outcomePrices": json.dumps([price, "0"]),
+            "closed": closed,
+        }
         if with_time:
             raw["gameStartTime"] = "2026-10-18 13:00:00+00"
             raw["endDate"] = kickoff
@@ -235,6 +239,16 @@ def test_scan_fixture_reads_token_yes_and_kickoff_not_enddate_only():
     assert below["token"] == "from-clob"
     assert below["kickoff"] == "2026-10-19T19:00:00Z"
 
+    # endDate passado como kickoff não pode vencer um gameStartTime real.
+    forced_end = scan_fixture(
+        "Premier League", "epl-tot-cov-2026-10-19", "Home FC", "Away FC",
+        markets, roles, odds, "2026-10-19",
+        kickoff="2026-10-20T23:00:00Z",
+    )
+    assert forced_end["kickoff"] == "2026-10-19T19:00:00Z"
+    assert forced_end["pick"] == "casa"
+    assert forced_end["token"] == "from-clob"
+
 
 def test_token_and_kickoff_survive_csv_roundtrip(tmp_path):
     path = tmp_path / "paper_rn1_forward.csv"
@@ -300,3 +314,82 @@ def test_fixture_from_event_keeps_start_and_token():
     )
     assert scanned["token"] == TOKEN
     assert scanned["kickoff"] == "2026-10-19T19:00:00Z"
+
+
+def test_scan_and_settle_use_role_names_when_markets_are_reversed():
+    """Gamma pode devolver [fora, empate, casa]. Fair de casa não pode pegar o token do visitante."""
+    odds = pd.Series({"ps_h": 1.50, "ps_d": 4.5, "ps_a": 7.0})
+    markets = [
+        {"title": "Away FC", "price": 0.14, "volume": 9000, "token_yes": "tok-away"},
+        {"title": "Draw (Home FC vs. Away FC)", "price": 0.20, "volume": 9000, "token_yes": "tok-draw"},
+        {
+            "title": "Home FC",
+            "price": 0.62,
+            "volume": 9000,
+            "token_yes": "tok-home",
+            "gameStartTime": "2026-10-19 19:00:00+00",
+            "endDate": "2026-10-21T00:00:00Z",
+        },
+    ]
+    # Lista posicional errada, de propósito. O scan tem que reler os nomes.
+    scanned = scan_fixture(
+        "Premier League", "epl-home-away-2026-10-19", "Home FC", "Away FC",
+        markets, ["casa", "empate", "fora"], odds, "2026-10-19",
+    )
+    assert scanned is not None
+    assert scanned["pick"] == "casa"
+    assert scanned["token"] == "tok-home"
+    assert scanned["poly_exec"] == pytest.approx(0.62)
+    assert scanned["kickoff"] == "2026-10-19T19:00:00Z"
+
+    log = _float_nan_log(token=np.nan, pick="casa")
+    log["token"] = log["token"].astype("float64")
+    event = {
+        "startTime": KICKOFF,
+        "endDate": "2026-10-21T00:00:00Z",
+        "markets": [
+            {
+                "groupItemTitle": "Sunderland",
+                "outcomePrices": '["0","1"]',
+                "closed": True,
+                "clobTokenIds": '["tok-away","no-away"]',
+                "gameStartTime": "2026-10-18 13:00:00+00",
+            },
+            {
+                "groupItemTitle": "Draw (Bournemouth vs. Sunderland)",
+                "outcomePrices": '["0","1"]',
+                "closed": True,
+                "clobTokenIds": '["tok-draw","no-draw"]',
+            },
+            {
+                "groupItemTitle": "Bournemouth",
+                "outcomePrices": '["1","0"]',
+                "closed": True,
+                "clobTokenIds": json.dumps([TOKEN, "no-home"]),
+                "gameStartTime": "2026-10-18 13:00:00+00",
+            },
+        ],
+    }
+    out = _settle(log, event, close=0.50, pin=(1.6, 4.0, 6.0))
+    assert out.loc[0, "token"] == TOKEN
+    assert out.loc[0, "fill_simulado"] == True
+    assert out.loc[0, "resultado"] == "acerto"
+    home_close = float(market_probs(np.array([[1.6, 4.0, 6.0]], dtype=float))[0][0])
+    assert out.loc[0, "clv_pin"] == pytest.approx(round(clv_probability(BID, home_close), 4))
+
+
+def test_open_market_with_high_price_stays_pending():
+    log = _float_nan_log()
+    event = _event(["0.95", "0.04", "0.01"], closed=False)
+    out = _settle(log, event, close=0.50)
+    assert pd.isna(out.loc[0, "resultado"])
+    assert pd.isna(out.loc[0, "fill_simulado"])
+    assert pd.isna(out.loc[0, "retorno_sim"])
+
+
+def test_scientific_notation_token_is_replaced_from_gamma():
+    log = _float_nan_log(token="5.841395765088047e+76")
+    out = _settle(log, _event(["1", "0", "0"], token=TOKEN), close=0.50)
+    assert out.loc[0, "token"] == TOKEN
+    assert out.loc[0, "fill_simulado"] == True
+    assert out.loc[0, "resultado"] == "acerto"
