@@ -44,7 +44,13 @@ from src.polymarket_prices import (  # noqa: E402
     execution_price_yes,
     parse_token_ids,
 )
-from src.paper_rn1 import PAPER_LOG, ensure_log, scan_fixture, settle_paper  # noqa: E402
+from src.paper_rn1 import (  # noqa: E402
+    PAPER_LOG,
+    ensure_log,
+    scan_fixture,
+    settle_paper,
+    summarize_paper,
+)
 from src.paper_taker_pin import (  # noqa: E402
     PAPER_LOG as PAPER_PIN_LOG,
     ensure_log as ensure_pin_log,
@@ -200,10 +206,28 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
             "token_yes": token_yes,
             "volume": float(m.get("volume") or 0),
             "tradable": bool(m.get("acceptingOrders")),
+            # paper RN1 lê estes campos; o mercado cru não chega no scan.
+            "gameStartTime": m.get("gameStartTime") or e.get("startTime") or "",
+            "endDate": m.get("endDate") or end,
         })
     if any(r["price"] is None for r in rows):
         return None
-    return {"slug": e["slug"], "liga": comp, "end": end, "markets": rows}
+    kickoff_iso = ""
+    for raw in (
+        (e.get("markets") or [{}])[0].get("gameStartTime"),
+        e.get("startTime"),
+        e.get("endDate"),
+    ):
+        parsed = _parse_iso(raw if isinstance(raw, str) else None)
+        if parsed is None:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        kickoff_iso = parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        break
+    return {
+        "slug": e["slug"], "liga": comp, "end": end, "kickoff": kickoff_iso, "markets": rows,
+    }
 
 
 def collect_fixtures(df: pd.DataFrame, day: date, now: datetime) -> tuple[list[dict], list[str], dict]:
@@ -470,12 +494,14 @@ def main() -> int:
     if a.paper_rn1_report:
         plog = settle_paper(ensure_log(), df)
         plog.to_csv(PAPER_LOG, index=False)
-        filled = plog[plog["fill_simulado"] == True]
-        done = plog[plog["resultado"].notna() & (plog["resultado"] != "sem_fill")]
-        print(f"paper RN1: {len(plog)} registros | fills simulados: {len(filled)} | resolvidos: {len(done)}")
-        if len(done):
-            print(f"  retorno simulado: {done['retorno_sim'].astype(float).sum():+.2f}u | "
-                  f"hit {(done['resultado']=='acerto').mean():.0%}")
+        c = summarize_paper(plog)
+        print(
+            f"paper RN1: {c['registros']} registros | resolvidos: {c['resolvidos']} "
+            f"(fills simulados: {c['fills']}, sem fill: {c['sem_fill']}, pendentes: {c['pendentes']})"
+        )
+        if c["fills"]:
+            hit = "n/a" if c["hit"] != c["hit"] else f"{c['hit']:.0%}"
+            print(f"  retorno simulado: {c['retorno']:+.2f}u | hit {hit}")
         return 0
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
@@ -560,6 +586,7 @@ def main() -> int:
                     rn1_no_pin += 1
                 pr = scan_fixture(
                     comp, f["slug"], home, away, f["markets"], roles, ds, str(today),
+                    kickoff=f.get("kickoff") or "",
                 )
                 if pr:
                     paper_rows.append(pr)
@@ -632,10 +659,19 @@ def main() -> int:
         newp = pd.DataFrame(paper_rows)
         plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
         plog.to_csv(PAPER_LOG, index=False)
-        print(f"PAPER RN1: {len(paper_rows)} sinais hoje → {PAPER_LOG.name}")
+        n_sinal = sum(1 for pr in paper_rows if pr.get("sinal") is True)
+        print(
+            f"PAPER RN1: {len(paper_rows)} jogos na faixa 0.60–0.80 → {PAPER_LOG.name} "
+            f"({n_sinal} com sinal: preço ≤ bid+1¢; sinal=False é só a faixa)"
+        )
         for pr in paper_rows:
-            print(f"  [{pr['liga']}] {pr['casa']} x {pr['fora']}: fair={pr['fair_pin']:.2f} "
-                  f"bid={pr['bid']:.2f} poly={pr['poly_exec']:.2f} pick={pr['pick']}")
+            tok = str(pr.get("token") or "")
+            tok_s = (tok[:8] + "…") if len(tok) > 8 else (tok or "—")
+            print(
+                f"  [{pr['liga']}] {pr['casa']} x {pr['fora']}: fair={pr['fair_pin']:.2f} "
+                f"bid={pr['bid']:.2f} poly={pr['poly_exec']:.2f} pick={pr['pick']} "
+                f"sinal={bool(pr['sinal'])} kickoff={pr.get('kickoff') or '—'} token={tok_s}"
+            )
 
     if a.paper_rn1 and not paper_rows:
         print("PAPER RN1: nenhum sinal executável na faixa 0.60–0.80 hoje "
