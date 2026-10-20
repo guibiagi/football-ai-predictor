@@ -30,5 +30,6 @@ data/poly_price_history/
 data/gamma_cache/
 data/poly_trades_cache/
 data/poly_book_cache/
+data/paper_rn1_tapes/
 data/pinnacle_fixtures_live.json
 data/panel_oos_predictions.csv

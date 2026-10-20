@@ -19,4 +19,17 @@
 ```bash
 python scripts/refresh_pinnacle_fixtures.py   # força cache de fixtures
 python monitor.py --paper-rn1
+python monitor.py --paper-rn1-report
 ```
+
+## Fill simulado do paper RN1
+
+Nenhuma ordem é enviada. O relatório mostra três simulações:
+
+- **touch** (otimista) — uma venda no bid, ou melhor, enche a ordem inteira.
+- **queue** (central) — só conta o volume que passa da fila já descansando nesse preço no instante do sinal. Fill parcial entra na conta.
+- **through** (pessimista) — só enche se o preço negociar estritamente abaixo do bid.
+
+A regra antiga (`fill_simulado`: último preço do CLOB até o kickoff ≤ bid) continua no CSV.
+
+O monitor grava o livro em `data/paper_rn1_tapes/` quando o sinal nasce e, nas rodadas seguintes, acumula trades públicos da data-api até o kickoff. Se essa janela vier cortada (erro ou teto de páginas), o fill de fila fica **não medido**. Não substituímos buraco por zero. O tamanho da ordem é suposição de US$ 25 de stake (shares = 25 / bid), não é tamanho medido.

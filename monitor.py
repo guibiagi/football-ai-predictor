@@ -47,10 +47,13 @@ from src.polymarket_prices import (  # noqa: E402
 from src.paper_rn1 import (  # noqa: E402
     PAPER_LOG,
     ensure_log,
+    format_fill_model_report,
     scan_fixture,
     settle_paper,
+    summarize_fill_models,
     summarize_paper,
 )
+from src.paper_rn1_tape import fetch_live_book, poll_tapes, stamp_signals  # noqa: E402
 from src.paper_taker_pin import (  # noqa: E402
     PAPER_LOG as PAPER_PIN_LOG,
     ensure_log as ensure_pin_log,
@@ -207,6 +210,7 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
             "volume": float(m.get("volume") or 0),
             "tradable": bool(m.get("acceptingOrders")),
             # paper RN1 lê estes campos; o mercado cru não chega no scan.
+            "conditionId": m.get("conditionId") or "",
             "gameStartTime": m.get("gameStartTime") or e.get("startTime") or "",
             "endDate": m.get("endDate") or end,
         })
@@ -461,7 +465,7 @@ def main() -> int:
     ap.add_argument(
         "--paper-rn1-report",
         action="store_true",
-        help="relatório do log paper_rn1_forward.csv",
+        help="relatório do log paper_rn1_forward.csv (fill simulado: touch, fila e through)",
     )
     ap.add_argument(
         "--paper-taker-pin",
@@ -501,7 +505,8 @@ def main() -> int:
         return 0
 
     if a.paper_rn1_report:
-        plog = settle_paper(ensure_log(), df)
+        plog = poll_tapes(ensure_log())
+        plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         c = summarize_paper(plog)
         print(
@@ -510,7 +515,8 @@ def main() -> int:
         )
         if c["fills"]:
             hit = "n/a" if c["hit"] != c["hit"] else f"{c['hit']:.0%}"
-            print(f"  retorno simulado: {c['retorno']:+.2f}u | hit {hit}")
+            print(f"  retorno simulado (regra antiga, último preço ≤ bid): {c['retorno']:+.2f}u | hit {hit}")
+        print(format_fill_model_report(summarize_fill_models(plog)))
         return 0
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
@@ -520,7 +526,8 @@ def main() -> int:
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
     if a.paper_rn1 or a.paper_rn1_report:
-        plog = settle_paper(ensure_log(), df)
+        plog = poll_tapes(ensure_log())
+        plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
 
     paper_pin_enabled = a.paper_taker_pin or any(
@@ -665,8 +672,18 @@ def main() -> int:
 
     if paper_rows:
         plog = ensure_log()
+        known = {str(s) for s in plog["slug"].dropna()} if "slug" in plog.columns else set()
+        # Slug já no log não ganha livro novo: a fila é a do instante do primeiro sinal.
+        fresh = [row for row in paper_rows if str(row.get("slug") or "") not in known]
+        stamped = {
+            str(row.get("slug") or ""): row
+            for row in stamp_signals(fresh, fetch_live_book)
+        }
+        paper_rows = [stamped.get(str(row.get("slug") or ""), row) for row in paper_rows]
         newp = pd.DataFrame(paper_rows)
         plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        plog = poll_tapes(plog)
+        plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         n_sinal = sum(1 for pr in paper_rows if pr.get("sinal") is True)
         print(
