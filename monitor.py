@@ -47,9 +47,19 @@ from src.polymarket_prices import (  # noqa: E402
 from src.paper_rn1 import (  # noqa: E402
     PAPER_LOG,
     ensure_log,
+    format_fill_model_report,
     scan_fixture,
     settle_paper,
+    summarize_fill_models,
     summarize_paper,
+)
+from src.paper_rn1_tape import (  # noqa: E402
+    apply_signal_upgrades,
+    fetch_live_book,
+    lookup_token_no,
+    partition_signals,
+    poll_tapes,
+    stamp_signals,
 )
 from src.paper_taker_pin import (  # noqa: E402
     PAPER_LOG as PAPER_PIN_LOG,
@@ -198,15 +208,17 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
     rows = []
     for m in e["markets"]:
         price = execution_price_yes(m)
-        token_yes, _ = parse_token_ids(m)
+        token_yes, token_no = parse_token_ids(m)
         rows.append({
             "title": m.get("groupItemTitle") or m["question"],
             "price": price,
             "preco_exec": price,
             "token_yes": token_yes,
+            "token_no": token_no,
             "volume": float(m.get("volume") or 0),
             "tradable": bool(m.get("acceptingOrders")),
             # paper RN1 lê estes campos; o mercado cru não chega no scan.
+            "conditionId": m.get("conditionId") or "",
             "gameStartTime": m.get("gameStartTime") or e.get("startTime") or "",
             "endDate": m.get("endDate") or end,
         })
@@ -418,6 +430,15 @@ def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFra
     return log
 
 
+def _persist_paper_log(df, log=None, *, only_slugs=None):
+    """Consulta a fita, liquida e grava. `only_slugs` evita reler o log inteiro."""
+    plog = ensure_log() if log is None else log
+    plog = poll_tapes(plog, resolve_no_token=lookup_token_no, only_slugs=only_slugs)
+    plog = settle_paper(plog, df)
+    plog.to_csv(PAPER_LOG, index=False)
+    return plog
+
+
 def _models(df: pd.DataFrame):
     """Devolve um resolvedor preguiçoso: (modelo, mapa de times) por competição.
 
@@ -461,7 +482,7 @@ def main() -> int:
     ap.add_argument(
         "--paper-rn1-report",
         action="store_true",
-        help="relatório do log paper_rn1_forward.csv",
+        help="relatório do log paper_rn1_forward.csv (fill simulado: touch, fila e through)",
     )
     ap.add_argument(
         "--paper-taker-pin",
@@ -490,8 +511,10 @@ def main() -> int:
         sigs = scan_live_signals()
         log = ensure_neg_log()
         if sigs:
-            log = pd.concat([log, pd.DataFrame(sigs)]).drop_duplicates(
-                subset=["slug", "direction", "data"], keep="first",
+            log = (
+                pd.concat([log, pd.DataFrame(sigs)], ignore_index=True)
+                .drop_duplicates(subset=["slug", "direction", "data"], keep="first")
+                .reset_index(drop=True)
             )
         log.to_csv(PAPER_NEG_LOG, index=False)
         print(f"PAPER NEG-RISK: {len(sigs)} sinais → {PAPER_NEG_LOG.name}")
@@ -501,8 +524,7 @@ def main() -> int:
         return 0
 
     if a.paper_rn1_report:
-        plog = settle_paper(ensure_log(), df)
-        plog.to_csv(PAPER_LOG, index=False)
+        plog = _persist_paper_log(df)
         c = summarize_paper(plog)
         print(
             f"paper RN1: {c['registros']} registros | resolvidos: {c['resolvidos']} "
@@ -510,7 +532,8 @@ def main() -> int:
         )
         if c["fills"]:
             hit = "n/a" if c["hit"] != c["hit"] else f"{c['hit']:.0%}"
-            print(f"  retorno simulado: {c['retorno']:+.2f}u | hit {hit}")
+            print(f"  retorno simulado (regra antiga, último preço ≤ bid): {c['retorno']:+.2f}u | hit {hit}")
+        print(format_fill_model_report(summarize_fill_models(plog)))
         return 0
 
     # Liquida o que já terminou antes de qualquer coisa (mantém o log em dia).
@@ -519,15 +542,16 @@ def main() -> int:
     maker_mode = a.maker or strategy_enabled("maker_pin_fair", strat_cfg)
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
-    if a.paper_rn1 or a.paper_rn1_report:
-        plog = settle_paper(ensure_log(), df)
-        plog.to_csv(PAPER_LOG, index=False)
 
     paper_pin_enabled = a.paper_taker_pin or any(
         s.get("enabled") and s.get("paper_only")
         and str(s.get("hypothesis_id", "")).startswith("H4-PIN")
         for s in strat_cfg.get("strategies", {}).values()
     )
+
+    # Liquida o paper antes do scan: um erro na coleta não deixa o log parado.
+    if a.paper_rn1:
+        _persist_paper_log(df)
 
     if a.report:
         if not LOG.exists():
@@ -651,7 +675,11 @@ def main() -> int:
             old = pd.read_csv(LOG)
             # keep="first": o registro pré-jogo é o válido; nunca deixar um
             # snapshot ao vivo sobrescrever o preço de antes da bola rolar.
-            new = pd.concat([old, new]).drop_duplicates(subset=["slug"], keep="first")
+            new = (
+                pd.concat([old, new], ignore_index=True)
+                .drop_duplicates(subset=["slug"], keep="first")
+                .reset_index(drop=True)
+            )
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
@@ -665,8 +693,39 @@ def main() -> int:
 
     if paper_rows:
         plog = ensure_log()
-        newp = pd.DataFrame(paper_rows)
-        plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        # Slug com placed_at não ganha livro novo: a fila é a do instante do primeiro sinal.
+        # Slug que estava só na faixa (sinal False, sem placed_at) e agora é sinal ganha o snapshot.
+        fresh, upgrades = partition_signals(paper_rows, plog)
+        stamped_fresh = {
+            str(row.get("slug") or ""): row
+            for row in stamp_signals(fresh, fetch_live_book)
+        }
+        stamped_up = {
+            str(row.get("slug") or ""): row
+            for row in stamp_signals(upgrades, fetch_live_book)
+        }
+        stamped = {**stamped_fresh, **stamped_up}
+        paper_rows = [stamped.get(str(row.get("slug") or ""), row) for row in paper_rows]
+        if fresh:
+            newp = pd.DataFrame([stamped_fresh[str(row.get("slug") or "")] for row in fresh])
+            # Os dois frames nascem no índice 0. Sem ignore_index, log.loc[0]
+            # devolve as duas linhas e o settle quebra antes de gravar o CSV.
+            plog = (
+                pd.concat([plog, newp], ignore_index=True)
+                .drop_duplicates(subset=["slug"], keep="first")
+                .reset_index(drop=True)
+            )
+        plog = apply_signal_upgrades(
+            plog, [stamped_up[str(row.get("slug") or "")] for row in upgrades]
+        )
+        new_slugs = {
+            str(row.get("slug") or "")
+            for row in list(fresh) + list(upgrades)
+            if str(row.get("slug") or "")
+        }
+        if new_slugs:
+            plog = poll_tapes(plog, resolve_no_token=lookup_token_no, only_slugs=new_slugs)
+        plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         n_sinal = sum(1 for pr in paper_rows if pr.get("sinal") is True)
         print(
@@ -689,7 +748,11 @@ def main() -> int:
     if paper_pin_rows:
         plogp = ensure_pin_log()
         newpp = pd.DataFrame(paper_pin_rows)
-        plogp = pd.concat([plogp, newpp]).drop_duplicates(subset=["slug", "pick"], keep="first")
+        plogp = (
+            pd.concat([plogp, newpp], ignore_index=True)
+            .drop_duplicates(subset=["slug", "pick"], keep="first")
+            .reset_index(drop=True)
+        )
         plogp.to_csv(PAPER_PIN_LOG, index=False)
         print(f"\nPAPER TAKER PIN: {len(paper_pin_rows)} sinais → {PAPER_PIN_LOG.name}")
     elif a.paper_taker_pin:

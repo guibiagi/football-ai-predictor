@@ -19,4 +19,25 @@
 ```bash
 python scripts/refresh_pinnacle_fixtures.py   # força cache de fixtures
 python monitor.py --paper-rn1
+python monitor.py --paper-rn1-report
 ```
+
+## Fill simulado do paper RN1
+
+Nenhuma ordem é enviada. O relatório mostra três simulações, no preço descido à grade `tick_size` do livro (`sim_price`):
+
+- **touch** (otimista) — fluxo taker que alcança esse preço enche a ordem inteira.
+- **queue** (central) — esse fluxo só nos alcança depois da fila que já estava no nível. Um print estritamente abaixo do preço esvazia o nível, então o fill é cheio. Sem isso, o fill é parcial.
+- **through** (pessimista) — só enche se algum print ficar estritamente abaixo do preço simulado.
+
+Quando os três estão medidos, touch ≥ queue ≥ through.
+
+O fluxo que consome um bid YES é lido com `takerOnly=true`: venda do YES a preço ≤ `sim_price`, mais compra do NO a preço ≥ 1 − `sim_price` (mint; o tamanho entra 1:1 em shares do YES). Sem `tick_size` no livro, `queue_ahead` fica vazio — não gravamos 0 inventado.
+
+A regra antiga (`fill_simulado`: último preço do CLOB até o kickoff ≤ bid) continua no CSV. O retorno dela usa o bid cru; o retorno dos três modelos usa `sim_price`.
+
+O monitor grava o livro em `data/paper_rn1_tapes/` quando o sinal nasce. Um slug que entrou só na faixa (`sinal` falso, sem `placed_at`) e depois vira sinal ganha esse snapshot; um slug que já tem `placed_at` não é regravado. Se o menor ask do snapshot já está ≤ `sim_price`, a limite cruzaria na hora (`entry_cross`) e os três modelos enchem por inteiro.
+
+A fita fica `partial` até o kickoff e `complete` quando uma leitura sem erro termina depois do kickoff. Ela só congela depois de uma leitura limpa feita pelo menos uma hora após o kickoff. Fita congelada não é consultada de novo e um 429 posterior não rebaixa a cobertura. Fita que continua incompleta para depois de 8 tentativas ou 48h após o kickoff e fica não medida. Cada corrida de `--paper-rn1` consulta a fita uma vez.
+
+Janela longa é fatiada em 6h. 429 espera e tenta de novo. Página vazia, mesmo depois de um múltiplo exato de 100 trades, é o fim da janela. O teto de offset (página cheia que não pode pedir a seguinte) ou um erro deixam a fita incompleta. Uma fita antiga, sem `tick_known`, não entra na taxa. O mesmo vale para uma linha de CSV sem `tick_known` confirmado ou sem `sim_price` quando o arquivo da fita não existe: fica não medida, sem fill no bid cru e sem congelar. Buraco não vira zero. O tamanho da ordem é suposição de US$ 25 de stake (shares = 25 / `sim_price`), não é tamanho medido. `fill_simulado` segue no bid cru.

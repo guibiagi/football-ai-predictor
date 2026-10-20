@@ -1,4 +1,9 @@
-"""Forward test em papel: RN1 0.60–0.80, bid fair Pin − 2.5¢."""
+"""Forward test em papel: RN1 0.60–0.80, bid fair Pin − 2.5¢.
+
+`fill_simulado` continua a regra antiga: último preço CLOB até o kickoff <= bid.
+Os três modelos novos (touch, queue, through) são simulação em cima da fita
+de livro + trades e não substituem essa coluna.
+"""
 
 from __future__ import annotations
 
@@ -24,12 +29,18 @@ GAMMA_EVENTS = "https://gamma-api.polymarket.com/events"
 COLS = [
     "data", "liga", "slug", "casa", "fora", "pick", "fair_pin", "bid", "poly_exec",
     "volume", "kickoff", "sinal", "fill_simulado", "resultado", "retorno_sim", "clv_pin", "token",
+    "placed_at", "condition_id", "queue_ahead", "our_size", "filled_size", "fill_model",
+    "filled_touch", "filled_queue", "filled_through",
+    "retorno_touch", "retorno_queue", "retorno_through", "fill_coverage",
+    "sim_price", "tick_size", "token_no", "entry_cross", "tick_known",
 ]
 
 # Colunas que recebem bool/texto. Se nascerem float64 (CSV todo NaN), .at recusa False.
 _FLEX_COLS = (
     "data", "liga", "slug", "casa", "fora", "pick", "kickoff",
     "sinal", "fill_simulado", "resultado", "token",
+    "placed_at", "condition_id", "fill_model", "fill_coverage",
+    "token_no", "entry_cross", "tick_known",
 )
 _SCI_TOKEN = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+")
 _ROLE_ORDER = ("casa", "empate", "fora")
@@ -44,6 +55,13 @@ _TEXT_DTYPES = {
     "kickoff": str,
     "resultado": str,
     "token": str,
+    "placed_at": str,
+    "condition_id": str,
+    "fill_model": str,
+    "fill_coverage": str,
+    "token_no": str,
+    "entry_cross": str,
+    "tick_known": str,
 }
 
 
@@ -81,6 +99,11 @@ def _clean_token(value) -> str | None:
 def _is_true(value) -> bool:
     if value is True:
         return True
+    if value is False:
+        return False
+    # pandas guarda bool como np.True_. Isso não é `is True`, mas é verdadeiro.
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
     if isinstance(value, str) and value.strip().lower() == "true":
         return True
     try:
@@ -123,7 +146,9 @@ def ensure_log(path: Path = PAPER_LOG) -> pd.DataFrame:
     for c in COLS:
         if c not in df.columns:
             df[c] = None
-    return coerce_log_dtypes(df)
+    # CSV não guarda o índice. Um RangeIndex repetido (concat sem ignore_index)
+    # faria log.loc[0] devolver duas linhas e o settle quebrar.
+    return coerce_log_dtypes(df).reset_index(drop=True)
 
 
 def normalize_kickoff(raw) -> str:
@@ -140,6 +165,26 @@ def normalize_kickoff(raw) -> str:
     else:
         dt = dt.astimezone(timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _condition_id(market: dict | None) -> str | None:
+    if not market:
+        return None
+    raw = market.get("conditionId") or market.get("condition_id")
+    if _blank(raw):
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def _token_no(market: dict | None) -> str | None:
+    if not market:
+        return None
+    cleaned = _clean_token(market.get("token_no"))
+    if cleaned:
+        return cleaned
+    _, no = parse_token_ids(market)
+    return _clean_token(no)
 
 
 def resolve_token(market: dict | None) -> str | None:
@@ -255,6 +300,11 @@ def scan_fixture(
         "clv_pin": None,
         "pick": label,
         "token": resolve_token(m),
+        "token_no": _token_no(m),
+        "condition_id": _condition_id(m),
+        "placed_at": None,
+        "sim_price": None,
+        "entry_cross": None,
     }
 
 
@@ -312,16 +362,121 @@ def _clear_false_sem_fill(log: pd.DataFrame, i) -> None:
     log.at[i, "fill_simulado"] = None
 
 
-def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
+def _cell_number(value) -> float | None:
+    if _blank(value):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    return number
+
+
+def _mark_fill_unmeasured(log: pd.DataFrame, i) -> None:
+    """Legado não entra na taxa: sem fill, cobertura incompleta, não congelada."""
+    if "fill_coverage" in log.columns:
+        log.at[i, "fill_coverage"] = "incomplete"
+    for name in ("touch", "queue", "through"):
+        if f"filled_{name}" in log.columns:
+            log.at[i, f"filled_{name}"] = None
+        if f"retorno_{name}" in log.columns:
+            log.at[i, f"retorno_{name}"] = None
+    if "filled_size" in log.columns:
+        log.at[i, "filled_size"] = None
+    if "fill_model" in log.columns:
+        log.at[i, "fill_model"] = None
+    if "entry_cross" in log.columns:
+        log.at[i, "entry_cross"] = False
+    if "queue_ahead" in log.columns:
+        log.at[i, "queue_ahead"] = None
+
+
+def _apply_fill_tape(log: pd.DataFrame, i, tape: dict | None, *, bid: float, won: bool) -> None:
+    """Escreve os três modelos quando a fita cobre a janela inteira. Fita cortada não vira zero."""
+    if not tape:
+        return
+    from src.paper_rn1_tape import _stored_flag, iso_to_ts
+    from src.queue_fill import estimate_fills, simulated_return
+
+    our = _cell_number(tape.get("our_size"))
+    if our is not None and "our_size" in log.columns:
+        log.at[i, "our_size"] = our
+    sim = _cell_number(tape.get("sim_price"))
+    known = _stored_flag(tape.get("tick_known"))
+    # tick ausente, NaN ou preço fora da grade: a linha antiga não é medida,
+    # mesmo que a cobertura tenha sido gravada como complete.
+    if bool(tape.get("legacy")) or known is not True or sim is None:
+        _mark_fill_unmeasured(log, i)
+        return
+    coverage = str(tape.get("coverage") or "pending")
+    log.at[i, "fill_coverage"] = coverage
+    observed = bool(tape.get("book_observed"))
+    queue_ahead = _cell_number(tape.get("queue_ahead")) if observed else None
+    if observed and queue_ahead is not None:
+        log.at[i, "queue_ahead"] = queue_ahead
+    if "sim_price" in log.columns:
+        log.at[i, "sim_price"] = sim
+    marketable = _is_true(tape.get("entry_cross"))
+    if marketable and "entry_cross" in log.columns:
+        log.at[i, "entry_cross"] = True
+    if coverage != "complete" and not marketable:
+        return
+    placed_ts = iso_to_ts(tape.get("placed_at") or log.at[i, "placed_at"])
+    kickoff_ts = iso_to_ts(tape.get("kickoff") or log.at[i, "kickoff"])
+    if placed_ts is None or our is None:
+        return
+    price = sim if sim is not None else bid
+    yes_token = tape.get("token")
+    no_token = tape.get("token_no")
+    if _blank(yes_token):
+        yes_token = None
+    if _blank(no_token):
+        no_token = None
+    estimates = estimate_fills(
+        price=price,
+        our_size=our,
+        queue_ahead=queue_ahead,
+        trades=list(tape.get("trades") or []),
+        placed_ts=placed_ts,
+        kickoff_ts=kickoff_ts,
+        yes_token=None if yes_token is None else str(yes_token),
+        no_token=None if no_token is None else str(no_token),
+        tick_size=_cell_number(tape.get("tick_size")),
+        marketable=marketable,
+    )
+    for name in ("touch", "queue", "through"):
+        estimate = estimates[name]
+        filled = estimate.filled_size if estimate.measured else None
+        log.at[i, f"filled_{name}"] = filled
+        log.at[i, f"retorno_{name}"] = simulated_return(price, won, filled, our)
+    if marketable and estimates["queue"].measured:
+        log.at[i, "filled_size"] = estimates["queue"].filled_size
+        log.at[i, "fill_model"] = "cross"
+    elif estimates["queue"].measured:
+        log.at[i, "filled_size"] = estimates["queue"].filled_size
+        log.at[i, "fill_model"] = "queue"
+
+
+def settle_paper(
+    log: pd.DataFrame,
+    hist_df: pd.DataFrame,
+    tapes: dict | None = None,
+    tape_dir: Path | None = None,
+) -> pd.DataFrame:
     """Liquida jogos já resolvidos na Polymarket.
 
-    Fill simulado: último preço CLOB do token até o kickoff ≤ bid.
+    Fill simulado (regra antiga): último preço CLOB do token até o kickoff ≤ bid.
     Sem kickoff, sem token ou sem histórico de preço, a linha fica pendente
     (não vira `sem_fill` — isso seria 'não deu para medir').
     Resultado final só com os três mercados `closed`, como `monitor.settle`.
     Preço ≥ 0.9 no meio do jogo não liquida.
+
+    Se houver fita completa (livro na entrada + trades da janela), grava também
+    filled_touch / filled_queue / filled_through. Fita incompleta não vira fill zero.
     """
-    log = coerce_log_dtypes(log)
+    log = coerce_log_dtypes(log).reset_index(drop=True)
     pick_idx = {"casa": 0, "empate": 1, "fora": 2}
     pending = [i for i, r in log.iterrows() if _needs_settle(r)]
     for i in pending:
@@ -344,6 +499,10 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
             tok = resolve_token(picked)
             if tok:
                 log.at[i, "token"] = tok
+        if _blank(log.at[i, "condition_id"]) and picked:
+            cid = _condition_id(picked)
+            if cid:
+                log.at[i, "condition_id"] = cid
         if _blank(log.at[i, "kickoff"]):
             ko_s = resolve_kickoff(picked or None, event=ev)
             if ko_s:
@@ -376,11 +535,18 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
         except (TypeError, ValueError):
             continue
         close_p = closing_price_before_kickoff(token, ko)
+        winner = mapped[prices.index(max(prices))]
+        acertou = winner == pick
+        _apply_fill_tape(
+            log,
+            i,
+            _tape_for_slug(str(r.get("slug") or ""), tapes, tape_dir),
+            bid=bid,
+            won=acertou,
+        )
         if close_p is None:
             # CLOB sem histórico: não inventar sem_fill.
             continue
-        winner = mapped[prices.index(max(prices))]
-        acertou = winner == pick
         if close_p > bid:
             log.at[i, "fill_simulado"] = False
             log.at[i, "resultado"] = "sem_fill"
@@ -402,7 +568,195 @@ def settle_paper(log: pd.DataFrame, hist_df: pd.DataFrame) -> pd.DataFrame:
         if pin and pi is not None:
             p_devig = market_probs(np.array([[pin[0], pin[1], pin[2]]], dtype=float))[0][pi]
             log.at[i, "clv_pin"] = round(clv_probability(bid, float(p_devig)), 4)
+    _backfill_fill_models(log, tapes, tape_dir)
     return log
+
+
+def _pick_won_after_settle(row: pd.Series) -> bool | None:
+    """acerto/erro já dizem o vencedor. sem_fill precisa reler o evento, sem mexer no resultado."""
+    resultado = str(row.get("resultado") or "").strip()
+    if resultado == "acerto":
+        return True
+    if resultado == "erro":
+        return False
+    if resultado != "sem_fill":
+        return None
+    ev = _fetch_event(str(row.get("slug") or ""))
+    if not ev:
+        return None
+    markets = ev.get("markets") or []
+    home = str(row.get("casa") or "")
+    away = str(row.get("fora") or "")
+    pick = str(row.get("pick") or "").strip()
+    mapped = _outcome_roles(markets, home, away) if len(markets) == 3 else None
+    if mapped is None or pick not in mapped or not all(m.get("closed") for m in markets):
+        return None
+    prices = _yes_prices(markets)
+    if max(prices) < 0.9:
+        return None
+    return mapped[prices.index(max(prices))] == pick
+
+
+def _backfill_fill_models(log: pd.DataFrame, tapes: dict | None, tape_dir: Path | None) -> None:
+    """Linha já liquidada pela regra antiga ainda recebe a fila quando a fita completa chega."""
+    for i, row in log.iterrows():
+        resultado = str(row.get("resultado") or "").strip()
+        if resultado not in {"acerto", "erro", "sem_fill"}:
+            continue
+        if str(row.get("fill_coverage") or "").strip() == "complete" and _cell_number(row.get("filled_touch")) is not None:
+            continue
+        tape = _tape_for_slug(str(row.get("slug") or ""), tapes, tape_dir)
+        if not tape or str(tape.get("coverage") or "") != "complete":
+            continue
+        won = _pick_won_after_settle(row)
+        if won is None:
+            continue
+        try:
+            bid = float(row["bid"])
+        except (TypeError, ValueError):
+            continue
+        _apply_fill_tape(log, i, tape, bid=bid, won=won)
+
+
+def _tape_for_slug(slug: str, tapes: dict | None, tape_dir: Path | None) -> dict | None:
+    if tapes is not None:
+        return tapes.get(slug)
+    from src.paper_rn1_tape import TAPE_DIR, load_tape
+
+    directory = TAPE_DIR if tape_dir is None else tape_dir
+    if not Path(directory).exists():
+        return None
+    return load_tape(slug, directory)
+
+
+def _model_block() -> dict:
+    return {
+        "medidos": 0,
+        "com_fill": 0,
+        "fill_rate": None,
+        "fill_rate_tamanho": None,
+        "pnl_simulado": None,
+    }
+
+
+def summarize_fill_models(log: pd.DataFrame) -> dict:
+    """Taxa de fill e PnL simulado por modelo.
+
+    Um modelo só entra na taxa quando `filled_*` está preenchido e a fita está
+    `complete`, ou quando a entrada já cruzou o ask (`entry_cross`). Cobertura
+    `partial` / `pending`, ou `complete` com fill vazio, conta como não medido.
+    """
+    empty = {
+        "touch": _model_block(),
+        "queue": _model_block(),
+        "through": _model_block(),
+        "nao_medidos": 0,
+        "sinais": 0,
+    }
+    if log is None or log.empty or "sinal" not in log.columns:
+        return empty
+    signals = log[log["sinal"].map(_is_true)]
+    empty["sinais"] = int(len(signals))
+    if signals.empty:
+        return empty
+    if "fill_coverage" in signals.columns:
+        complete = signals["fill_coverage"].map(lambda v: str(v).strip() == "complete")
+    else:
+        complete = pd.Series(False, index=signals.index)
+    if "entry_cross" in signals.columns:
+        crossed = signals["entry_cross"].map(_is_true)
+    else:
+        crossed = pd.Series(False, index=signals.index)
+    eligible = complete | crossed
+    queue_measured = pd.Series(False, index=signals.index)
+    for name in ("touch", "queue", "through"):
+        col = f"filled_{name}"
+        ret_col = f"retorno_{name}"
+        block = _model_block()
+        if col not in signals.columns:
+            empty[name] = block
+            continue
+        filled = signals[col].map(_cell_number)
+        usable_mask = filled.notna() & eligible
+        if name == "queue":
+            queue_measured = usable_mask
+        usable = signals[usable_mask]
+        filled = filled[usable_mask]
+        block["medidos"] = int(len(filled))
+        if filled.empty:
+            empty[name] = block
+            continue
+        block["com_fill"] = int((filled > 0).sum())
+        block["fill_rate"] = block["com_fill"] / block["medidos"]
+        our = usable["our_size"].map(_cell_number) if "our_size" in usable.columns else None
+        our_sum = float(our.sum()) if our is not None else 0.0
+        if our_sum > 0:
+            block["fill_rate_tamanho"] = float(filled.sum()) / our_sum
+        if ret_col in usable.columns:
+            pnl = usable[ret_col].map(_cell_number)
+            block["pnl_simulado"] = float(pnl.dropna().sum()) if pnl.notna().any() else 0.0
+        else:
+            block["pnl_simulado"] = 0.0
+        empty[name] = block
+    empty["nao_medidos"] = int((~queue_measured).sum())
+    return empty
+
+
+def format_fill_model_report(stats: dict) -> str:
+    """Texto do relatório. Tudo aqui é simulado; o que não foi medido não vira porcentagem."""
+    from src.queue_fill import ASSUMED_STAKE_USD
+
+    labels = {
+        "touch": "touch (otimista: fluxo taker que alcança o bid enche a ordem, sem fila)",
+        "queue": "queue (central: volume a preço ≤ bid precisa passar da fila; print abaixo do bid esvazia o nível)",
+        "through": "through (pessimista: só enche se o preço negociar estritamente abaixo do bid)",
+    }
+    lines = [
+        "Fill simulado (nenhuma ordem enviada; taxa de fill e PnL abaixo são simulação, não execução):",
+    ]
+    for key, label in labels.items():
+        block = (stats or {}).get(key) or _model_block()
+        medidos = int(block.get("medidos") or 0)
+        if medidos <= 0 or block.get("fill_rate") is None:
+            lines.append(f"  {label}: não medido")
+            continue
+        size_rate = block.get("fill_rate_tamanho")
+        size_txt = "não medido" if size_rate is None else f"{size_rate:.0%}"
+        pnl = block.get("pnl_simulado")
+        pnl_txt = "não medido" if pnl is None else f"{pnl:+.2f}u"
+        lines.append(
+            f"  {label}: fill {block['fill_rate']:.0%} dos sinais medidos "
+            f"({block['com_fill']}/{medidos}); "
+            f"fill ponderado por tamanho {size_txt}; "
+            f"PnL simulado {pnl_txt}"
+        )
+    nao = int((stats or {}).get("nao_medidos") or 0)
+    if nao:
+        lines.append(
+            f"  {nao} sinal(is) sem fita completa até o kickoff: não medido "
+            "(a data-api pode não devolver trades até o horário do sinal)."
+        )
+    lines.append(
+        "  A coluna fill_simulado continua sendo o último preço CLOB ≤ bid cru, separada destes três modelos. "
+        "O retorno dela usa esse bid; os três modelos usam o preço simulado na grade."
+    )
+    lines.append(
+        "  Limitação: a fila é o tamanho no livro no preço simulado (bid descido ao tick_size) no instante "
+        "do sinal. Sem tick no livro a fila fica não medida, não zero. Os trades são a janela pública da "
+        "data-api entre a entrada e o kickoff, com takerOnly: venda YES a preço ≤ bid e compra NO a preço "
+        "≥ 1−bid (mint, shares 1:1; cada taker do mesmo negócio soma). A fita só congela depois de uma "
+        "leitura limpa feita no mínimo uma hora após o kickoff. Fita incompleta para de ser consultada "
+        "depois de algumas tentativas ou 48h após o kickoff e fica não medido. Erro, 429 ou teto de offset "
+        "também deixam o fill não medido — não colocamos zero no lugar. Página vazia é fim de janela, não "
+        "corte. Uma linha de CSV sem tick_known confirmado ou sem sim_price é legado: não medida, "
+        "sem fill no bid cru e sem congelar. O monitor grava o livro na entrada e acumula trades numa consulta por rodada. "
+        "Fill parcial conta como fill na taxa por sinal; a taxa ponderada por tamanho está ao lado."
+    )
+    lines.append(
+        f"  Tamanho da ordem: suposição de US$ {ASSUMED_STAKE_USD:.0f} de stake "
+        "(não é tamanho medido); shares = stake / preço simulado."
+    )
+    return "\n".join(lines)
 
 
 def summarize_paper(log: pd.DataFrame) -> dict:
