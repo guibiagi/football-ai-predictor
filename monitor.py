@@ -56,6 +56,7 @@ from src.paper_rn1 import (  # noqa: E402
 from src.paper_rn1_tape import (  # noqa: E402
     apply_signal_upgrades,
     fetch_live_book,
+    lookup_token_no,
     partition_signals,
     poll_tapes,
     stamp_signals,
@@ -512,7 +513,7 @@ def main() -> int:
         return 0
 
     if a.paper_rn1_report:
-        plog = poll_tapes(ensure_log())
+        plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
         plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         c = summarize_paper(plog)
@@ -532,10 +533,6 @@ def main() -> int:
     maker_mode = a.maker or strategy_enabled("maker_pin_fair", strat_cfg)
     if LOG.exists():
         settle(pd.read_csv(LOG), hist_df=df).to_csv(LOG, index=False)
-    if a.paper_rn1 or a.paper_rn1_report:
-        plog = poll_tapes(ensure_log())
-        plog = settle_paper(plog, df)
-        plog.to_csv(PAPER_LOG, index=False)
 
     paper_pin_enabled = a.paper_taker_pin or any(
         s.get("enabled") and s.get("paper_only")
@@ -544,6 +541,10 @@ def main() -> int:
     )
 
     if a.report:
+        if a.paper_rn1:
+            plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
+            plog = settle_paper(plog, df)
+            plog.to_csv(PAPER_LOG, index=False)
         if not LOG.exists():
             print("Sem histórico ainda.")
             return 0
@@ -698,7 +699,7 @@ def main() -> int:
         plog = apply_signal_upgrades(
             plog, [stamped_up[str(row.get("slug") or "")] for row in upgrades]
         )
-        plog = poll_tapes(plog)
+        plog = poll_tapes(plog, resolve_no_token=lookup_token_no)
         plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         n_sinal = sum(1 for pr in paper_rows if pr.get("sinal") is True)
@@ -718,6 +719,9 @@ def main() -> int:
     if a.paper_rn1 and not paper_rows:
         print("PAPER RN1: nenhum sinal executável na faixa 0.60–0.80 hoje "
               "(volume mínimo / preço Poly).")
+        plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
+        plog = settle_paper(plog, df)
+        plog.to_csv(PAPER_LOG, index=False)
 
     if paper_pin_rows:
         plogp = ensure_pin_log()

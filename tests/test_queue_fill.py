@@ -35,10 +35,14 @@ from src.paper_rn1 import (
 )
 from src.paper_rn1_tape import (
     FREEZE_BUFFER_SEC,
+    INCOMPLETE_GIVE_UP_SEC,
+    INCOMPLETE_POLL_CAP,
     MAX_OFFSET,
     PAGE_LIMIT,
     SUB_WINDOW_SEC,
+    TAPE_SCHEMA,
     TradeFetch,
+    _tape_from_row,
     apply_signal_upgrades,
     capture_entry,
     fetch_trades_window,
@@ -545,6 +549,7 @@ def test_ensure_log_keeps_new_fill_columns(tmp_path):
         "tick_size",
         "token_no",
         "entry_cross",
+        "tick_known",
     ):
         assert col in out.columns
 
@@ -644,21 +649,27 @@ def test_no_buy_at_the_complement_consumes_the_yes_bid():
     _assert_fill_order(out)
 
 
-def test_same_mint_transaction_is_not_counted_twice():
-    tx = "0xsame"
-    yes_sell = _sell(PLACED_TS + 8, BID, 40, asset=YES, transactionHash=tx)
-    no_buy = _sell(PLACED_TS + 8, 1 - BID, 40, asset=NO, side="BUY", transactionHash=tx)
+def test_two_taker_records_in_one_transaction_are_summed():
+    """takerOnly=true devolve um registro por taker. Dois no mesmo negócio somam."""
+    tx = "0xshared"
+    first = _sell(
+        PLACED_TS + 8, 1 - BID, 100, asset=NO, side="BUY",
+        transactionHash=tx, proxyWallet="0xaaa",
+    )
+    second = _sell(
+        PLACED_TS + 8, 1 - BID, 40, asset=NO, side="BUY",
+        transactionHash=tx, proxyWallet="0xbbb",
+    )
     out = _fills(
-        trades=[yes_sell, no_buy],
+        trades=[first, second],
         yes_token=YES,
         no_token=NO,
         tick_size=0.001,
         queue_ahead=0,
-        our_size=50,
+        our_size=200,
     )
-    assert out["touch"].eligible_volume == pytest.approx(40)
-    assert out["queue"].filled_size == pytest.approx(40)
-    assert out["touch"].filled_size == 50
+    assert out["touch"].eligible_volume == pytest.approx(140)
+    assert out["queue"].filled_size == pytest.approx(140)
     assert out["through"].filled_size == 0.0
     _assert_fill_order(out)
 
@@ -984,6 +995,7 @@ def test_poll_does_not_refetch_a_frozen_tape(tmp_path):
         "book_observed": True,
         "fetch_error": False,
         "hit_cap": False,
+        "fetched_at": "2026-10-18T14:01:00Z",
     }
     save_tape(tape, tmp_path)
     calls = {"n": 0}
@@ -1000,6 +1012,7 @@ def test_poll_does_not_refetch_a_frozen_tape(tmp_path):
     saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert saved["frozen"] is True
     assert saved["coverage"] == "complete"
+    assert saved["schema"] == TAPE_SCHEMA
 
 
 def test_poll_before_kickoff_stays_partial(tmp_path):
@@ -1052,23 +1065,42 @@ def test_429_mid_pagination_keeps_the_first_page_and_backs_off():
     assert state["delays"]
 
 
-def test_empty_page_after_a_full_page_marks_the_cap():
-    page = [
-        _sell(PLACED_TS + 10, BID, 1, asset="tok-home", transactionHash=f"0x{i}")
-        for i in range(PAGE_LIMIT)
-    ]
+def test_empty_page_after_an_exact_multiple_of_the_page_is_a_normal_end():
+    def trades(n, tag):
+        return [
+            _sell(PLACED_TS + 10, BID, 1, asset="tok-home", transactionHash=f"0x{tag}-{i}")
+            for i in range(n)
+        ]
 
-    def urlopen(req, timeout=60):
-        if "offset=0&" in req.full_url:
-            return _UrlResp(page)
-        return _UrlResp([])
+    def run(pages):
+        offsets = []
 
-    got = fetch_trades_window(
-        "0xabc", "tok-home", PLACED_TS, KICKOFF_TS, urlopen=urlopen, sleeper=lambda _s: None,
-    )
-    assert got.hit_cap is True
-    assert got.fetch_error is False
-    assert len(got.trades) == PAGE_LIMIT
+        def urlopen(req, timeout=60):
+            offset = int(req.full_url.split("offset=")[1].split("&")[0])
+            offsets.append(offset)
+            if offset // PAGE_LIMIT < len(pages):
+                return _UrlResp(pages[offset // PAGE_LIMIT])
+            return _UrlResp([])
+
+        got = fetch_trades_window(
+            "0xabc", "tok-home", PLACED_TS, KICKOFF_TS, urlopen=urlopen, sleeper=lambda _s: None,
+        )
+        return got, offsets
+
+    one, offsets_one = run([trades(PAGE_LIMIT, "a")])
+    assert one.hit_cap is False
+    assert one.fetch_error is False
+    assert len(one.trades) == PAGE_LIMIT
+    assert offsets_one == [0, PAGE_LIMIT]
+
+    two, _offsets_two = run([trades(PAGE_LIMIT, "b"), trades(PAGE_LIMIT, "c")])
+    assert two.hit_cap is False
+    assert len(two.trades) == PAGE_LIMIT * 2
+
+    short, offsets_short = run([trades(PAGE_LIMIT - 1, "d")])
+    assert short.hit_cap is False
+    assert len(short.trades) == PAGE_LIMIT - 1
+    assert offsets_short == [0]
 
 
 def test_pagination_does_not_request_the_offset_cap():
@@ -1171,3 +1203,172 @@ def test_signal_that_turns_true_later_gets_a_book_snapshot(tmp_path):
     kept = apply_signal_upgrades(out, [later])
     assert kept.loc[0, "placed_at"] == PLACED
     assert kept.loc[0, "queue_ahead"] == pytest.approx(12)
+
+
+def test_csv_false_flags_do_not_invent_a_full_fill(tmp_path):
+    path = tmp_path / "paper_rn1_forward.csv"
+    row = _base_row(
+        sinal=True,
+        placed_at=PLACED,
+        kickoff=KICKOFF,
+        condition_id="0xabc",
+        token="tok-home",
+        token_no=NO,
+        our_size=OUR,
+        queue_ahead=0,
+        sim_price=BID,
+        fill_coverage="pending",
+        entry_cross=False,
+        tick_known=False,
+    )
+    pd.DataFrame([row]).to_csv(path, index=False)
+    loaded = ensure_log(path)
+    assert str(loaded.loc[0, "entry_cross"]) == "False"
+    assert str(loaded.loc[0, "tick_known"]) == "False"
+    tape = _tape_from_row(loaded.iloc[0])
+    assert tape["entry_cross"] is False
+    assert tape["tick_known"] is False
+
+    nan_row = loaded.iloc[0].copy()
+    nan_row["tick_known"] = float("nan")
+    nan_row["entry_cross"] = "False"
+    nan_tape = _tape_from_row(nan_row)
+    assert nan_tape["tick_known"] is False
+    assert nan_tape["entry_cross"] is False
+
+    with patch("urllib.request.urlopen", return_value=_Resp([_event(["1", "0", "0"])])):
+        with patch("src.paper_rn1.closing_price_before_kickoff", return_value=0.70):
+            settled = settle_paper(loaded, pd.DataFrame(), tapes={row["slug"]: tape})
+    assert pd.isna(settled.loc[0, "filled_touch"])
+    assert pd.isna(settled.loc[0, "filled_queue"])
+    assert settled.loc[0, "fill_model"] != "cross"
+    stats = summarize_fill_models(settled)
+    assert stats["queue"]["medidos"] == 0
+    assert stats["nao_medidos"] == 1
+
+
+def test_legacy_tape_without_tick_is_not_measured(tmp_path):
+    row = _base_row(
+        sinal=True,
+        placed_at=PLACED,
+        kickoff=KICKOFF,
+        condition_id="0xabc",
+        token="tok-home",
+        queue_ahead=0,
+        our_size=OUR,
+    )
+    tape = {
+        "slug": row["slug"],
+        "coverage": "complete",
+        "trades": [_sell(PLACED_TS + 20, 0.738, 10)],
+        "placed_at": PLACED,
+        "kickoff": KICKOFF,
+        "condition_id": "0xabc",
+        "token": "tok-home",
+        "bid": 0.7385,
+        "queue_ahead": 0.0,
+        "our_size": OUR,
+        "book_observed": True,
+    }
+    save_tape(tape, tmp_path)
+    calls = {"fetch": 0, "no": 0}
+
+    def fetch(*args, **kwargs):
+        calls["fetch"] += 1
+        raise AssertionError("fita antiga não é relida como se fosse válida")
+
+    def resolve(slug, yes):
+        calls["no"] += 1
+        assert yes == "tok-home"
+        return "tok-no-backfill"
+
+    moment = datetime(2026, 10, 18, 15, 0, tzinfo=timezone.utc)
+    out = poll_tapes(
+        pd.DataFrame([row]),
+        fetch=fetch,
+        tape_dir=tmp_path,
+        now=moment,
+        resolve_no_token=resolve,
+    )
+    assert calls["fetch"] == 0
+    assert calls["no"] == 1
+    assert out.loc[0, "fill_coverage"] == "incomplete"
+    assert out.loc[0, "tick_known"] == False
+    assert out.loc[0, "token_no"] == "tok-no-backfill"
+    saved = json.loads((tmp_path / f"{row['slug']}.json").read_text(encoding="utf-8"))
+    assert saved["schema"] == TAPE_SCHEMA
+    assert saved["legacy"] is True
+    assert saved["tick_known"] is False
+    assert saved["trades"] == []
+    assert saved["token_no"] == "tok-no-backfill"
+    assert saved["poll_stopped"] is True
+
+
+def test_freeze_waits_for_a_fetch_after_the_buffer(tmp_path):
+    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    calls = {"n": 0}
+
+    def fetch(*args, **kwargs):
+        calls["n"] += 1
+        return TradeFetch(
+            trades=[_sell(PLACED_TS + 20, BID, 4)],
+            hit_cap=False,
+            fetch_error=False,
+        )
+
+    near = datetime(2026, 10, 18, 13, 10, tzinfo=timezone.utc)
+    out = poll_tapes(pd.DataFrame([row]), fetch=fetch, tape_dir=tmp_path, now=near)
+    assert calls["n"] == 1
+    assert out.loc[0, "fill_coverage"] == "complete"
+    saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert saved["frozen"] is False
+
+    later = datetime(2026, 10, 18, 15, 0, tzinfo=timezone.utc)
+    out = poll_tapes(out, fetch=fetch, tape_dir=tmp_path, now=later)
+    assert calls["n"] == 2
+    saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert saved["frozen"] is True
+    assert saved["fetched_at"] == "2026-10-18T15:00:00Z"
+
+    poll_tapes(out, fetch=fetch, tape_dir=tmp_path, now=later)
+    assert calls["n"] == 2
+
+
+def test_incomplete_tape_stops_after_the_attempt_cap(tmp_path):
+    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    calls = {"n": 0}
+
+    def fetch(*args, **kwargs):
+        calls["n"] += 1
+        return TradeFetch(trades=[], hit_cap=False, fetch_error=True)
+
+    moment = datetime(2026, 10, 18, 15, 0, tzinfo=timezone.utc)
+    log = pd.DataFrame([row])
+    for _ in range(INCOMPLETE_POLL_CAP):
+        log = poll_tapes(log, fetch=fetch, tape_dir=tmp_path, now=moment)
+    assert calls["n"] == INCOMPLETE_POLL_CAP
+    assert log.loc[0, "fill_coverage"] == "incomplete"
+    log = poll_tapes(log, fetch=fetch, tape_dir=tmp_path, now=moment)
+    assert calls["n"] == INCOMPLETE_POLL_CAP
+    saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert saved["poll_stopped"] is True
+    assert saved["coverage"] == "incomplete"
+
+
+def test_incomplete_tape_stops_48h_after_kickoff(tmp_path):
+    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+
+    def fetch(*args, **kwargs):
+        raise AssertionError("depois de 48h a fita incompleta não é consultada")
+
+    moment = datetime.fromtimestamp(KICKOFF_TS + INCOMPLETE_GIVE_UP_SEC + 60, tz=timezone.utc)
+    out = poll_tapes(pd.DataFrame([row]), fetch=fetch, tape_dir=tmp_path, now=moment)
+    assert out.loc[0, "fill_coverage"] == "incomplete"
+    saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert saved["poll_stopped"] is True
+    assert saved["coverage"] == "incomplete"
+
+
+def test_paper_rn1_monitor_polls_once_per_run():
+    source = Path(__file__).resolve().parents[1].joinpath("monitor.py").read_text(encoding="utf-8")
+    assert source.count("poll_tapes(") == 4

@@ -2,10 +2,13 @@
 
 A data-api pública é lida com `takerOnly=true` (o lado é o do taker).
 A janela é fatiada para não depender de um offset enorme. Erro, 429 esgotado
-ou página vazia no meio da paginação deixam a fita incompleta.
+ou uma página cheia já no teto de offset deixam a fita incompleta. Página vazia
+é o fim normal da janela, mesmo depois de um múltiplo exato de 100 trades.
 
-A fita só fica `complete` depois do kickoff. Uma hora depois disso ela congela:
-não é consultada de novo e a cobertura não volta para incompleta.
+A fita só fica `complete` depois do kickoff. Só congela depois de uma leitura
+limpa feita pelo menos uma hora após o kickoff. Aí não é consultada de novo e
+a cobertura não volta para incompleta. Fita incompleta para depois de algumas
+tentativas, ou 48h após o kickoff, e fica não medida.
 
 Sem chave, sem ordem. Só leitura.
 """
@@ -37,6 +40,9 @@ PAGE_LIMIT = 100
 MAX_OFFSET = 10000
 SUB_WINDOW_SEC = 6 * 3600
 FREEZE_BUFFER_SEC = 3600
+TAPE_SCHEMA = 2
+INCOMPLETE_POLL_CAP = 8
+INCOMPLETE_GIVE_UP_SEC = 48 * 3600
 PAGE_PAUSE_SEC = 0.2
 RETRY_DELAYS_SEC = (0.5, 1.0, 2.0, 4.0)
 TAPE_DIR = Path(__file__).resolve().parent.parent / "data" / "paper_rn1_tapes"
@@ -161,6 +167,11 @@ def capture_entry(row: dict, book: dict | None, now: datetime) -> tuple[dict, di
         "frozen": False,
         "fetch_error": False,
         "hit_cap": False,
+        "schema": TAPE_SCHEMA,
+        "fetched_at": None,
+        "poll_attempts": 0,
+        "poll_stopped": False,
+        "legacy": False,
     }
     return updated, tape
 
@@ -179,15 +190,134 @@ def _trade_key(trade: dict) -> tuple:
     )
 
 
-def _is_frozen_tape(tape: dict, now_ts: int | None) -> bool:
-    if tape.get("frozen"):
-        return True
+def _schema_of(tape: dict) -> int | None:
+    raw = tape.get("schema")
+    if raw is None:
+        return None
+    try:
+        if pd.isna(raw):
+            return None
+    except (TypeError, ValueError):
+        pass
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _stored_flag(value) -> bool | None:
+    """None se o campo não veio. False para NaN, vazio e a string 'False'.
+
+    `bool('False')` é True. O CSV grava o bool como texto, então a leitura
+    tem de passar por `_is_true`.
+    """
+    if value is None:
+        return None
+    from src.paper_rn1 import _is_true
+
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, str) and value.strip().lower() in {"", "nan", "none", "nat", "<na>"}:
+        return False
+    return _is_true(value)
+
+
+def _fetched_ts(tape: dict) -> int | None:
+    return iso_to_ts(tape.get("fetched_at"))
+
+
+def _freeze_ready(tape: dict) -> bool:
+    """Congela só com schema atual e uma leitura limpa já depois do buffer."""
+    if tape.get("legacy"):
+        return False
+    if _schema_of(tape) != TAPE_SCHEMA:
+        return False
     if str(tape.get("coverage") or "") != "complete":
         return False
     kickoff_ts = iso_to_ts(tape.get("kickoff"))
-    if kickoff_ts is None or now_ts is None:
+    fetched = _fetched_ts(tape)
+    if kickoff_ts is None or fetched is None:
         return False
-    return now_ts >= kickoff_ts + FREEZE_BUFFER_SEC
+    return fetched >= kickoff_ts + FREEZE_BUFFER_SEC
+
+
+def _attempts(tape: dict) -> int:
+    try:
+        return int(tape.get("poll_attempts") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _stop_incomplete(tape: dict, now_ts: int | None) -> bool:
+    """Para de consultar fita que não fechou. Cobertura complete não entra aqui."""
+    if tape.get("legacy") or tape.get("poll_stopped"):
+        return True
+    if str(tape.get("coverage") or "") == "complete":
+        return False
+    kickoff_ts = iso_to_ts(tape.get("kickoff"))
+    if kickoff_ts is None or now_ts is None or now_ts < kickoff_ts:
+        return False
+    if _attempts(tape) >= INCOMPLETE_POLL_CAP:
+        return True
+    return now_ts >= kickoff_ts + INCOMPLETE_GIVE_UP_SEC
+
+
+def _attach_token_no(tape: dict, row, resolve) -> None:
+    if not _blank(tape.get("token_no")):
+        return
+    from_row = None if row is None or _blank(row.get("token_no")) else str(row.get("token_no"))
+    if from_row:
+        tape["token_no"] = from_row
+        return
+    if resolve is None:
+        return
+    slug = tape.get("slug") if not _blank(tape.get("slug")) else (None if row is None else row.get("slug"))
+    yes = tape.get("token") if not _blank(tape.get("token")) else (None if row is None else row.get("token"))
+    if _blank(slug) or _blank(yes):
+        return
+    try:
+        found = resolve(str(slug), str(yes))
+    except Exception:
+        found = None
+    if not _blank(found):
+        tape["token_no"] = str(found)
+
+
+def _migrate_tape(tape: dict, row, resolve) -> dict:
+    """Schema 2 é a leitura taker com tick. Fita antiga não entra na taxa.
+
+    Uma fita do commit anterior não tem `tick_known`. Os trades dela foram
+    filtrados com a regra velha, então não são reaproveitados. O token NO,
+    se der para achar, fica gravado. Fita que já tem `tick_known` só ganha
+    o número do schema.
+    """
+    migrated = dict(tape)
+    version = _schema_of(tape)
+    if version == TAPE_SCHEMA and not tape.get("legacy"):
+        _attach_token_no(migrated, row, resolve)
+        return migrated
+    if version is None and "tick_known" in tape:
+        migrated["schema"] = TAPE_SCHEMA
+        migrated["legacy"] = False
+        _attach_token_no(migrated, row, resolve)
+        return migrated
+    migrated["schema"] = TAPE_SCHEMA
+    migrated["legacy"] = True
+    migrated["tick_known"] = False
+    migrated["sim_price"] = None
+    migrated["trades"] = []
+    migrated["coverage"] = "incomplete"
+    migrated["frozen"] = False
+    migrated["queue_ahead"] = None
+    migrated["book_observed"] = False
+    migrated["entry_cross"] = False
+    migrated["poll_stopped"] = True
+    migrated["fetched_at"] = None
+    _attach_token_no(migrated, row, resolve)
+    return migrated
 
 
 def merge_polled_trades(
@@ -198,11 +328,10 @@ def merge_polled_trades(
     fetch_error: bool,
     now=None,
 ) -> dict:
-    """Junta trades novos. Fita congelada não muda e não perde a cobertura."""
-    if tape.get("frozen"):
+    """Junta trades novos. Fita já congelada de verdade não muda."""
+    if _freeze_ready(tape):
         kept = dict(tape)
-        if str(kept.get("coverage") or "") == "complete":
-            kept["coverage"] = "complete"
+        kept["coverage"] = "complete"
         kept["frozen"] = True
         return kept
 
@@ -242,6 +371,11 @@ def merge_polled_trades(
     merged["fetch_error"] = bool(fetch_error)
     merged["coverage"] = coverage
     merged["frozen"] = frozen
+    merged["schema"] = TAPE_SCHEMA
+    if not fetch_error and not hit_cap and isinstance(now, datetime):
+        merged["fetched_at"] = _iso(now)
+    if frozen:
+        merged["fetched_at"] = merged.get("fetched_at") or (_iso(now) if isinstance(now, datetime) else None)
     return merged
 
 
@@ -289,8 +423,8 @@ def _fetch_subwindow(condition_id, token_ids, start_ts, end_ts, opener, sleeper)
         if not isinstance(batch, list):
             return TradeFetch(trades=kept, hit_cap=False, fetch_error=True)
         if not batch:
-            if offset > 0:
-                hit_cap = True
+            # Página vazia é o fim da janela, inclusive depois de 100, 200, …
+            # Truncar só quando a próxima página cairia no teto de offset.
             break
         for trade in batch:
             if not isinstance(trade, dict):
@@ -386,9 +520,7 @@ def _tape_from_row(row) -> dict | None:
         our = float(our_raw) if not _blank(our_raw) else assumed_shares(sim_f or bid_f)
     except (TypeError, ValueError):
         our = assumed_shares(sim_f or bid_f)
-    tick_known = row.get("tick_known")
-    if tick_known is None and sim_f is not None:
-        tick_known = True
+    tick_known = _stored_flag(row.get("tick_known"))
     return {
         "slug": row.get("slug"),
         "token": None if _blank(row.get("token")) else str(row.get("token")),
@@ -397,8 +529,8 @@ def _tape_from_row(row) -> dict | None:
         "bid": bid_f,
         "sim_price": sim_f,
         "tick_size": None if _blank(row.get("tick_size")) else row.get("tick_size"),
-        "tick_known": bool(tick_known) if tick_known is not None else None,
-        "entry_cross": bool(row.get("entry_cross")) if not _blank(row.get("entry_cross")) else False,
+        "tick_known": tick_known,
+        "entry_cross": _stored_flag(row.get("entry_cross")) is True,
         "placed_at": str(placed),
         "kickoff": None if _blank(row.get("kickoff")) else str(row.get("kickoff")),
         "queue_ahead": float(queue_raw) if observed else None,
@@ -409,6 +541,11 @@ def _tape_from_row(row) -> dict | None:
         "frozen": False,
         "fetch_error": False,
         "hit_cap": False,
+        "schema": TAPE_SCHEMA,
+        "fetched_at": None,
+        "poll_attempts": 0,
+        "poll_stopped": False,
+        "legacy": False,
     }
 
 
@@ -416,13 +553,30 @@ def _copy_tape_fields(log, i, tape: dict) -> None:
     log.at[i, "fill_coverage"] = tape.get("coverage")
     if tape.get("book_observed") and tape.get("queue_ahead") is not None:
         log.at[i, "queue_ahead"] = tape["queue_ahead"]
+    elif tape.get("legacy") and "queue_ahead" in log.columns:
+        log.at[i, "queue_ahead"] = None
     if tape.get("our_size") is not None:
         log.at[i, "our_size"] = tape["our_size"]
     if "sim_price" in log.columns and tape.get("sim_price") is not None:
         log.at[i, "sim_price"] = tape["sim_price"]
+    elif tape.get("legacy") and "sim_price" in log.columns:
+        log.at[i, "sim_price"] = None
+    if "tick_known" in log.columns and tape.get("tick_known") is not None:
+        log.at[i, "tick_known"] = bool(tape.get("tick_known"))
+    if "entry_cross" in log.columns and "entry_cross" in tape:
+        log.at[i, "entry_cross"] = bool(tape.get("entry_cross"))
+    if "token_no" in log.columns and not _blank(tape.get("token_no")):
+        log.at[i, "token_no"] = str(tape.get("token_no"))
 
 
-def poll_tapes(log, *, fetch=None, tape_dir: Path | None = None, now: datetime | None = None):
+def poll_tapes(
+    log,
+    *,
+    fetch=None,
+    tape_dir: Path | None = None,
+    now: datetime | None = None,
+    resolve_no_token=None,
+):
     """Acumula trades até congelar. Fita congelada não gera outro request."""
     directory = tape_dir or TAPE_DIR
     moment = now or datetime.now(timezone.utc)
@@ -432,23 +586,31 @@ def poll_tapes(log, *, fetch=None, tape_dir: Path | None = None, now: datetime |
             condition_id, tokens, start_ts, end_ts
         )
     )
-    for col in ("fill_coverage", "queue_ahead", "our_size", "sim_price"):
+    for col in ("fill_coverage", "queue_ahead", "our_size", "sim_price", "tick_known", "token_no", "entry_cross"):
         if col not in log.columns:
             log[col] = None
     log["fill_coverage"] = log["fill_coverage"].astype(object)
     for i, row in log.iterrows():
-        base = load_tape(str(row.get("slug") or ""), directory) or _tape_from_row(row)
-        if base is None:
+        loaded = load_tape(str(row.get("slug") or ""), directory) or _tape_from_row(row)
+        if loaded is None:
             continue
+        base = _migrate_tape(loaded, row, resolve_no_token)
         placed_ts = iso_to_ts(base.get("placed_at"))
         if placed_ts is None:
             continue
         if now_ts is not None and placed_ts > now_ts:
             continue
-        if base.get("frozen") or _is_frozen_tape(base, now_ts):
+        if _freeze_ready(base):
             base["frozen"] = True
-            if str(base.get("coverage") or "") == "complete":
-                base["coverage"] = "complete"
+            base["coverage"] = "complete"
+            save_tape(base, directory)
+            _copy_tape_fields(log, i, base)
+            continue
+        if _stop_incomplete(base, now_ts):
+            base["poll_stopped"] = True
+            if str(base.get("coverage") or "") != "complete":
+                base["coverage"] = "incomplete"
+            base["frozen"] = False
             save_tape(base, directory)
             _copy_tape_fields(log, i, base)
             continue
@@ -477,9 +639,37 @@ def poll_tapes(log, *, fetch=None, tape_dir: Path | None = None, now: datetime |
             fetch_error=result.fetch_error,
             now=moment,
         )
+        if (
+            str(merged.get("coverage") or "") == "incomplete"
+            and now_ts is not None
+            and kickoff_ts is not None
+            and now_ts >= kickoff_ts
+        ):
+            merged["poll_attempts"] = _attempts(base) + 1
+        if _stop_incomplete(merged, now_ts):
+            merged["poll_stopped"] = True
+            if str(merged.get("coverage") or "") != "complete":
+                merged["coverage"] = "incomplete"
+                merged["frozen"] = False
         save_tape(merged, directory)
         _copy_tape_fields(log, i, merged)
     return log
+
+
+def lookup_token_no(slug: str, yes_token: str) -> str | None:
+    """Token NO do mesmo mercado, lido da Gamma. Sem chave."""
+    from src.paper_rn1 import _fetch_event
+    from src.polymarket_prices import parse_token_ids
+
+    event = _fetch_event(slug)
+    if not event:
+        return None
+    wanted = str(yes_token)
+    for market in event.get("markets") or []:
+        yes, no = parse_token_ids(market)
+        if yes and str(yes) == wanted and no:
+            return str(no)
+    return None
 
 
 def stamp_signals(rows: list[dict], fetch_book, *, now: datetime | None = None, tape_dir: Path | None = None) -> list[dict]:

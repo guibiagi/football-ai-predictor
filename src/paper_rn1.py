@@ -32,7 +32,7 @@ COLS = [
     "placed_at", "condition_id", "queue_ahead", "our_size", "filled_size", "fill_model",
     "filled_touch", "filled_queue", "filled_through",
     "retorno_touch", "retorno_queue", "retorno_through", "fill_coverage",
-    "sim_price", "tick_size", "token_no", "entry_cross",
+    "sim_price", "tick_size", "token_no", "entry_cross", "tick_known",
 ]
 
 # Colunas que recebem bool/texto. Se nascerem float64 (CSV todo NaN), .at recusa False.
@@ -40,7 +40,7 @@ _FLEX_COLS = (
     "data", "liga", "slug", "casa", "fora", "pick", "kickoff",
     "sinal", "fill_simulado", "resultado", "token",
     "placed_at", "condition_id", "fill_model", "fill_coverage",
-    "token_no", "entry_cross",
+    "token_no", "entry_cross", "tick_known",
 )
 _SCI_TOKEN = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+")
 _ROLE_ORDER = ("casa", "empate", "fora")
@@ -61,6 +61,7 @@ _TEXT_DTYPES = {
     "fill_coverage": str,
     "token_no": str,
     "entry_cross": str,
+    "tick_known": str,
 }
 
 
@@ -388,7 +389,10 @@ def _apply_fill_tape(log: pd.DataFrame, i, tape: dict | None, *, bid: float, won
     marketable = _is_true(tape.get("entry_cross"))
     if marketable and "entry_cross" in log.columns:
         log.at[i, "entry_cross"] = True
-    if tape.get("tick_known") is False and not marketable:
+    from src.paper_rn1_tape import _stored_flag
+
+    known = _stored_flag(tape.get("tick_known"))
+    if known is False and not marketable:
         return
     if coverage != "complete" and not marketable:
         return
@@ -706,15 +710,18 @@ def format_fill_model_report(stats: dict) -> str:
             "(a data-api pode não devolver trades até o horário do sinal)."
         )
     lines.append(
-        "  A coluna fill_simulado continua sendo o último preço CLOB ≤ bid, separada destes três modelos."
+        "  A coluna fill_simulado continua sendo o último preço CLOB ≤ bid cru, separada destes três modelos. "
+        "O retorno dela usa esse bid; os três modelos usam o preço simulado na grade."
     )
     lines.append(
         "  Limitação: a fila é o tamanho no livro no preço simulado (bid descido ao tick_size) no instante "
         "do sinal. Sem tick no livro a fila fica não medida, não zero. Os trades são a janela pública da "
         "data-api entre a entrada e o kickoff, com takerOnly: venda YES a preço ≤ bid e compra NO a preço "
-        "≥ 1−bid (mint, shares 1:1). Uma hora depois do kickoff a fita congela e não é consultada de novo. "
-        "Erro, 429, teto de páginas ou sinal antigo sem essa fita deixam o fill não medido — não colocamos "
-        "zero no lugar. O monitor grava o livro na entrada e acumula trades nas rodadas seguintes. "
+        "≥ 1−bid (mint, shares 1:1; cada taker do mesmo negócio soma). A fita só congela depois de uma "
+        "leitura limpa feita no mínimo uma hora após o kickoff. Fita incompleta para de ser consultada "
+        "depois de algumas tentativas ou 48h após o kickoff e fica não medido. Erro, 429 ou teto de offset "
+        "também deixam o fill não medido — não colocamos zero no lugar. Página vazia é fim de janela, não "
+        "corte. O monitor grava o livro na entrada e acumula trades numa consulta por rodada. "
         "Fill parcial conta como fill na taxa por sinal; a taxa ponderada por tamanho está ao lado."
     )
     lines.append(

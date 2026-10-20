@@ -230,7 +230,7 @@ def _consuming_prints(
     no_token: str | None,
     tick: float | None,
 ) -> list[tuple[float, float]]:
-    """Um transactionHash é um fill. As duas pernas de um mint não somam duas vezes."""
+    """Cada registro taker entra na soma. Com takerOnly=true um mint é só o NO BUY."""
     grouped: dict[str, list[tuple[float, float]]] = {}
     order: list[str] = []
     for index, trade in enumerate(trades):
@@ -253,12 +253,8 @@ def _consuming_prints(
     prints: list[tuple[float, float]] = []
     for key in order:
         legs = grouped[key]
-        prices = {price for price, _ in legs}
         yes_price = min(price for price, _ in legs)
-        if len(prices) == 1:
-            size = max(size for _, size in legs)
-        else:
-            size = sum(size for _, size in legs)
+        size = sum(size for _, size in legs)
         prints.append((yes_price, size))
     return prints
 
