@@ -146,7 +146,9 @@ def ensure_log(path: Path = PAPER_LOG) -> pd.DataFrame:
     for c in COLS:
         if c not in df.columns:
             df[c] = None
-    return coerce_log_dtypes(df)
+    # CSV não guarda o índice. Um RangeIndex repetido (concat sem ignore_index)
+    # faria log.loc[0] devolver duas linhas e o settle quebrar.
+    return coerce_log_dtypes(df).reset_index(drop=True)
 
 
 def normalize_kickoff(raw) -> str:
@@ -474,7 +476,7 @@ def settle_paper(
     Se houver fita completa (livro na entrada + trades da janela), grava também
     filled_touch / filled_queue / filled_through. Fita incompleta não vira fill zero.
     """
-    log = coerce_log_dtypes(log)
+    log = coerce_log_dtypes(log).reset_index(drop=True)
     pick_idx = {"casa": 0, "empate": 1, "fora": 2}
     pending = [i for i, r in log.iterrows() if _needs_settle(r)]
     for i in pending:

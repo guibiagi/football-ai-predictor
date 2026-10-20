@@ -588,6 +588,8 @@ def poll_tapes(
     directory = tape_dir or TAPE_DIR
     moment = now or datetime.now(timezone.utc)
     now_ts = _now_ts(moment)
+    if not log.index.is_unique:
+        log = log.reset_index(drop=True)
     wanted = None if only_slugs is None else {str(slug) for slug in only_slugs}
     fetch_fn = fetch or (
         lambda condition_id, tokens, start_ts, end_ts: fetch_trades_window(

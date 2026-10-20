@@ -1540,3 +1540,108 @@ def test_paper_rn1_monitor_polls_once_per_run(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["monitor.py", "--paper-rn1"])
     assert monitor.main() == 0
     assert calls == [None]
+
+
+def test_paper_rn1_main_appends_a_signal_onto_the_legacy_log(monkeypatch, tmp_path):
+    """Log real de 17 colunas mais um sinal novo: o settle grava as duas linhas.
+
+    pd.concat sem ignore_index repetia o índice 0 e settle_paper quebrava
+    em `r.get(...) or ""` antes de escrever o CSV.
+    """
+    import sys
+
+    import monitor
+
+    legacy = [
+        "data", "liga", "slug", "casa", "fora", "pick", "fair_pin", "bid", "poly_exec",
+        "volume", "kickoff", "sinal", "fill_simulado", "resultado", "retorno_sim", "clv_pin", "token",
+    ]
+    assert len(legacy) == 17
+    old_slug = "epl-ars-che-2026-10-18"
+    new_slug = "epl-bou-sun-2026-10-20"
+    paper_path = tmp_path / "paper_rn1_forward.csv"
+    pd.DataFrame([{
+        "data": "2026-10-18",
+        "liga": "Premier League",
+        "slug": old_slug,
+        "casa": "Arsenal",
+        "fora": "Chelsea",
+        "pick": "casa",
+        "fair_pin": 0.65,
+        "bid": 0.625,
+        "poly_exec": 0.70,
+        "volume": 5000,
+        "kickoff": "2026-10-18T15:00:00Z",
+        "sinal": False,
+        "fill_simulado": "",
+        "resultado": "",
+        "retorno_sim": "",
+        "clv_pin": "",
+        "token": "tok-old",
+    }], columns=legacy).to_csv(paper_path, index=False)
+    assert list(pd.read_csv(paper_path, nrows=0).columns) == legacy
+
+    today = pd.Timestamp.now(tz="UTC")
+    dataset = pd.DataFrame([{
+        "competition": "Premier League",
+        "home_team": "Bournemouth",
+        "away_team": "Sunderland",
+        "date": today,
+        "ps_h": 1.50,
+        "ps_d": 4.5,
+        "ps_a": 7.0,
+    }])
+    fixture = {
+        "liga": "Premier League",
+        "slug": new_slug,
+        "end": "2026-10-20T19:00:00Z",
+        "kickoff": "2026-10-20T16:00:00Z",
+        "markets": [
+            {"title": "Bournemouth", "price": 0.90, "preco_exec": 0.90, "volume": 8000, "tradable": True, "token_yes": "tok-new"},
+            {"title": "Draw (Bournemouth vs. Sunderland)", "price": 0.20, "preco_exec": 0.20, "volume": 8000, "tradable": True, "token_yes": "tok-draw"},
+            {"title": "Sunderland", "price": 0.12, "preco_exec": 0.12, "volume": 8000, "tradable": True, "token_yes": "tok-away"},
+        ],
+    }
+
+    class _Model:
+        def predict_match(self, home, away, neutral=False):
+            return {
+                "home_win_probability": 0.34,
+                "draw_probability": 0.33,
+                "away_win_probability": 0.33,
+            }
+
+    from src.team_matching import build_map
+
+    teams = build_map(["Bournemouth", "Sunderland"])
+    model = _Model()
+
+    def ensure_tmp(path=None):
+        return ensure_log(paper_path if path is None else path)
+
+    def no_network(*args, **kwargs):
+        raise OSError("sem rede neste teste")
+
+    monkeypatch.setattr(monitor, "ensure_log", ensure_tmp)
+    monkeypatch.setattr(monitor, "PAPER_LOG", paper_path)
+    monkeypatch.setattr(monitor, "LOG", tmp_path / "forward_test.csv")
+    monkeypatch.setattr(monitor, "load_monitor_dataset", lambda: dataset)
+    monkeypatch.setattr(monitor, "load_gates", lambda: {})
+    monkeypatch.setattr(monitor, "load_strategy_config", lambda: {"strategies": {}})
+    monkeypatch.setattr(monitor, "collect_fixtures", lambda *args, **kwargs: ([fixture], [], {}))
+    monkeypatch.setattr(monitor, "_models", lambda df: (lambda comp: (model, teams)))
+    monkeypatch.setattr(monitor, "fetch_live_book", lambda token: {})
+    monkeypatch.setattr(monitor, "lookup_token_no", lambda slug, yes: None)
+    monkeypatch.setattr("urllib.request.urlopen", no_network)
+    monkeypatch.setattr(sys, "argv", ["monitor.py", "--paper-rn1"])
+
+    assert monitor.main() == 0
+
+    saved = pd.read_csv(paper_path, dtype=str)
+    assert list(saved["slug"]) == [old_slug, new_slug]
+    assert saved["slug"].is_unique
+    assert len(saved) == 2
+    reloaded = ensure_log(paper_path)
+    assert list(reloaded["slug"]) == [old_slug, new_slug]
+    assert reloaded.index.is_unique
+    assert list(reloaded.index) == [0, 1]

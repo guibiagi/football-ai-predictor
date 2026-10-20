@@ -511,8 +511,10 @@ def main() -> int:
         sigs = scan_live_signals()
         log = ensure_neg_log()
         if sigs:
-            log = pd.concat([log, pd.DataFrame(sigs)]).drop_duplicates(
-                subset=["slug", "direction", "data"], keep="first",
+            log = (
+                pd.concat([log, pd.DataFrame(sigs)], ignore_index=True)
+                .drop_duplicates(subset=["slug", "direction", "data"], keep="first")
+                .reset_index(drop=True)
             )
         log.to_csv(PAPER_NEG_LOG, index=False)
         print(f"PAPER NEG-RISK: {len(sigs)} sinais → {PAPER_NEG_LOG.name}")
@@ -673,7 +675,11 @@ def main() -> int:
             old = pd.read_csv(LOG)
             # keep="first": o registro pré-jogo é o válido; nunca deixar um
             # snapshot ao vivo sobrescrever o preço de antes da bola rolar.
-            new = pd.concat([old, new]).drop_duplicates(subset=["slug"], keep="first")
+            new = (
+                pd.concat([old, new], ignore_index=True)
+                .drop_duplicates(subset=["slug"], keep="first")
+                .reset_index(drop=True)
+            )
         new.to_csv(LOG, index=False)
         print(f"{len(rows)} jogos registrados em {LOG.name} "
               f"({len({r['liga'] for r in rows})} ligas)")
@@ -702,7 +708,13 @@ def main() -> int:
         paper_rows = [stamped.get(str(row.get("slug") or ""), row) for row in paper_rows]
         if fresh:
             newp = pd.DataFrame([stamped_fresh[str(row.get("slug") or "")] for row in fresh])
-            plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+            # Os dois frames nascem no índice 0. Sem ignore_index, log.loc[0]
+            # devolve as duas linhas e o settle quebra antes de gravar o CSV.
+            plog = (
+                pd.concat([plog, newp], ignore_index=True)
+                .drop_duplicates(subset=["slug"], keep="first")
+                .reset_index(drop=True)
+            )
         plog = apply_signal_upgrades(
             plog, [stamped_up[str(row.get("slug") or "")] for row in upgrades]
         )
@@ -736,7 +748,11 @@ def main() -> int:
     if paper_pin_rows:
         plogp = ensure_pin_log()
         newpp = pd.DataFrame(paper_pin_rows)
-        plogp = pd.concat([plogp, newpp]).drop_duplicates(subset=["slug", "pick"], keep="first")
+        plogp = (
+            pd.concat([plogp, newpp], ignore_index=True)
+            .drop_duplicates(subset=["slug", "pick"], keep="first")
+            .reset_index(drop=True)
+        )
         plogp.to_csv(PAPER_PIN_LOG, index=False)
         print(f"\nPAPER TAKER PIN: {len(paper_pin_rows)} sinais → {PAPER_PIN_LOG.name}")
     elif a.paper_taker_pin:
