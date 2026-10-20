@@ -32,6 +32,7 @@ COLS = [
     "placed_at", "condition_id", "queue_ahead", "our_size", "filled_size", "fill_model",
     "filled_touch", "filled_queue", "filled_through",
     "retorno_touch", "retorno_queue", "retorno_through", "fill_coverage",
+    "sim_price", "tick_size", "token_no", "entry_cross",
 ]
 
 # Colunas que recebem bool/texto. Se nascerem float64 (CSV todo NaN), .at recusa False.
@@ -39,6 +40,7 @@ _FLEX_COLS = (
     "data", "liga", "slug", "casa", "fora", "pick", "kickoff",
     "sinal", "fill_simulado", "resultado", "token",
     "placed_at", "condition_id", "fill_model", "fill_coverage",
+    "token_no", "entry_cross",
 )
 _SCI_TOKEN = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)[eE][+-]?\d+")
 _ROLE_ORDER = ("casa", "empate", "fora")
@@ -57,6 +59,8 @@ _TEXT_DTYPES = {
     "condition_id": str,
     "fill_model": str,
     "fill_coverage": str,
+    "token_no": str,
+    "entry_cross": str,
 }
 
 
@@ -163,6 +167,16 @@ def _condition_id(market: dict | None) -> str | None:
         return None
     text = str(raw).strip()
     return text or None
+
+
+def _token_no(market: dict | None) -> str | None:
+    if not market:
+        return None
+    cleaned = _clean_token(market.get("token_no"))
+    if cleaned:
+        return cleaned
+    _, no = parse_token_ids(market)
+    return _clean_token(no)
 
 
 def resolve_token(market: dict | None) -> str | None:
@@ -278,8 +292,11 @@ def scan_fixture(
         "clv_pin": None,
         "pick": label,
         "token": resolve_token(m),
+        "token_no": _token_no(m),
         "condition_id": _condition_id(m),
         "placed_at": None,
+        "sim_price": None,
+        "entry_cross": None,
     }
 
 
@@ -365,26 +382,48 @@ def _apply_fill_tape(log: pd.DataFrame, i, tape: dict | None, *, bid: float, won
     queue_ahead = _cell_number(tape.get("queue_ahead")) if observed else None
     if observed and queue_ahead is not None:
         log.at[i, "queue_ahead"] = queue_ahead
-    if coverage != "complete":
+    sim = _cell_number(tape.get("sim_price"))
+    if sim is not None and "sim_price" in log.columns:
+        log.at[i, "sim_price"] = sim
+    marketable = _is_true(tape.get("entry_cross"))
+    if marketable and "entry_cross" in log.columns:
+        log.at[i, "entry_cross"] = True
+    if tape.get("tick_known") is False and not marketable:
+        return
+    if coverage != "complete" and not marketable:
         return
     placed_ts = iso_to_ts(tape.get("placed_at") or log.at[i, "placed_at"])
     kickoff_ts = iso_to_ts(tape.get("kickoff") or log.at[i, "kickoff"])
     if placed_ts is None or our is None:
         return
+    price = sim if sim is not None else bid
+    yes_token = tape.get("token")
+    no_token = tape.get("token_no")
+    if _blank(yes_token):
+        yes_token = None
+    if _blank(no_token):
+        no_token = None
     estimates = estimate_fills(
-        price=bid,
+        price=price,
         our_size=our,
         queue_ahead=queue_ahead,
         trades=list(tape.get("trades") or []),
         placed_ts=placed_ts,
         kickoff_ts=kickoff_ts,
+        yes_token=None if yes_token is None else str(yes_token),
+        no_token=None if no_token is None else str(no_token),
+        tick_size=_cell_number(tape.get("tick_size")),
+        marketable=marketable,
     )
     for name in ("touch", "queue", "through"):
         estimate = estimates[name]
         filled = estimate.filled_size if estimate.measured else None
         log.at[i, f"filled_{name}"] = filled
-        log.at[i, f"retorno_{name}"] = simulated_return(bid, won, filled, our)
-    if estimates["queue"].measured:
+        log.at[i, f"retorno_{name}"] = simulated_return(price, won, filled, our)
+    if marketable and estimates["queue"].measured:
+        log.at[i, "filled_size"] = estimates["queue"].filled_size
+        log.at[i, "fill_model"] = "cross"
+    elif estimates["queue"].measured:
         log.at[i, "filled_size"] = estimates["queue"].filled_size
         log.at[i, "fill_model"] = "queue"
 
@@ -570,7 +609,12 @@ def _model_block() -> dict:
 
 
 def summarize_fill_models(log: pd.DataFrame) -> dict:
-    """Taxa de fill e PnL simulado por modelo. Sem fita completa o modelo fica de fora."""
+    """Taxa de fill e PnL simulado por modelo.
+
+    Um modelo só entra na taxa quando `filled_*` está preenchido e a fita está
+    `complete`, ou quando a entrada já cruzou o ask (`entry_cross`). Cobertura
+    `partial` / `pending`, ou `complete` com fill vazio, conta como não medido.
+    """
     empty = {
         "touch": _model_block(),
         "queue": _model_block(),
@@ -584,24 +628,29 @@ def summarize_fill_models(log: pd.DataFrame) -> dict:
     empty["sinais"] = int(len(signals))
     if signals.empty:
         return empty
-    coverage = signals["fill_coverage"] if "fill_coverage" in signals.columns else None
-    measured_mask = (
-        coverage.map(lambda v: str(v).strip() == "complete")
-        if coverage is not None
-        else pd.Series(False, index=signals.index)
-    )
-    empty["nao_medidos"] = int((~measured_mask).sum())
-    measured = signals[measured_mask]
+    if "fill_coverage" in signals.columns:
+        complete = signals["fill_coverage"].map(lambda v: str(v).strip() == "complete")
+    else:
+        complete = pd.Series(False, index=signals.index)
+    if "entry_cross" in signals.columns:
+        crossed = signals["entry_cross"].map(_is_true)
+    else:
+        crossed = pd.Series(False, index=signals.index)
+    eligible = complete | crossed
+    queue_measured = pd.Series(False, index=signals.index)
     for name in ("touch", "queue", "through"):
         col = f"filled_{name}"
         ret_col = f"retorno_{name}"
         block = _model_block()
-        if measured.empty or col not in measured.columns:
+        if col not in signals.columns:
             empty[name] = block
             continue
-        filled = measured[col].map(_cell_number)
-        usable = measured[filled.notna()]
-        filled = filled.dropna()
+        filled = signals[col].map(_cell_number)
+        usable_mask = filled.notna() & eligible
+        if name == "queue":
+            queue_measured = usable_mask
+        usable = signals[usable_mask]
+        filled = filled[usable_mask]
         block["medidos"] = int(len(filled))
         if filled.empty:
             empty[name] = block
@@ -618,6 +667,7 @@ def summarize_fill_models(log: pd.DataFrame) -> dict:
         else:
             block["pnl_simulado"] = 0.0
         empty[name] = block
+    empty["nao_medidos"] = int((~queue_measured).sum())
     return empty
 
 
@@ -626,8 +676,8 @@ def format_fill_model_report(stats: dict) -> str:
     from src.queue_fill import ASSUMED_STAKE_USD
 
     labels = {
-        "touch": "touch (otimista: qualquer venda no bid ou melhor enche a ordem, sem fila)",
-        "queue": "queue (central: volume negociado a preço ≤ bid precisa passar da fila à frente)",
+        "touch": "touch (otimista: fluxo taker que alcança o bid enche a ordem, sem fila)",
+        "queue": "queue (central: volume a preço ≤ bid precisa passar da fila; print abaixo do bid esvazia o nível)",
         "through": "through (pessimista: só enche se o preço negociar estritamente abaixo do bid)",
     }
     lines = [
@@ -652,21 +702,24 @@ def format_fill_model_report(stats: dict) -> str:
     nao = int((stats or {}).get("nao_medidos") or 0)
     if nao:
         lines.append(
-            f"  {nao} sinal(is) sem fita completa: não medido "
+            f"  {nao} sinal(is) sem fita completa até o kickoff: não medido "
             "(a data-api pode não devolver trades até o horário do sinal)."
         )
     lines.append(
         "  A coluna fill_simulado continua sendo o último preço CLOB ≤ bid, separada destes três modelos."
     )
     lines.append(
-        "  Limitação: a fila é o tamanho no livro no instante do sinal; os trades são a janela pública "
-        "da data-api entre a entrada e o kickoff, só vendas agressivas (side SELL). Erro, teto de "
-        "páginas ou sinal antigo sem essa fita deixam o fill não medido — não colocamos zero no lugar. "
-        "O monitor grava o livro na entrada e acumula trades nas rodadas seguintes."
+        "  Limitação: a fila é o tamanho no livro no preço simulado (bid descido ao tick_size) no instante "
+        "do sinal. Sem tick no livro a fila fica não medida, não zero. Os trades são a janela pública da "
+        "data-api entre a entrada e o kickoff, com takerOnly: venda YES a preço ≤ bid e compra NO a preço "
+        "≥ 1−bid (mint, shares 1:1). Uma hora depois do kickoff a fita congela e não é consultada de novo. "
+        "Erro, 429, teto de páginas ou sinal antigo sem essa fita deixam o fill não medido — não colocamos "
+        "zero no lugar. O monitor grava o livro na entrada e acumula trades nas rodadas seguintes. "
+        "Fill parcial conta como fill na taxa por sinal; a taxa ponderada por tamanho está ao lado."
     )
     lines.append(
         f"  Tamanho da ordem: suposição de US$ {ASSUMED_STAKE_USD:.0f} de stake "
-        "(não é tamanho medido); shares = stake / bid."
+        "(não é tamanho medido); shares = stake / preço simulado."
     )
     return "\n".join(lines)
 

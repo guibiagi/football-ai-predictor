@@ -53,7 +53,13 @@ from src.paper_rn1 import (  # noqa: E402
     summarize_fill_models,
     summarize_paper,
 )
-from src.paper_rn1_tape import fetch_live_book, poll_tapes, stamp_signals  # noqa: E402
+from src.paper_rn1_tape import (  # noqa: E402
+    apply_signal_upgrades,
+    fetch_live_book,
+    partition_signals,
+    poll_tapes,
+    stamp_signals,
+)
 from src.paper_taker_pin import (  # noqa: E402
     PAPER_LOG as PAPER_PIN_LOG,
     ensure_log as ensure_pin_log,
@@ -201,12 +207,13 @@ def _fixture_from_event(e: dict, comp: str, day: date, now: datetime) -> dict | 
     rows = []
     for m in e["markets"]:
         price = execution_price_yes(m)
-        token_yes, _ = parse_token_ids(m)
+        token_yes, token_no = parse_token_ids(m)
         rows.append({
             "title": m.get("groupItemTitle") or m["question"],
             "price": price,
             "preco_exec": price,
             "token_yes": token_yes,
+            "token_no": token_no,
             "volume": float(m.get("volume") or 0),
             "tradable": bool(m.get("acceptingOrders")),
             # paper RN1 lê estes campos; o mercado cru não chega no scan.
@@ -672,16 +679,25 @@ def main() -> int:
 
     if paper_rows:
         plog = ensure_log()
-        known = {str(s) for s in plog["slug"].dropna()} if "slug" in plog.columns else set()
-        # Slug já no log não ganha livro novo: a fila é a do instante do primeiro sinal.
-        fresh = [row for row in paper_rows if str(row.get("slug") or "") not in known]
-        stamped = {
+        # Slug com placed_at não ganha livro novo: a fila é a do instante do primeiro sinal.
+        # Slug que estava só na faixa (sinal False, sem placed_at) e agora é sinal ganha o snapshot.
+        fresh, upgrades = partition_signals(paper_rows, plog)
+        stamped_fresh = {
             str(row.get("slug") or ""): row
             for row in stamp_signals(fresh, fetch_live_book)
         }
+        stamped_up = {
+            str(row.get("slug") or ""): row
+            for row in stamp_signals(upgrades, fetch_live_book)
+        }
+        stamped = {**stamped_fresh, **stamped_up}
         paper_rows = [stamped.get(str(row.get("slug") or ""), row) for row in paper_rows]
-        newp = pd.DataFrame(paper_rows)
-        plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        if fresh:
+            newp = pd.DataFrame([stamped_fresh[str(row.get("slug") or "")] for row in fresh])
+            plog = pd.concat([plog, newp]).drop_duplicates(subset=["slug"], keep="first")
+        plog = apply_signal_upgrades(
+            plog, [stamped_up[str(row.get("slug") or "")] for row in upgrades]
+        )
         plog = poll_tapes(plog)
         plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)

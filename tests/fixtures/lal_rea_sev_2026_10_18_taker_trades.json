@@ -1,0 +1,158 @@
+{
+  "source": "https://data-api.polymarket.com/trades?takerOnly=true",
+  "fetched_at": "2026-10-20",
+  "event_slug": "lal-rea-sev-2026-10-18",
+  "market_title": "Real Madrid CF",
+  "condition_id": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+  "token_yes": "13426509996928980561240959514231604457803187732070469858382427379113329910134",
+  "token_no": "111139529209922347428525044094015382530453468854975778192664383453357974058477",
+  "gamma_orderPriceMinTickSize": 0.001,
+  "window_start": 1792328400,
+  "window_end": 1792350000,
+  "note": "Recorte de uma p\u00e1gina p\u00fablica, sem edi\u00e7\u00e3o dos n\u00fameros. N\u00e3o \u00e9 taxa de fill.",
+  "trades": [
+    {
+      "asset": "13426509996928980561240959514231604457803187732070469858382427379113329910134",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "Yes",
+      "outcomeIndex": 0,
+      "price": 0.8,
+      "side": "BUY",
+      "size": 1.25,
+      "timestamp": 1792349993,
+      "transactionHash": "0xbbc2aadeebc7b72373c62be31a1a3011d63e9915ea53361dadd02eb43dd6944d",
+      "proxyWallet": "0x1a0a08ea25050941ba230cc7bc0fe949be28f528"
+    },
+    {
+      "asset": "13426509996928980561240959514231604457803187732070469858382427379113329910134",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "Yes",
+      "outcomeIndex": 0,
+      "price": 0.8,
+      "side": "BUY",
+      "size": 5,
+      "timestamp": 1792349993,
+      "transactionHash": "0x066c05a664bdd3d9fa2fe6c7ad05ab70488a3aca17b69e06851594fe7113eda4",
+      "proxyWallet": "0xb924bb9cbcf6f7ae3012e00a340c387bd3f151c3"
+    },
+    {
+      "asset": "111139529209922347428525044094015382530453468854975778192664383453357974058477",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "No",
+      "outcomeIndex": 1,
+      "price": 0.21,
+      "side": "BUY",
+      "size": 6832.285715,
+      "timestamp": 1792349979,
+      "transactionHash": "0x22325940237a44485a4a32bc56587821acbfe577c233cc4810aaa6587084e3fd",
+      "proxyWallet": "0xbe223ddd4ae7689615a56cf7d7f5d5de8a7f50d6"
+    },
+    {
+      "asset": "111139529209922347428525044094015382530453468854975778192664383453357974058477",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "No",
+      "outcomeIndex": 1,
+      "price": 0.2199999974,
+      "side": "BUY",
+      "size": 22.727273,
+      "timestamp": 1792349840,
+      "transactionHash": "0xa80657e5fd5d1e65dca41e761cbbe55fa5fee8700e7116efaecb7f0d1d05f091",
+      "proxyWallet": "0x91a18bb829e290cf5465e8b3b92b896fff3171da"
+    },
+    {
+      "asset": "111139529209922347428525044094015382530453468854975778192664383453357974058477",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "No",
+      "outcomeIndex": 1,
+      "price": 0.2199999995,
+      "side": "BUY",
+      "size": 122.727273,
+      "timestamp": 1792349838,
+      "transactionHash": "0x15f220db4d9d607321f3319900c20cd3134838e75eea103d0b1eaf53def62d25",
+      "proxyWallet": "0x79f3c2aef9c20ad74ed3694feb78c0dfa70f7b56"
+    },
+    {
+      "asset": "13426509996928980561240959514231604457803187732070469858382427379113329910134",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "Yes",
+      "outcomeIndex": 0,
+      "price": 0.78,
+      "side": "SELL",
+      "size": 127.84,
+      "timestamp": 1792349805,
+      "transactionHash": "0x8087f42d9442ce96ce67b915bfb367a50d2dc63831cef8e4c61413ca682194d3",
+      "proxyWallet": "0xc481f4e87c57cb8752aac97525b679cef7642bbb"
+    },
+    {
+      "asset": "111139529209922347428525044094015382530453468854975778192664383453357974058477",
+      "conditionId": "0x287d7a79b61beabffeb16168970246fcd4ed2a5d75f879441f4eea1649271671",
+      "outcome": "No",
+      "outcomeIndex": 1,
+      "price": 0.21,
+      "side": "SELL",
+      "size": 12.39,
+      "timestamp": 1792349514,
+      "transactionHash": "0x5da44b9095a7c875c2e642be0b86debff6372a279a34f20bb7e26e21172a3171",
+      "proxyWallet": "0x310188b28701d6492cf2b9b4341215ac2eeee57f"
+    }
+  ],
+  "open_book_example": {
+    "source": "https://clob.polymarket.com/book",
+    "event_slug": "ballon-dor-winner-2026",
+    "market": "Kylian Mbapp\u00e9",
+    "tick_size": "0.001",
+    "min_order_size": "5",
+    "bids": [
+      {
+        "price": "0.001",
+        "size": "396155.56"
+      },
+      {
+        "price": "0.002",
+        "size": "72203"
+      },
+      {
+        "price": "0.003",
+        "size": "32044.92"
+      },
+      {
+        "price": "0.004",
+        "size": "25000"
+      },
+      {
+        "price": "0.005",
+        "size": "15800"
+      },
+      {
+        "price": "0.006",
+        "size": "7333.3"
+      }
+    ],
+    "asks": [
+      {
+        "price": "0.999",
+        "size": "11296038.72"
+      },
+      {
+        "price": "0.998",
+        "size": "470776.07"
+      },
+      {
+        "price": "0.997",
+        "size": "269673.3"
+      },
+      {
+        "price": "0.996",
+        "size": "153250"
+      },
+      {
+        "price": "0.995",
+        "size": "125606.04"
+      },
+      {
+        "price": "0.994",
+        "size": "87416.66"
+      }
+    ]
+  }
+}
