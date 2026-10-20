@@ -99,6 +99,11 @@ def _clean_token(value) -> str | None:
 def _is_true(value) -> bool:
     if value is True:
         return True
+    if value is False:
+        return False
+    # pandas guarda bool como np.True_. Isso não é `is True`, mas é verdadeiro.
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
     if isinstance(value, str) and value.strip().lower() == "true":
         return True
     try:
@@ -367,33 +372,53 @@ def _cell_number(value) -> float | None:
     return number
 
 
+def _mark_fill_unmeasured(log: pd.DataFrame, i) -> None:
+    """Legado não entra na taxa: sem fill, cobertura incompleta, não congelada."""
+    if "fill_coverage" in log.columns:
+        log.at[i, "fill_coverage"] = "incomplete"
+    for name in ("touch", "queue", "through"):
+        if f"filled_{name}" in log.columns:
+            log.at[i, f"filled_{name}"] = None
+        if f"retorno_{name}" in log.columns:
+            log.at[i, f"retorno_{name}"] = None
+    if "filled_size" in log.columns:
+        log.at[i, "filled_size"] = None
+    if "fill_model" in log.columns:
+        log.at[i, "fill_model"] = None
+    if "entry_cross" in log.columns:
+        log.at[i, "entry_cross"] = False
+    if "queue_ahead" in log.columns:
+        log.at[i, "queue_ahead"] = None
+
+
 def _apply_fill_tape(log: pd.DataFrame, i, tape: dict | None, *, bid: float, won: bool) -> None:
     """Escreve os três modelos quando a fita cobre a janela inteira. Fita cortada não vira zero."""
     if not tape:
         return
-    from src.paper_rn1_tape import iso_to_ts
+    from src.paper_rn1_tape import _stored_flag, iso_to_ts
     from src.queue_fill import estimate_fills, simulated_return
 
+    our = _cell_number(tape.get("our_size"))
+    if our is not None and "our_size" in log.columns:
+        log.at[i, "our_size"] = our
+    sim = _cell_number(tape.get("sim_price"))
+    known = _stored_flag(tape.get("tick_known"))
+    # tick ausente, NaN ou preço fora da grade: a linha antiga não é medida,
+    # mesmo que a cobertura tenha sido gravada como complete.
+    if bool(tape.get("legacy")) or known is not True or sim is None:
+        _mark_fill_unmeasured(log, i)
+        return
     coverage = str(tape.get("coverage") or "pending")
     log.at[i, "fill_coverage"] = coverage
-    our = _cell_number(tape.get("our_size"))
-    if our is not None:
-        log.at[i, "our_size"] = our
     observed = bool(tape.get("book_observed"))
     queue_ahead = _cell_number(tape.get("queue_ahead")) if observed else None
     if observed and queue_ahead is not None:
         log.at[i, "queue_ahead"] = queue_ahead
-    sim = _cell_number(tape.get("sim_price"))
-    if sim is not None and "sim_price" in log.columns:
+    if "sim_price" in log.columns:
         log.at[i, "sim_price"] = sim
     marketable = _is_true(tape.get("entry_cross"))
     if marketable and "entry_cross" in log.columns:
         log.at[i, "entry_cross"] = True
-    from src.paper_rn1_tape import _stored_flag
-
-    known = _stored_flag(tape.get("tick_known"))
-    if known is False and not marketable:
-        return
     if coverage != "complete" and not marketable:
         return
     placed_ts = iso_to_ts(tape.get("placed_at") or log.at[i, "placed_at"])
@@ -721,7 +746,8 @@ def format_fill_model_report(stats: dict) -> str:
         "leitura limpa feita no mínimo uma hora após o kickoff. Fita incompleta para de ser consultada "
         "depois de algumas tentativas ou 48h após o kickoff e fica não medido. Erro, 429 ou teto de offset "
         "também deixam o fill não medido — não colocamos zero no lugar. Página vazia é fim de janela, não "
-        "corte. O monitor grava o livro na entrada e acumula trades numa consulta por rodada. "
+        "corte. Uma linha de CSV sem tick_known confirmado ou sem sim_price é legado: não medida, "
+        "sem fill no bid cru e sem congelar. O monitor grava o livro na entrada e acumula trades numa consulta por rodada. "
         "Fill parcial conta como fill na taxa por sinal; a taxa ponderada por tamanho está ao lado."
     )
     lines.append(

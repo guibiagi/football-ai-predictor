@@ -430,6 +430,15 @@ def settle(log: pd.DataFrame, hist_df: pd.DataFrame | None = None) -> pd.DataFra
     return log
 
 
+def _persist_paper_log(df, log=None, *, only_slugs=None):
+    """Consulta a fita, liquida e grava. `only_slugs` evita reler o log inteiro."""
+    plog = ensure_log() if log is None else log
+    plog = poll_tapes(plog, resolve_no_token=lookup_token_no, only_slugs=only_slugs)
+    plog = settle_paper(plog, df)
+    plog.to_csv(PAPER_LOG, index=False)
+    return plog
+
+
 def _models(df: pd.DataFrame):
     """Devolve um resolvedor preguiçoso: (modelo, mapa de times) por competição.
 
@@ -513,9 +522,7 @@ def main() -> int:
         return 0
 
     if a.paper_rn1_report:
-        plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
-        plog = settle_paper(plog, df)
-        plog.to_csv(PAPER_LOG, index=False)
+        plog = _persist_paper_log(df)
         c = summarize_paper(plog)
         print(
             f"paper RN1: {c['registros']} registros | resolvidos: {c['resolvidos']} "
@@ -540,11 +547,11 @@ def main() -> int:
         for s in strat_cfg.get("strategies", {}).values()
     )
 
+    # Liquida o paper antes do scan: um erro na coleta não deixa o log parado.
+    if a.paper_rn1:
+        _persist_paper_log(df)
+
     if a.report:
-        if a.paper_rn1:
-            plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
-            plog = settle_paper(plog, df)
-            plog.to_csv(PAPER_LOG, index=False)
         if not LOG.exists():
             print("Sem histórico ainda.")
             return 0
@@ -699,7 +706,13 @@ def main() -> int:
         plog = apply_signal_upgrades(
             plog, [stamped_up[str(row.get("slug") or "")] for row in upgrades]
         )
-        plog = poll_tapes(plog, resolve_no_token=lookup_token_no)
+        new_slugs = {
+            str(row.get("slug") or "")
+            for row in list(fresh) + list(upgrades)
+            if str(row.get("slug") or "")
+        }
+        if new_slugs:
+            plog = poll_tapes(plog, resolve_no_token=lookup_token_no, only_slugs=new_slugs)
         plog = settle_paper(plog, df)
         plog.to_csv(PAPER_LOG, index=False)
         n_sinal = sum(1 for pr in paper_rows if pr.get("sinal") is True)
@@ -719,9 +732,6 @@ def main() -> int:
     if a.paper_rn1 and not paper_rows:
         print("PAPER RN1: nenhum sinal executável na faixa 0.60–0.80 hoje "
               "(volume mínimo / preço Poly).")
-        plog = poll_tapes(ensure_log(), resolve_no_token=lookup_token_no)
-        plog = settle_paper(plog, df)
-        plog.to_csv(PAPER_LOG, index=False)
 
     if paper_pin_rows:
         plogp = ensure_pin_log()

@@ -521,31 +521,34 @@ def _tape_from_row(row) -> dict | None:
     except (TypeError, ValueError):
         our = assumed_shares(sim_f or bid_f)
     tick_known = _stored_flag(row.get("tick_known"))
+    # CSV do modelo anterior não tem tick confirmado nem sim_price. Reconstruir
+    # isso como ordem atual precificava o bid cru (ex.: 0.7385) com fila 0.
+    legacy = tick_known is not True or sim_f is None
     return {
         "slug": row.get("slug"),
         "token": None if _blank(row.get("token")) else str(row.get("token")),
         "token_no": None if _blank(row.get("token_no")) else str(row.get("token_no")),
         "condition_id": None if _blank(row.get("condition_id")) else str(row.get("condition_id")),
         "bid": bid_f,
-        "sim_price": sim_f,
+        "sim_price": None if legacy else sim_f,
         "tick_size": None if _blank(row.get("tick_size")) else row.get("tick_size"),
-        "tick_known": tick_known,
-        "entry_cross": _stored_flag(row.get("entry_cross")) is True,
+        "tick_known": False if legacy else True,
+        "entry_cross": False if legacy else _stored_flag(row.get("entry_cross")) is True,
         "placed_at": str(placed),
         "kickoff": None if _blank(row.get("kickoff")) else str(row.get("kickoff")),
-        "queue_ahead": float(queue_raw) if observed else None,
+        "queue_ahead": None if legacy else (float(queue_raw) if observed else None),
         "our_size": our,
-        "book_observed": observed,
+        "book_observed": False if legacy else observed,
         "trades": [],
-        "coverage": "pending",
+        "coverage": "incomplete" if legacy else "pending",
         "frozen": False,
         "fetch_error": False,
         "hit_cap": False,
         "schema": TAPE_SCHEMA,
         "fetched_at": None,
         "poll_attempts": 0,
-        "poll_stopped": False,
-        "legacy": False,
+        "poll_stopped": legacy,
+        "legacy": legacy,
     }
 
 
@@ -576,11 +579,16 @@ def poll_tapes(
     tape_dir: Path | None = None,
     now: datetime | None = None,
     resolve_no_token=None,
+    only_slugs: set[str] | None = None,
 ):
-    """Acumula trades até congelar. Fita congelada não gera outro request."""
+    """Acumula trades até congelar. Fita congelada não gera outro request.
+
+    `only_slugs` limita a consulta aos slugs novos desta rodada. None consulta o log inteiro.
+    """
     directory = tape_dir or TAPE_DIR
     moment = now or datetime.now(timezone.utc)
     now_ts = _now_ts(moment)
+    wanted = None if only_slugs is None else {str(slug) for slug in only_slugs}
     fetch_fn = fetch or (
         lambda condition_id, tokens, start_ts, end_ts: fetch_trades_window(
             condition_id, tokens, start_ts, end_ts
@@ -591,7 +599,10 @@ def poll_tapes(
             log[col] = None
     log["fill_coverage"] = log["fill_coverage"].astype(object)
     for i, row in log.iterrows():
-        loaded = load_tape(str(row.get("slug") or ""), directory) or _tape_from_row(row)
+        slug = str(row.get("slug") or "")
+        if wanted is not None and slug not in wanted:
+            continue
+        loaded = load_tape(slug, directory) or _tape_from_row(row)
         if loaded is None:
             continue
         base = _migrate_tape(loaded, row, resolve_no_token)

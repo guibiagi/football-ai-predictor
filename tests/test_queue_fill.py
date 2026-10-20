@@ -365,6 +365,13 @@ def test_fetch_trades_window_filters_token_and_flags_errors():
     assert failed.trades == []
 
 
+def _live_row(**overrides):
+    """Linha do schema atual. Sem tick e sem sim_price a reconstrução vira legado."""
+    fields = {"sim_price": BID, "tick_known": True, "tick_size": 0.001}
+    fields.update(overrides)
+    return _base_row(**fields)
+
+
 def _tape_for_settle(*, coverage: str, trades: list[dict], queue_ahead: float | None = 100.0) -> dict:
     return {
         "coverage": coverage,
@@ -374,6 +381,10 @@ def _tape_for_settle(*, coverage: str, trades: list[dict], queue_ahead: float | 
         "trades": trades,
         "placed_at": PLACED,
         "bid": BID,
+        "sim_price": BID,
+        "tick_size": 0.001,
+        "tick_known": True,
+        "legacy": False,
         "kickoff": KICKOFF,
     }
 
@@ -580,7 +591,7 @@ def test_scan_fixture_copies_condition_id():
 
 
 def test_poll_tapes_persists_complete_window_without_network_in_settle(tmp_path):
-    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    row = _live_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
     log = pd.DataFrame([row])
     calls = {"n": 0}
 
@@ -1016,7 +1027,7 @@ def test_poll_does_not_refetch_a_frozen_tape(tmp_path):
 
 
 def test_poll_before_kickoff_stays_partial(tmp_path):
-    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    row = _live_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
     out = poll_tapes(
         pd.DataFrame([row]),
         fetch=lambda *args, **kwargs: TradeFetch(
@@ -1305,7 +1316,7 @@ def test_legacy_tape_without_tick_is_not_measured(tmp_path):
 
 
 def test_freeze_waits_for_a_fetch_after_the_buffer(tmp_path):
-    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    row = _live_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
     calls = {"n": 0}
 
     def fetch(*args, **kwargs):
@@ -1335,7 +1346,7 @@ def test_freeze_waits_for_a_fetch_after_the_buffer(tmp_path):
 
 
 def test_incomplete_tape_stops_after_the_attempt_cap(tmp_path):
-    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    row = _live_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
     calls = {"n": 0}
 
     def fetch(*args, **kwargs):
@@ -1356,7 +1367,7 @@ def test_incomplete_tape_stops_after_the_attempt_cap(tmp_path):
 
 
 def test_incomplete_tape_stops_48h_after_kickoff(tmp_path):
-    row = _base_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    row = _live_row(sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
 
     def fetch(*args, **kwargs):
         raise AssertionError("depois de 48h a fita incompleta não é consultada")
@@ -1367,8 +1378,165 @@ def test_incomplete_tape_stops_48h_after_kickoff(tmp_path):
     saved = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert saved["poll_stopped"] is True
     assert saved["coverage"] == "incomplete"
+    assert saved["legacy"] is False
 
 
-def test_paper_rn1_monitor_polls_once_per_run():
-    source = Path(__file__).resolve().parents[1].joinpath("monitor.py").read_text(encoding="utf-8")
-    assert source.count("poll_tapes(") == 4
+def test_old_csv_without_tape_file_is_not_measured(tmp_path):
+    """CSV do 83df06a, sem arquivo de fita: um print a 0.73 não vira fill de 100%."""
+    slug = "lal-rea-sev-2026-10-18"
+    bid = 0.7385
+    our = 25.0 / bid
+    row = {
+        "data": "2026-10-18",
+        "liga": "La Liga",
+        "slug": slug,
+        "casa": "Bournemouth",
+        "fora": "Sunderland",
+        "pick": "casa",
+        "fair_pin": 0.7635,
+        "bid": bid,
+        "poly_exec": 0.74,
+        "volume": 5000,
+        "kickoff": KICKOFF,
+        "sinal": True,
+        "placed_at": PLACED,
+        "condition_id": "0xabc",
+        "token": "tok-home",
+        "queue_ahead": 0.0,
+        "our_size": our,
+        "fill_coverage": "complete",
+    }
+    path = tmp_path / "paper_rn1_forward.csv"
+    pd.DataFrame([row]).to_csv(path, index=False)
+    loaded = ensure_log(path)
+    rebuilt = _tape_from_row(loaded.iloc[0])
+    assert rebuilt["legacy"] is True
+    assert rebuilt["tick_known"] is False
+    assert rebuilt["sim_price"] is None
+    assert rebuilt["queue_ahead"] is None
+    assert rebuilt["coverage"] == "incomplete"
+    assert rebuilt["frozen"] is False
+    assert rebuilt["poll_stopped"] is True
+
+    with_sim = loaded.iloc[0].copy()
+    with_sim["sim_price"] = bid
+    with_sim["tick_known"] = None
+    assert _tape_from_row(with_sim)["legacy"] is True
+
+    nan_tick = loaded.iloc[0].copy()
+    nan_tick["tick_known"] = float("nan")
+    nan_tick["sim_price"] = bid
+    nan_tape = _tape_from_row(nan_tick)
+    assert nan_tape["legacy"] is True
+    assert nan_tape["tick_known"] is False
+
+    missing_sim = loaded.iloc[0].copy()
+    missing_sim["tick_known"] = True
+    missing_sim["sim_price"] = None
+    assert _tape_from_row(missing_sim)["legacy"] is True
+
+    current = loaded.iloc[0].copy()
+    current["tick_known"] = True
+    current["sim_price"] = 0.738
+    current_tape = _tape_from_row(current)
+    assert current_tape["legacy"] is False
+    assert current_tape["tick_known"] is True
+    assert current_tape["sim_price"] == pytest.approx(0.738)
+    assert current_tape["coverage"] == "pending"
+
+    calls = {"n": 0}
+
+    def fetch(*args, **kwargs):
+        calls["n"] += 1
+        return TradeFetch(
+            trades=[_sell(PLACED_TS + 30, 0.73, 10)],
+            hit_cap=False,
+            fetch_error=False,
+        )
+
+    moment = datetime(2026, 10, 18, 16, 0, tzinfo=timezone.utc)
+    polled = poll_tapes(loaded, fetch=fetch, tape_dir=tmp_path, now=moment)
+    assert calls["n"] == 0
+    saved = json.loads((tmp_path / f"{slug}.json").read_text(encoding="utf-8"))
+    assert saved["legacy"] is True
+    assert saved["frozen"] is False
+    assert saved["coverage"] == "incomplete"
+    assert saved["tick_known"] is False
+    assert saved["sim_price"] is None
+    assert saved["trades"] == []
+    assert saved["queue_ahead"] is None
+    assert pd.isna(polled.loc[0, "queue_ahead"])
+
+    poisoned = {
+        "slug": slug,
+        "coverage": "complete",
+        "frozen": True,
+        "trades": [_sell(PLACED_TS + 30, 0.73, 10)],
+        "placed_at": PLACED,
+        "kickoff": KICKOFF,
+        "token": "tok-home",
+        "bid": bid,
+        "queue_ahead": 0.0,
+        "our_size": our,
+        "book_observed": True,
+        "tick_known": None,
+        "sim_price": None,
+    }
+    with patch("urllib.request.urlopen", return_value=_Resp([_event(["1", "0", "0"])])):
+        with patch("src.paper_rn1.closing_price_before_kickoff", return_value=0.70):
+            settled = settle_paper(polled, pd.DataFrame(), tapes={slug: poisoned})
+    assert pd.isna(settled.loc[0, "filled_touch"])
+    assert pd.isna(settled.loc[0, "filled_queue"])
+    assert pd.isna(settled.loc[0, "filled_through"])
+    assert settled.loc[0, "fill_coverage"] == "incomplete"
+    assert settled.loc[0, "fill_model"] != "queue"
+    stats = summarize_fill_models(settled)
+    assert stats["touch"]["medidos"] == 0
+    assert stats["queue"]["medidos"] == 0
+    assert stats["through"]["medidos"] == 0
+    assert stats["nao_medidos"] == 1
+
+
+def test_poll_only_slugs_skips_the_rest(tmp_path):
+    first = _live_row(slug="slug-a", sinal=True, condition_id="0xabc", placed_at=PLACED, kickoff=KICKOFF, token="tok-home")
+    second = _live_row(slug="slug-b", sinal=True, condition_id="0xdef", placed_at=PLACED, kickoff=KICKOFF, token="tok-away")
+    seen = []
+
+    def fetch(condition_id, tokens, start_ts, end_ts):
+        seen.append(condition_id)
+        return TradeFetch(trades=[], hit_cap=False, fetch_error=False)
+
+    moment = datetime(2026, 10, 18, 13, 30, tzinfo=timezone.utc)
+    poll_tapes(
+        pd.DataFrame([first, second]),
+        fetch=fetch,
+        tape_dir=tmp_path,
+        now=moment,
+        only_slugs={"slug-a"},
+    )
+    assert seen == ["0xabc"]
+
+
+def test_paper_rn1_monitor_polls_once_per_run(monkeypatch, tmp_path):
+    import sys
+
+    import monitor
+
+    calls = []
+
+    def fake_poll(log, **kwargs):
+        calls.append(kwargs.get("only_slugs"))
+        return log
+
+    monkeypatch.setattr(monitor, "poll_tapes", fake_poll)
+    monkeypatch.setattr(monitor, "settle_paper", lambda log, df: log)
+    monkeypatch.setattr(monitor, "ensure_log", lambda path=None: pd.DataFrame(columns=["slug"]))
+    monkeypatch.setattr(monitor, "PAPER_LOG", tmp_path / "paper.csv")
+    monkeypatch.setattr(monitor, "LOG", tmp_path / "missing.csv")
+    monkeypatch.setattr(monitor, "load_monitor_dataset", lambda: pd.DataFrame({"competition": []}))
+    monkeypatch.setattr(monitor, "load_gates", lambda: {})
+    monkeypatch.setattr(monitor, "load_strategy_config", lambda: {"strategies": {}})
+    monkeypatch.setattr(monitor, "collect_fixtures", lambda *args, **kwargs: ([], [], {}))
+    monkeypatch.setattr(sys, "argv", ["monitor.py", "--paper-rn1"])
+    assert monitor.main() == 0
+    assert calls == [None]
