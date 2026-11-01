@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only Hyperliquid signals for the HYPE position and the BTC trend.
+"""Read-only Hyperliquid signals for the HYPE position and the BTC/DOGE trend.
 
 Prints one JSON line telling the caller what to do. This process never places
 orders and never reads a key. It only POSTs to the public info endpoint.
@@ -8,6 +8,11 @@ State files (under --state-dir, default /workspace/trading):
   hype_state.json       deadline flag
   btc_trend_state.json  snapshot compatible with the existing BTC state
   btc_trend_log.md      append-only log of recorded entries and exits
+  doge_trend_state.json DOGE state, same format as the BTC one
+  doge_trend_log.md     DOGE log, same format as the BTC one
+
+BTC and DOGE run the same rule on one shared account. Each coin keeps its own
+state file and log, and holds at most one long at a time.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -36,13 +42,19 @@ HYPE_HIGH = 85.90
 HYPE_LOW = 71.80
 HYPE_DEADLINE = datetime(2026, 11, 16, tzinfo=SP).date()
 
-# BTC long-only Donchian breakout plus a ratcheting ATR stop.
+# Long-only Donchian breakout plus a ratcheting ATR stop (BTC and DOGE).
 BTC_EXPIRY = datetime(2026, 11, 18, tzinfo=SP).date()  # expired strictly after this date
+DOGE_EXPIRY = datetime(2026, 12, 1, tzinfo=SP).date()  # expired strictly after this date
 BREAKOUT_BARS = 20
 ATR_PERIOD = 14
 ATR_MULT = 3.0
 MIN_ACCOUNT_VALUE = 12.0
 MIN_SIZE_USD = 10.0
+# Two coins share one account. Each entry may use at most half the equity,
+# capped by what is free right now, at 2x leverage with a 10% buffer.
+LEVERAGE = 2.0
+SIZE_BUFFER = 0.9
+EQUITY_SHARE = 0.5
 CANDLE_LOOKBACK_HOURS = 400
 HOUR_MS = 3_600_000
 SIZE_TOLERANCE_FRAC = 0.01
@@ -59,7 +71,32 @@ LOCK_POLL_S = 0.05
 
 BTC_STATE_NAME = "btc_trend_state.json"
 BTC_LOG_NAME = "btc_trend_log.md"
+DOGE_STATE_NAME = "doge_trend_state.json"
+DOGE_LOG_NAME = "doge_trend_log.md"
 HYPE_STATE_NAME = "hype_state.json"
+
+# Per-coin settings. BTC keeps its original files and lock so the live state
+# is read exactly as before.
+TREND_COINS = {
+    "BTC": {
+        "state": BTC_STATE_NAME,
+        "log": BTC_LOG_NAME,
+        "expiry": BTC_EXPIRY,
+        "lock": ".state.lock",
+    },
+    "DOGE": {
+        "state": DOGE_STATE_NAME,
+        "log": DOGE_LOG_NAME,
+        "expiry": DOGE_EXPIRY,
+        "lock": ".doge_state.lock",
+    },
+}
+
+
+def _coin_cfg(coin: str) -> dict:
+    if coin not in TREND_COINS:
+        raise ValueError(f"unknown trend coin {coin!r}")
+    return TREND_COINS[coin]
 
 
 def now_sp() -> datetime:
@@ -238,6 +275,10 @@ def breakout_level(candles: list[dict], n: int = BREAKOUT_BARS) -> float:
 
 
 def default_btc_state() -> dict:
+    return default_trend_state("BTC")
+
+
+def default_trend_state(coin: str = "BTC") -> dict:
     return {
         "position": None,
         "last_check": None,
@@ -251,7 +292,7 @@ def default_btc_state() -> dict:
         "stop": None,
         "last_processed_candle": None,
         "last_exit_candle": None,
-        "note": "Criado na primeira execução; sem posição BTC na conta real.",
+        "note": f"Criado na primeira execução; sem posição {coin} na conta real.",
     }
 
 
@@ -318,8 +359,9 @@ class _StateLock:
     reads the state file without the lock and skips the write.
     """
 
-    def __init__(self, state_dir: Path):
+    def __init__(self, state_dir: Path, name: str = ".state.lock"):
         self.state_dir = Path(state_dir)
+        self.name = name
         self.handle = None
         self.timeout = LOCK_TIMEOUT_S
         self.poll = LOCK_POLL_S
@@ -335,7 +377,7 @@ class _StateLock:
 
     def __enter__(self):
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        self.handle = open(self.state_dir / ".state.lock", "a+", encoding="utf-8")
+        self.handle = open(self.state_dir / self.name, "a+", encoding="utf-8")
         deadline = time.monotonic() + self.timeout
         while True:
             try:
@@ -368,12 +410,20 @@ def _material(state: dict | None):
     return json.loads(json.dumps(data, ensure_ascii=False, sort_keys=True))
 
 
+def load_trend_state(state_dir: Path, coin: str = "BTC") -> dict:
+    return _load_json(state_dir / _coin_cfg(coin)["state"], default_trend_state(coin))
+
+
+def save_trend_state(state_dir: Path, state: dict, coin: str = "BTC") -> None:
+    _atomic_write(state_dir / _coin_cfg(coin)["state"], state)
+
+
 def load_btc_state(state_dir: Path) -> dict:
-    return _load_json(state_dir / BTC_STATE_NAME, default_btc_state())
+    return load_trend_state(state_dir, "BTC")
 
 
 def save_btc_state(state_dir: Path, state: dict) -> None:
-    _atomic_write(state_dir / BTC_STATE_NAME, state)
+    save_trend_state(state_dir, state, "BTC")
 
 
 def load_hype_state(state_dir: Path) -> dict:
@@ -385,10 +435,14 @@ def save_hype_state(state_dir: Path, state: dict) -> None:
 
 
 def append_btc_log(state_dir: Path, block: str) -> None:
-    path = state_dir / BTC_LOG_NAME
+    append_trend_log(state_dir, block, "BTC")
+
+
+def append_trend_log(state_dir: Path, block: str, coin: str = "BTC") -> None:
+    path = state_dir / _coin_cfg(coin)["log"]
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
-        path.write_text("# BTC trend log\n\n", encoding="utf-8")
+        path.write_text(f"# {coin} trend log\n\n", encoding="utf-8")
     with path.open("a", encoding="utf-8") as handle:
         handle.write(block)
         if not block.endswith("\n"):
@@ -700,8 +754,8 @@ def _fill_end_position(fill: dict, start: float | None):
     return None
 
 
-def opening_buy_time_ms(fills, now_ms) -> int | None:
-    """Start of the current BTC long: the open after the last time it was flat.
+def opening_buy_time_ms(fills, now_ms, coin: str = "BTC") -> int | None:
+    """Start of the current long in `coin`: the open after the last time it was flat.
 
     Hyperliquid labels an add `Open Long` too. A buy counts as the open only
     when its start position is flat or short. Later adds keep the earlier time.
@@ -711,7 +765,7 @@ def opening_buy_time_ms(fills, now_ms) -> int | None:
         return None
     ordered = []
     for fill in fills:
-        if not isinstance(fill, dict) or fill.get("coin") != "BTC":
+        if not isinstance(fill, dict) or fill.get("coin") != coin:
             continue
         when = normalize_epoch_ms(fill.get("time"), now_ms)
         if when is None:
@@ -731,7 +785,7 @@ def opening_buy_time_ms(fills, now_ms) -> int | None:
     return opened_at
 
 
-def lookup_open_long_ms(fetch, now: datetime) -> int | None:
+def lookup_open_long_ms(fetch, now: datetime, coin: str = "BTC") -> int | None:
     """Public fills for the account. Any failure returns None, never an error action."""
     now_ms = int(as_sp(now).timestamp() * 1000)
     start = now_ms - CANDLE_LOOKBACK_HOURS * HOUR_MS
@@ -749,7 +803,7 @@ def lookup_open_long_ms(fetch, now: datetime) -> int | None:
             data = fetch(payload)
         except Exception:
             continue
-        when = opening_buy_time_ms(data, now_ms)
+        when = opening_buy_time_ms(data, now_ms, coin)
         if when is not None:
             return when
     return None
@@ -805,6 +859,46 @@ def rebuild_long_trail(
     return position, highest, stop, cursor
 
 
+def recommended_notional(account_value, withdrawable) -> float | None:
+    """Order notional in USD for one coin on the shared account.
+
+    min(free balance, equity / 2) * 2x * 0.9. Negative free balance is zero.
+    """
+    value = _finite_number(account_value)
+    free = _finite_number(withdrawable)
+    if value is None or free is None:
+        return None
+    budget = max(0.0, min(free, value * EQUITY_SHARE))
+    return clean_float(budget * LEVERAGE * SIZE_BUFFER, 6)
+
+
+def round_size_down(size: float, sz_decimals: int) -> float:
+    """Floor to the exchange lot so the order never exceeds the notional."""
+    quantum = Decimal(1).scaleb(-int(sz_decimals))
+    return float(Decimal(repr(float(size))).quantize(quantum, rounding=ROUND_DOWN))
+
+
+def size_order(notional, price, market: dict | None) -> dict:
+    """Coin size for `notional` at `price`, rounded to szDecimals. Never raises."""
+    out = {"size_coin": None, "size_price": None, "size_notional_usd": None}
+    notional_n = _finite_number(notional)
+    if market is None or notional_n is None:
+        return out
+    decimals = market.get("sz_decimals")
+    mark = _finite_number(market.get("mark_px"))
+    px = mark if mark is not None and mark > 0 else _finite_number(price)
+    if decimals is None or px is None or px <= 0:
+        return out
+    try:
+        size = round_size_down(notional_n / px, int(decimals))
+    except (ArithmeticError, ValueError, TypeError):
+        return out
+    out["size_coin"] = size
+    out["size_price"] = clean_float(px, 8)
+    out["size_notional_usd"] = clean_float(size * px, 6)
+    return out
+
+
 def decide_btc(
     candles: list[dict],
     account: dict,
@@ -812,8 +906,67 @@ def decide_btc(
     now: datetime,
     state_error: str | None = None,
     fill_entry_ms: int | None = None,
+    market: dict | None = None,
+    market_error: str | None = None,
 ) -> tuple[dict, dict]:
     """BTC signal plus the state to persist. `candles` may include the forming bar."""
+    return decide_trend(
+        "BTC",
+        candles,
+        account,
+        state,
+        now,
+        state_error=state_error,
+        fill_entry_ms=fill_entry_ms,
+        market=market,
+        market_error=market_error,
+    )
+
+
+def decide_doge(
+    candles: list[dict],
+    account: dict,
+    state: dict | None,
+    now: datetime,
+    state_error: str | None = None,
+    fill_entry_ms: int | None = None,
+    market: dict | None = None,
+    market_error: str | None = None,
+) -> tuple[dict, dict]:
+    """DOGE signal. Same rule as BTC, separate state."""
+    return decide_trend(
+        "DOGE",
+        candles,
+        account,
+        state,
+        now,
+        state_error=state_error,
+        fill_entry_ms=fill_entry_ms,
+        market=market,
+        market_error=market_error,
+    )
+
+
+def decide_trend(
+    coin: str,
+    candles: list[dict],
+    account: dict,
+    state: dict | None,
+    now: datetime,
+    state_error: str | None = None,
+    fill_entry_ms: int | None = None,
+    market: dict | None = None,
+    market_error: str | None = None,
+) -> tuple[dict, dict]:
+    """Trend signal for `coin` plus the state to persist.
+
+    `candles` may include the forming bar. `market` is the exchange metadata
+    for the coin (szDecimals, max leverage, mark price). When it is None and
+    `market_error` is set, the metadata fetch failed: an entry is refused, an
+    exit is not.
+    """
+    cfg = _coin_cfg(coin)
+    expiry = cfg["expiry"]
     now = as_sp(now)
     now_ms = int(now.timestamp() * 1000)
     today = now.date()
@@ -831,7 +984,7 @@ def decide_btc(
 
     account_value = float(account["account_value"])
     withdrawable = float(account["withdrawable"])
-    acct = account.get("btc")
+    acct = account.get(coin.lower())
     acct_size = float(acct["size"]) if acct else 0.0
     acct_long = acct is not None and acct_size > 0
     acct_short = acct is not None and acct_size < 0
@@ -850,7 +1003,7 @@ def decide_btc(
         if assessment["trust_stop"]:
             stored_stop = _finite_number(state.get("stop")) if isinstance(state, dict) else None
 
-    new_state = default_btc_state()
+    new_state = default_trend_state(coin)
     if state:
         new_state.update(copy.deepcopy(state))
     state_pos = new_state.get("position")
@@ -970,7 +1123,10 @@ def decide_btc(
     # trails, and a stop hit is still an exit.
     size_usd = None
     low_balance = account_value < MIN_ACCOUNT_VALUE
-    expired_date = today > BTC_EXPIRY
+    expired_date = today > expiry
+    notional = recommended_notional(account_value, withdrawable)
+    sizing = size_order(notional, last_close, market)
+    tradeable = None if market is None else bool(market.get("tradeable"))
     if acct_short:
         action = "none"
         reason = "unexpected_short"
@@ -989,7 +1145,7 @@ def decide_btc(
             reason = "hold"
     elif expired_date:
         action = "expired"
-        reason = "after_2026-11-18"
+        reason = f"after_{expiry.isoformat()}"
     elif low_balance:
         action = "pause_low_balance"
         reason = "account_value_below_12"
@@ -997,10 +1153,22 @@ def decide_btc(
         action = "none"
         reason = "exited_this_candle"
     elif last_close > level:
-        size_usd = clean_float(withdrawable * 2.0 * 0.9, 6)
+        size_usd = notional
+        rounded = sizing["size_notional_usd"]
         if size_usd is None or size_usd < MIN_SIZE_USD:
-            action = "none"
+            action = "skip_small"
             reason = f"size_usd {size_usd} < {MIN_SIZE_USD:.0f}"
+        elif market is None and market_error:
+            # Without szDecimals and the tradeable flag the caller cannot size
+            # a safe order. Exits never reach this branch.
+            action = "error"
+            reason = f"market metadata unavailable: {market_error}"
+        elif market is not None and not tradeable:
+            action = "none"
+            reason = "not_tradeable"
+        elif market is not None and (rounded is None or rounded < MIN_SIZE_USD):
+            action = "skip_small"
+            reason = f"rounded size_usd {rounded} < {MIN_SIZE_USD:.0f}"
         else:
             action = "enter"
             reason = "breakout"
@@ -1010,6 +1178,7 @@ def decide_btc(
 
     payload = {
         "action": action,
+        "coin": coin,
         "last_close": clean_float(last_close, 6),
         "breakout_level": clean_float(level, 6),
         "atr": clean_float(atr, 6),
@@ -1018,9 +1187,22 @@ def decide_btc(
         "account_value": clean_float(account_value, 6),
         "withdrawable": clean_float(withdrawable, 6),
         "size_usd": size_usd,
+        "size_coin": sizing["size_coin"] if size_usd is not None else None,
+        "recommended_notional_usd": notional,
+        "recommended_size": sizing["size_coin"],
+        "size_price": sizing["size_price"],
+        "leverage": int(LEVERAGE),
+        "margin_mode": "isolated",
         "reason": reason,
         "candle_time": candle_iso,
+        "expiry": expiry.isoformat(),
     }
+    if market is not None:
+        payload["sz_decimals"] = market.get("sz_decimals")
+        payload["max_leverage"] = market.get("max_leverage")
+        payload["tradeable"] = tradeable
+    if market_error:
+        payload["market_error"] = market_error
     if low_balance:
         payload["low_balance"] = True
     if acct_long and expired_date:
@@ -1081,7 +1263,7 @@ def parse_account(data: dict) -> dict:
         raise RuntimeError("clearinghouseState missing assetPositions")
     account_value = _require_float(margin["accountValue"], "accountValue")
     withdrawable = _require_float(data["withdrawable"], "withdrawable")
-    found = {"BTC": None, "HYPE": None}
+    found = {"BTC": None, "HYPE": None, "DOGE": None}
     for item in positions:
         if not isinstance(item, dict):
             continue
@@ -1105,6 +1287,7 @@ def parse_account(data: dict) -> dict:
         "withdrawable": withdrawable,
         "btc": found["BTC"],
         "hype": found["HYPE"],
+        "doge": found["DOGE"],
     }
 
 
@@ -1143,7 +1326,70 @@ def fetch_mids(fetch=None):
     return fetch({"type": "allMids"})
 
 
+def parse_market(data, coin: str) -> dict:
+    """Exchange metadata for one perp from metaAndAssetCtxs.
+
+    `tradeable` is true only when the perp is listed, not delisted, has a
+    usable szDecimals and allows at least LEVERAGE.
+    """
+    if not isinstance(data, list) or len(data) < 2:
+        raise RuntimeError("metaAndAssetCtxs returned an unexpected shape")
+    meta, ctxs = data[0], data[1]
+    universe = meta.get("universe") if isinstance(meta, dict) else None
+    if not isinstance(universe, list) or not isinstance(ctxs, list):
+        raise RuntimeError("metaAndAssetCtxs missing universe")
+    for index, asset in enumerate(universe):
+        if not isinstance(asset, dict) or asset.get("name") != coin:
+            continue
+        ctx = ctxs[index] if index < len(ctxs) and isinstance(ctxs[index], dict) else {}
+        decimals = asset.get("szDecimals")
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or decimals < 0:
+            decimals = None
+        max_lev = _finite_number(asset.get("maxLeverage"))
+        mark = _finite_number(ctx.get("markPx"))
+        delisted = bool(asset.get("isDelisted"))
+        tradeable = (
+            not delisted
+            and decimals is not None
+            and max_lev is not None
+            and max_lev >= LEVERAGE
+            and mark is not None
+            and mark > 0
+        )
+        return {
+            "coin": coin,
+            "exists": True,
+            "asset_index": index,
+            "sz_decimals": decimals,
+            "max_leverage": None if max_lev is None else int(max_lev),
+            "only_isolated": bool(asset.get("onlyIsolated")),
+            "is_delisted": delisted,
+            "mark_px": mark,
+            "tradeable": tradeable,
+        }
+    return {
+        "coin": coin,
+        "exists": False,
+        "asset_index": None,
+        "sz_decimals": None,
+        "max_leverage": None,
+        "only_isolated": False,
+        "is_delisted": False,
+        "mark_px": None,
+        "tradeable": False,
+    }
+
+
+def fetch_market(coin: str, fetch=None) -> dict:
+    fetch = post_info if fetch is None else fetch
+    return parse_market(fetch({"type": "metaAndAssetCtxs"}), coin)
+
+
 def fetch_btc_candles(now: datetime, fetch=None) -> list[dict]:
+    return fetch_candles("BTC", now, fetch)
+
+
+def fetch_candles(coin: str, now: datetime, fetch=None) -> list[dict]:
     fetch = post_info if fetch is None else fetch
     now_ms = int(as_sp(now).timestamp() * 1000)
     start = now_ms - CANDLE_LOOKBACK_HOURS * HOUR_MS
@@ -1151,7 +1397,7 @@ def fetch_btc_candles(now: datetime, fetch=None) -> list[dict]:
         {
             "type": "candleSnapshot",
             "req": {
-                "coin": "BTC",
+                "coin": coin,
                 "interval": "1h",
                 "startTime": start,
                 "endTime": now_ms,
@@ -1218,20 +1464,30 @@ def run_hype(state_dir: Path, mark_asked: bool, now: datetime | None = None, fet
         return payload
 
 
-def _account_is_long(account: dict) -> bool:
-    btc = account.get("btc") if isinstance(account, dict) else None
+def _account_is_long(account: dict, coin: str = "BTC") -> bool:
+    btc = account.get(coin.lower()) if isinstance(account, dict) else None
     if not isinstance(btc, dict):
         return False
     size = _finite_number(btc.get("size"))
     return size is not None and size > 0
 
 
-def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: bool) -> dict:
+def _trend_finish(
+    coin: str,
+    state_dir: Path,
+    candles,
+    account,
+    now: datetime,
+    fetch,
+    write: bool,
+    market: dict | None = None,
+    market_error: str | None = None,
+) -> dict:
     """Decide from the state file on disk. `write` is false when the lock was not taken."""
     state_error = None
     state = None
     try:
-        state = load_btc_state(state_dir)
+        state = load_trend_state(state_dir, coin)
     except StateLoadError as exc:
         state_error = one_line(exc)
         state = None
@@ -1243,15 +1499,18 @@ def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: 
         if field_error:
             state_error = field_error
     fill_entry_ms = None
-    if state_error and _account_is_long(account):
-        fill_entry_ms = lookup_open_long_ms(fetch, now)
-    payload, new_state = decide_btc(
+    if state_error and _account_is_long(account, coin):
+        fill_entry_ms = lookup_open_long_ms(fetch, now, coin)
+    payload, new_state = decide_trend(
+        coin,
         candles,
         account,
         state,
         now,
         state_error=state_error,
         fill_entry_ms=fill_entry_ms,
+        market=market,
+        market_error=market_error,
     )
     if not write:
         payload["state_write_skipped"] = True
@@ -1259,7 +1518,7 @@ def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: 
     try:
         if _material(state) != _material(new_state):
             new_state["last_check"] = iso_sp(now)
-            save_btc_state(state_dir, new_state)
+            save_trend_state(state_dir, new_state, coin)
     except Exception as exc:
         # A full disk or a permissions error must not hide an exit.
         payload["state_write_failed"] = True
@@ -1268,30 +1527,61 @@ def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: 
     return payload
 
 
+def _btc_finish(state_dir: Path, candles, account, now: datetime, fetch, write: bool) -> dict:
+    return _trend_finish("BTC", state_dir, candles, account, now, fetch, write)
+
+
 def run_btc(state_dir: Path, now: datetime | None = None, fetch=None) -> dict:
+    return run_trend("BTC", state_dir, now=now, fetch=fetch)
+
+
+def run_doge(state_dir: Path, now: datetime | None = None, fetch=None) -> dict:
+    return run_trend("DOGE", state_dir, now=now, fetch=fetch)
+
+
+def run_trend(coin: str, state_dir: Path, now: datetime | None = None, fetch=None) -> dict:
+    cfg = _coin_cfg(coin)
     fetch = post_info if fetch is None else fetch
     now = as_sp(now or now_sp())
-    candles = fetch_btc_candles(now, fetch)
+    candles = fetch_candles(coin, now, fetch)
     account = fetch_account(fetch)
+    # Metadata only sizes an entry. Its failure must never hide an exit.
+    market = None
+    market_error = None
     try:
-        with _StateLock(state_dir):
-            return _btc_finish(state_dir, candles, account, now, fetch, write=True)
+        market = fetch_market(coin, fetch)
+    except Exception as exc:
+        market_error = one_line(exc)
+    try:
+        with _StateLock(state_dir, cfg["lock"]):
+            return _trend_finish(
+                coin, state_dir, candles, account, now, fetch, True, market, market_error
+            )
     except OSError:
         # TimeoutError is an OSError. The file may still be readable; do not
         # throw it away and rebuild as if the long were 400 hours old.
-        return _btc_finish(state_dir, candles, account, now, fetch, write=False)
+        return _trend_finish(
+            coin, state_dir, candles, account, now, fetch, False, market, market_error
+        )
 
 
-def run_record_entry(state_dir: Path, price: float, size: float, now: datetime | None = None) -> dict:
+def run_record_entry(
+    state_dir: Path,
+    price: float,
+    size: float,
+    now: datetime | None = None,
+    coin: str = "BTC",
+) -> dict:
     if not math.isfinite(price) or price <= 0:
         raise ValueError("entry price must be positive")
     if not math.isfinite(size) or size <= 0:
         raise ValueError("entry size must be positive")
+    cfg = _coin_cfg(coin)
     now = as_sp(now or now_sp())
     stamp = iso_sp(now)
-    with _StateLock(state_dir):
+    with _StateLock(state_dir, cfg["lock"]):
         try:
-            state = load_btc_state(state_dir)
+            state = load_trend_state(state_dir, coin)
         except StateLoadError as exc:
             raise CommandError(f"cannot record entry: {exc}") from exc
         position = state.get("position")
@@ -1319,10 +1609,11 @@ def run_record_entry(state_dir: Path, price: float, size: float, now: datetime |
         # as a post-entry high; the next closed bar is the first one that counts.
         state["last_processed_candle"] = state.get("last_closed_candle_open")
         state["last_check"] = stamp
-        save_btc_state(state_dir, state)
-        append_btc_log(
+        save_trend_state(state_dir, state, coin)
+        append_trend_log(
             state_dir,
             f"## {stamp} entry\n- price: {clean_float(price, 8)}\n- size: {clean_float(size, 8)}\n\n",
+            coin,
         )
     return {
         "action": "recorded_entry",
@@ -1332,17 +1623,20 @@ def run_record_entry(state_dir: Path, price: float, size: float, now: datetime |
     }
 
 
-def run_record_exit(state_dir: Path, price: float, now: datetime | None = None) -> dict:
+def run_record_exit(
+    state_dir: Path, price: float, now: datetime | None = None, coin: str = "BTC"
+) -> dict:
     if not math.isfinite(price) or price <= 0:
         raise ValueError("exit price must be positive")
+    cfg = _coin_cfg(coin)
     now = as_sp(now or now_sp())
     stamp = iso_sp(now)
-    with _StateLock(state_dir):
+    with _StateLock(state_dir, cfg["lock"]):
         corrupt = False
         try:
-            state = load_btc_state(state_dir)
+            state = load_trend_state(state_dir, coin)
         except StateLoadError:
-            state = default_btc_state()
+            state = default_trend_state(coin)
             corrupt = True
         if not corrupt and not _position_is_open(state.get("position")):
             return {
@@ -1358,8 +1652,8 @@ def run_record_exit(state_dir: Path, price: float, now: datetime | None = None) 
         state["stop"] = None
         state["last_processed_candle"] = None
         state["last_check"] = stamp
-        save_btc_state(state_dir, state)
-        append_btc_log(state_dir, f"## {stamp} exit\n- price: {clean_float(price, 8)}\n\n")
+        save_trend_state(state_dir, state, coin)
+        append_trend_log(state_dir, f"## {stamp} exit\n- price: {clean_float(price, 8)}\n\n", coin)
     return {"action": "recorded_exit", "price": clean_float(price, 8), "time": stamp}
 
 
@@ -1373,7 +1667,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_STATE_DIR,
         help=f"directory for state files (default: {DEFAULT_STATE_DIR})",
     )
-    parser.add_argument("command", choices=("hype", "btc"))
+    parser.add_argument("command", choices=("hype", "btc", "doge"))
     parser.add_argument(
         "--mark-asked",
         action="store_true",
@@ -1383,12 +1677,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--record-entry",
         nargs=2,
         metavar=("PRICE", "SIZE"),
-        help="btc only: persist a fill after the caller entered",
+        help="btc/doge only: persist a fill after the caller entered",
     )
     parser.add_argument(
         "--record-exit",
         metavar="PRICE",
-        help="btc only: persist a fill after the caller exited",
+        help="btc/doge only: persist a fill after the caller exited",
     )
     return parser
 
@@ -1399,9 +1693,10 @@ def main(argv: list[str] | None = None) -> int:
         state_dir = Path(args.state_dir)
         if args.command == "hype":
             if args.record_entry is not None or args.record_exit is not None:
-                raise ValueError("record-entry and record-exit are btc commands")
+                raise ValueError("record-entry and record-exit are btc/doge commands")
             payload = run_hype(state_dir, mark_asked=args.mark_asked)
         else:
+            coin = args.command.upper()
             if args.mark_asked:
                 raise ValueError("mark-asked is a hype command")
             if args.record_entry is not None and args.record_exit is not None:
@@ -1409,11 +1704,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.record_entry is not None:
                 price = float(args.record_entry[0])
                 size = float(args.record_entry[1])
-                payload = run_record_entry(state_dir, price, size)
+                payload = run_record_entry(state_dir, price, size, coin=coin)
             elif args.record_exit is not None:
-                payload = run_record_exit(state_dir, float(args.record_exit))
+                payload = run_record_exit(state_dir, float(args.record_exit), coin=coin)
             else:
-                payload = run_btc(state_dir)
+                payload = run_trend(coin, state_dir)
         emit(payload)
         return 0
     except SystemExit:

@@ -103,7 +103,8 @@ def test_breakout_yes_sizes_notional_from_withdrawable():
     payload, state = sig.decide_btc(candles, _account(value=20, withdrawable=20), None, _now_after(candles))
     assert payload["action"] == "enter"
     assert payload["reason"] == "breakout"
-    assert payload["size_usd"] == sig.clean_float(20 * 2 * 0.9, 6)
+    # Shared account: min(withdrawable, equity / 2) * 2 * 0.9.
+    assert payload["size_usd"] == sig.clean_float(10 * 2 * 0.9, 6)
     assert payload["size_usd"] >= 10
     assert payload["last_close"] == pytest.approx(101.2)
     assert payload["breakout_level"] == pytest.approx(100)
@@ -345,10 +346,11 @@ def test_min_size_blocks_breakout_entry():
     candles.append(_bar(20, 110, high=111, low=109, close=110))
     now = _now_after(candles)
     small, _state = sig.decide_btc(candles, _account(value=20, withdrawable=5), None, now)
-    assert small["action"] == "none"
+    assert small["action"] == "skip_small"
     assert small["size_usd"] == sig.clean_float(5 * 2 * 0.9, 6)
     assert small["size_usd"] < 10
     assert "10" in small["reason"]
+    assert "low_balance" not in small
     large, _state = sig.decide_btc(candles, _account(value=20, withdrawable=6), None, now)
     assert large["action"] == "enter"
     assert large["size_usd"] == sig.clean_float(6 * 2 * 0.9, 6)
@@ -867,7 +869,7 @@ def test_save_failure_still_returns_the_exit(tmp_path, monkeypatch):
     def refuse_save(*_args, **_kwargs):
         raise OSError("read-only filesystem")
 
-    monkeypatch.setattr(sig, "save_btc_state", refuse_save)
+    monkeypatch.setattr(sig, "save_trend_state", refuse_save)
     (tmp_path / "btc_trend_state.json").write_text(
         json.dumps(_open_state(candles, stop=90)), encoding="utf-8"
     )
