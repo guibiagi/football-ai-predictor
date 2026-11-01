@@ -961,9 +961,8 @@ def decide_trend(
     """Trend signal for `coin` plus the state to persist.
 
     `candles` may include the forming bar. `market` is the exchange metadata
-    for the coin (szDecimals, max leverage, mark price). When it is None and
-    `market_error` is set, the metadata fetch failed: an entry is refused, an
-    exit is not.
+    for the coin (szDecimals, max leverage, mark price). When it is None (the
+    fetch failed, see `market_error`) an entry is refused; an exit is not.
     """
     cfg = _coin_cfg(coin)
     expiry = cfg["expiry"]
@@ -1158,11 +1157,11 @@ def decide_trend(
         if size_usd is None or size_usd < MIN_SIZE_USD:
             action = "skip_small"
             reason = f"size_usd {size_usd} < {MIN_SIZE_USD:.0f}"
-        elif market is None and market_error:
+        elif market is None:
             # Without szDecimals and the tradeable flag the caller cannot size
             # a safe order. Exits never reach this branch.
             action = "error"
-            reason = f"market metadata unavailable: {market_error}"
+            reason = f"market metadata unavailable: {market_error or 'not provided'}"
         elif market is not None and not tradeable:
             action = "none"
             reason = "not_tradeable"
@@ -1188,6 +1187,7 @@ def decide_trend(
         "withdrawable": clean_float(withdrawable, 6),
         "size_usd": size_usd,
         "size_coin": sizing["size_coin"] if size_usd is not None else None,
+        "size_notional_usd": sizing["size_notional_usd"] if size_usd is not None else None,
         "recommended_notional_usd": notional,
         "recommended_size": sizing["size_coin"],
         "size_price": sizing["size_price"],
@@ -1198,6 +1198,7 @@ def decide_trend(
         "expiry": expiry.isoformat(),
     }
     if market is not None:
+        payload["perp_exists"] = bool(market.get("exists"))
         payload["sz_decimals"] = market.get("sz_decimals")
         payload["max_leverage"] = market.get("max_leverage")
         payload["tradeable"] = tradeable

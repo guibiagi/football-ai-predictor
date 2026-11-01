@@ -170,6 +170,9 @@ def test_doge_breakout_enters_with_rounded_size():
     assert payload["sz_decimals"] == 0
     assert payload["max_leverage"] == 10
     assert payload["tradeable"] is True
+    assert payload["perp_exists"] is True
+    assert payload["size_notional_usd"] == pytest.approx(payload["size_coin"] * 0.07875)
+    assert payload["size_notional_usd"] <= payload["size_usd"]
     assert payload["leverage"] == 2
     assert payload["margin_mode"] == "isolated"
     assert payload["expiry"] == "2026-12-01"
@@ -236,6 +239,14 @@ def test_metadata_failure_blocks_entry_but_not_exit():
     assert hit["reason"] == "stop_hit"
 
 
+def test_entry_without_metadata_is_refused_even_without_an_error_text():
+    candles = _breakout()
+    payload, _ = sig.decide_doge(candles, _account(), None, _now_after(candles))
+    assert payload["action"] == "error"
+    assert "not provided" in payload["reason"]
+    assert payload["size_coin"] is None
+
+
 def test_not_tradeable_does_not_enter():
     candles = _breakout()
     payload, _ = sig.decide_doge(candles, _account(), None, _now_after(candles), market=_market(tradeable=False))
@@ -252,7 +263,8 @@ def test_btc_long_does_not_leak_into_doge_and_vice_versa():
     assert "state_mismatch" not in doge
     assert doge_state["position"] is None
     only_doge = _account(doge={"size": 191.0, "entry_px": 0.0756, "upnl": 0.0})
-    btc, btc_state = sig.decide_btc(candles, only_doge, None, now)
+    btc_market = dict(_market(sz_decimals=5, max_leverage=40, mark=78000.0), coin="BTC")
+    btc, btc_state = sig.decide_btc(candles, only_doge, None, now, market=btc_market)
     assert btc_state["position"] is None
     assert btc["action"] == "enter"
 

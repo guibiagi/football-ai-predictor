@@ -49,6 +49,25 @@ def _account(value=20.0, withdrawable=20.0, btc=None):
     return {"account_value": value, "withdrawable": withdrawable, "btc": btc}
 
 
+# Exchange metadata as metaAndAssetCtxs reports it for BTC. An entry needs it.
+BTC_MARKET = {
+    "coin": "BTC",
+    "exists": True,
+    "asset_index": 0,
+    "sz_decimals": 5,
+    "max_leverage": 40,
+    "only_isolated": False,
+    "is_delisted": False,
+    "mark_px": 100.0,
+    "tradeable": True,
+}
+
+
+def _decide_btc(*args, **kwargs):
+    kwargs.setdefault("market", BTC_MARKET)
+    return sig.decide_btc(*args, **kwargs)
+
+
 def _long(size=0.01, entry=100.0):
     return {"size": size, "entry_px": entry, "upnl": 1.0}
 
@@ -100,7 +119,7 @@ def test_true_range_includes_gap_beyond_high_low():
 def test_breakout_yes_sizes_notional_from_withdrawable():
     candles = _flat(20, price=100, high=100, low=99, close=99.5)
     candles.append(_bar(20, 101, high=102, low=100.5, close=101.2))
-    payload, state = sig.decide_btc(candles, _account(value=20, withdrawable=20), None, _now_after(candles))
+    payload, state = _decide_btc(candles, _account(value=20, withdrawable=20), None, _now_after(candles))
     assert payload["action"] == "enter"
     assert payload["reason"] == "breakout"
     # Shared account: min(withdrawable, equity / 2) * 2 * 0.9.
@@ -333,11 +352,11 @@ def test_low_balance_and_exact_boundary():
     candles = _flat(20, price=100, high=100, low=99, close=99)
     candles.append(_bar(20, 110, high=111, low=109, close=110))  # would enter
     now = _now_after(candles)
-    paused, _state = sig.decide_btc(candles, _account(value=11.99, withdrawable=11), None, now)
+    paused, _state = _decide_btc(candles, _account(value=11.99, withdrawable=11), None, now)
     assert paused["action"] == "pause_low_balance"
     assert paused["reason"] == "account_value_below_12"
     assert paused["account_value"] == pytest.approx(11.99)
-    ok, _state = sig.decide_btc(candles, _account(value=12, withdrawable=20), None, now)
+    ok, _state = _decide_btc(candles, _account(value=12, withdrawable=20), None, now)
     assert ok["action"] == "enter"
 
 
@@ -345,13 +364,13 @@ def test_min_size_blocks_breakout_entry():
     candles = _flat(20, price=100, high=100, low=99, close=99)
     candles.append(_bar(20, 110, high=111, low=109, close=110))
     now = _now_after(candles)
-    small, _state = sig.decide_btc(candles, _account(value=20, withdrawable=5), None, now)
+    small, _state = _decide_btc(candles, _account(value=20, withdrawable=5), None, now)
     assert small["action"] == "skip_small"
     assert small["size_usd"] == sig.clean_float(5 * 2 * 0.9, 6)
     assert small["size_usd"] < 10
     assert "10" in small["reason"]
     assert "low_balance" not in small
-    large, _state = sig.decide_btc(candles, _account(value=20, withdrawable=6), None, now)
+    large, _state = _decide_btc(candles, _account(value=20, withdrawable=6), None, now)
     assert large["action"] == "enter"
     assert large["size_usd"] == sig.clean_float(6 * 2 * 0.9, 6)
     assert large["size_usd"] >= 10
@@ -362,9 +381,9 @@ def test_expired_after_18_nov_2026_only():
     candles.append(_bar(20, 110, high=111, low=109, close=110))
     last_day = datetime(2026, 11, 18, 23, 30, tzinfo=SP)
     # Candles are in October, so they are closed on both clocks.
-    still, _state = sig.decide_btc(candles, _account(), None, last_day)
+    still, _state = _decide_btc(candles, _account(), None, last_day)
     assert still["action"] == "enter"
-    expired, _state = sig.decide_btc(
+    expired, _state = _decide_btc(
         candles, _account(value=5, withdrawable=1), None, datetime(2026, 11, 19, 0, 5, tzinfo=SP)
     )
     assert expired["action"] == "expired"
@@ -613,7 +632,7 @@ def test_no_reentry_on_the_exit_candle():
     candles = _breakout()
     now = _now_after(candles)
     candle = sig.ms_to_iso(candles[-1]["t"])
-    blocked, blocked_state = sig.decide_btc(
+    blocked, blocked_state = _decide_btc(
         candles, _account(), {"position": None, "last_exit_candle": candle}, now
     )
     assert blocked["action"] == "none"
@@ -621,13 +640,13 @@ def test_no_reentry_on_the_exit_candle():
     assert blocked["size_usd"] is None
 
     later = candles + [_bar(21, 120, high=121, low=119, close=120)]
-    allowed, _ = sig.decide_btc(
+    allowed, _ = _decide_btc(
         later, _account(), {"position": None, "last_exit_candle": candle}, _now_after(later)
     )
     assert allowed["action"] == "enter"
 
     dropping = _drop_candles(80)
-    _hit, hit_state = sig.decide_btc(
+    _hit, hit_state = _decide_btc(
         dropping, _account(btc=_long()), _open_state(dropping, stop=90), _now_after(dropping)
     )
     assert hit_state["last_exit_candle"] == sig.ms_to_iso(dropping[-1]["t"])
